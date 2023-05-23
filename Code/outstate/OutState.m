@@ -36,7 +36,7 @@ classdef OutState < handle
 %         if isPoromechanics(obj.model) && isSinglePhaseFlow(obj.model)
 %           [avStressOld,avStrainOld] = finalizeStatePoro(stateOld);
 %           [fluidPotOld] = finalizeStateFlow(stateOld);
-%           printProp = struct('time',stateOld.t,'displ',stateOld.displ, ...
+%           printProp = struct('time',stateOld.t,'dispConv',stateOld.dispConv, ...
 %             'stress',avStressOld,'strain',avStrainOld, ...
 %             'pressure',stateOld.pressure,'potential',fluidPotOld);
         if obj.flOutData
@@ -44,13 +44,13 @@ classdef OutState < handle
         end
         if isPoromechanics(obj.model)
           [avStressOld,avStrainOld] = finalizeStatePoro(stateOld);
-%           printProp = struct('time',stateOld.t,'displ',stateOld.displ, ...
+%           printProp = struct('time',stateOld.t,'dispConv',stateOld.dispConv, ...
 %             'stress',avStressOld,'strain',avStrainOld);
-          printProp.displ = stateOld.displ;
+          printProp.dispConv = stateOld.dispConv;
           printProp.stress = avStressOld;
           printProp.strain = avStrainOld;
           if obj.flOutData
-            obj.m.expDispl(:,obj.timeID) = printProp.displ;
+            obj.m.expDispl(:,obj.timeID) = printProp.dispConv;
           end
         elseif isSinglePhaseFlow(obj.model)
           [fluidPotOld] = finalizeStateFlow(stateOld);
@@ -80,7 +80,7 @@ classdef OutState < handle
 %               [fluidPotOld] = finalizeStateFlow(stateOld);
 %               [fluidPotNew] = finalizeStateFlow(stateNew);
 %               printProp = struct('time',obj.timeList(obj.timeID), ...
-%                 'displ',stateNew.displ*fac+stateOld.displ*(1-fac), ...
+%                 'dispConv',stateNew.dispConv*fac+stateOld.dispConv*(1-fac), ...
 %                 'stress',avStressNew*fac+avStressOld*(1-fac), ...
 %                 'strain',avStrainNew*fac+avStrainOld*(1-fac), ...
 %                 'pressure',stateNew.pressure*fac+stateOld.pressure*(1-fac), ...
@@ -92,14 +92,14 @@ classdef OutState < handle
               [avStressOld,avStrainOld] = finalizeStatePoro(stateOld);
               [avStressNew,avStrainNew] = finalizeStatePoro(stateNew);
 %               printProp = struct('time',obj.timeList(obj.timeID), ...
-%                 'displ',stateNew.displ*fac+stateOld.displ*(1-fac), ...
+%                 'dispConv',stateNew.dispConv*fac+stateOld.dispConv*(1-fac), ...
 %                 'stress',avStressNew*fac+avStressOld*(1-fac), ...
 %                 'strain',avStrainNew*fac+avStrainOld*(1-fac));
-              printProp.displ = stateNew.displ*fac+stateOld.displ*(1-fac);
+              printProp.dispConv = stateNew.dispConv*fac+stateOld.dispConv*(1-fac);
               printProp.stress = avStressNew*fac+avStressOld*(1-fac);
               printProp.strain = avStrainNew*fac+avStrainOld*(1-fac);
               if obj.flOutData
-                obj.m.expDispl(:,obj.timeID+1) = printProp.displ;
+                obj.m.expDispl(:,obj.timeID+1) = printProp.dispConv;
               end
             elseif isSinglePhaseFlow(obj.model)
               [fluidPotOld] = finalizeStateFlow(stateOld);
@@ -223,11 +223,11 @@ classdef OutState < handle
         %
         % Displacement
         pointData3D(1).name = 'ux';
-        pointData3D(1).data = printProp.displ(1:3:length(printProp.displ));
+        pointData3D(1).data = printProp.dispConv(1:3:length(printProp.dispConv));
         pointData3D(2).name = 'uy';
-        pointData3D(2).data = printProp.displ(2:3:length(printProp.displ));
+        pointData3D(2).data = printProp.dispConv(2:3:length(printProp.dispConv));
         pointData3D(3).name = 'uz';
-        pointData3D(3).data = printProp.displ(3:3:length(printProp.displ));
+        pointData3D(3).data = printProp.dispConv(3:3:length(printProp.dispConv));
         %
         % Stress
         cellData3D(1).name = 'sx';

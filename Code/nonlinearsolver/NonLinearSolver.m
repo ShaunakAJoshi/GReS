@@ -83,7 +83,7 @@ classdef NonLinearSolver < handle
         %
         if isPoromechanics(obj.model)
           % Compute Jacobian and residual of the poromechanical problem
-          linSyst.computePoroSyst(obj.stateTmp);
+          linSyst.computePoroSyst(obj.stateTmp,obj.dt);
         end
         if isSinglePhaseFlow(obj.model)
           % Compute Jacobian and residual of the flow problem 
@@ -102,19 +102,19 @@ classdef NonLinearSolver < handle
         tolWeigh = obj.simParameters.relTol*rhsNorm;
         obj.iter = 0;
         %
-        fprintf('0     %e\n',rhsNorm);
+        fprintf('  0     %e\n',rhsNorm);
         while ((rhsNorm > tolWeigh) && (obj.iter < obj.simParameters.itMaxNR) && (rhsNorm > obj.simParameters.absTol)) || obj.iter == 0
           obj.iter = obj.iter + 1;
           %
           % Solve system with increment
-          du = linSyst.K\(-linSyst.rhs);
+          du = -(linSyst.K\linSyst.rhs);
           %
           % Update tmpState
           obj.stateTmp.updateState(du); 
           %
           % Compute residual and update Jacobian
           if isPoromechanics(obj.model)
-            linSyst.computePoroSyst(obj.stateTmp);
+            linSyst.computePoroSyst(obj.stateTmp,obj.dt);
           end
           %
           if isSinglePhaseFlow(obj.model)
@@ -130,13 +130,14 @@ classdef NonLinearSolver < handle
 %           obj.bound.applyBCDir(linSyst);
 %           obj.bound.applyBCNeu(linSyst);
 %         rhsNorm = findNorm(obj,linSyst.rhs);
-          fprintf('%d     %e\n',obj.iter,rhsNorm);
+          fprintf('%3d     %e\n',obj.iter,rhsNorm);
         end
         %
         % Check for convergence
         flConv = (rhsNorm < tolWeigh || rhsNorm < obj.simParameters.absTol);
         if flConv % Convergence
           obj.stateTmp.t = obj.t;
+          obj.stateTmp.advanceState();
           % Print the solution, if needed
           if obj.t > obj.simParameters.tMax   % For Steady State
             printState(obj.printUtil,obj.stateTmp);
@@ -148,10 +149,7 @@ classdef NonLinearSolver < handle
         % Manage next time step
         manageNextTimeStep(obj,flConv);
       end
-        %
-        % Manage next time step
-          
-          
+
 %           flConv = true;
 %           stateTmp.time = time;
 %           %

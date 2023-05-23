@@ -5,8 +5,10 @@ classdef State < matlab.mixin.Copyable
   properties (Access = public)
     t = 0
     iniStress
-    stress
-    displ
+    conv = struct('strain', [], 'stress', [], 'status', []);
+    curr = struct('strain', [], 'stress', [], 'status', []);
+    dispConv
+    dispCurr
 %     iniAvStress
     pressure
   end
@@ -39,12 +41,20 @@ classdef State < matlab.mixin.Copyable
       obj.iniState();
     end
     
+    function advanceState(obj)
+      obj.dispConv = obj.dispCurr;
+      obj.curr.strain = 0.0*obj.curr.strain;
+      obj.conv.stress = obj.curr.stress;
+      obj.conv.status = obj.curr.status;
+    end
+
     function updateState(obj,dSol)
       %METHOD1 Summary of this method goes here
       %   Detailed explanation goes here
       if isPoromechanics(obj.model)
-        obj.displ = obj.displ + dSol;
+        obj.dispCurr = obj.dispCurr + dSol;
         %
+        du = obj.dispCurr - obj.dispConv;
         % Update stress
         l = 0;
         for el=1:obj.mesh.nCells
@@ -64,25 +74,18 @@ classdef State < matlab.mixin.Copyable
               N = getDerBasisFAndDet(obj.elements.hexa,el,2);
               B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
               B(obj.preP.indB(:,2)) = N(obj.preP.indB(:,1));
-              D = obj.preP.getStiffMatrix(el,obj.stress(l+1:l+obj.GaussPts.nNode,3) ...
-                  + obj.iniStress(l+1:l+obj.GaussPts.nNode,3));  % obj.stress before being updated
-              dStress = pagemtimes(D,pagemtimes(B,dSol(dof)));
-              obj.stress((l+1):(l+obj.GaussPts.nNode),:) = ...
-                obj.stress((l+1):(l+obj.GaussPts.nNode),:) + ...
-                reshape(dStress,6,obj.GaussPts.nNode)';
-  %             vol = getVolume(obj.elements,el); % Volumetric average
-  %             dStress = dStress.*reshape(dJWeighed,1,1,[]);
-  %             obj.avStress(el,:) = sum(dStress,3)/vol;
+              obj.curr.strain((l+1):(l+obj.GaussPts.nNode),:) = reshape(pagemtimes(B,du(dof)),6,obj.GaussPts.nNode)';
               l = l + obj.GaussPts.nNode;
           end
         end
       end
+      %pause
       %
       if isSinglePhaseFlow(obj.model)
         obj.pressure = obj.pressure + dSol;
       end
     end
-    
+
     function [avStress,avStrain] = finalizeStatePoro(obj)
       avStress = zeros(obj.mesh.nCells,6);
       avStrain = zeros(obj.mesh.nCells,6);
@@ -94,7 +97,7 @@ classdef State < matlab.mixin.Copyable
             N = getDerBasisF(obj.elements,el);
             B = zeros(6,4*obj.mesh.nDim);
             B(obj.preP.indB(1:36,2)) = N(obj.preP.indB(1:36,1));
-            dStrain = B*obj.displ(dof);
+            dStrain = B*obj.dispCurr(dof);
             avStrain(el,:) = dStrain;
             avStress(el,:) = obj.stress(l+1,:);
             l = l + 1;
@@ -103,8 +106,8 @@ classdef State < matlab.mixin.Copyable
             B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
             B(obj.preP.indB(:,2)) = N(obj.preP.indB(:,1));
 %             vol = getVolume(obj.elements,el); % Volumetric average
-            avStress(el,:) = sum(diag(dJWeighed)*obj.stress((l+1):(l+obj.GaussPts.nNode),:))/obj.elements.vol(el);
-            dStrain = pagemtimes(B,obj.displ(dof));
+            avStress(el,:) = sum(diag(dJWeighed)*obj.curr.stress((l+1):(l+obj.GaussPts.nNode),:))/obj.elements.vol(el);
+            dStrain = pagemtimes(B,obj.dispCurr(dof));
             dStrain = dStrain.*reshape(dJWeighed,1,1,[]);
             avStrain(el,:) = sum(dStrain,3)/obj.elements.vol(el);
             l = l + obj.GaussPts.nNode;
@@ -129,11 +132,26 @@ classdef State < matlab.mixin.Copyable
       % Shared
       objTo.t = objFrom.t;
       % Poromechanics
-      objTo.displ = objFrom.displ;
-      objTo.stress = objFrom.stress;
+      objTo.dispConv = objFrom.dispConv;
+      objTo.conv = objFrom.conv;
+      objTo.curr = objFrom.curr;
       %
       % Flow
       objTo.pressure = objFrom.pressure;
+    end
+
+    function initializeStatus(obj)
+      l = 0;
+      for el = 1:obj.mesh.nCells
+        switch obj.mesh.cellVTKType(el)
+          case 10 % Tetra
+            % TODO
+          case 12 % Hexa
+            obj.conv.status((l+1):(l+obj.GaussPts.nNode),:) = obj.preP.initializeStatus(el, ...
+                obj.iniStress((l+1):(l+obj.GaussPts.nNode),:));
+            l = l + obj.GaussPts.nNode;
+        end
+      end
     end
     
 %     function outStress(obj)
@@ -173,9 +191,13 @@ classdef State < matlab.mixin.Copyable
           tmp = obj.GaussPts.nNode;
         end
         % NOT ELEGANT AT ALL. FIX!
-        obj.stress = zeros([1, tmp, 0, 0]*obj.preP.nE,6);
+        obj.curr.stress = zeros([1, tmp, 0, 0]*obj.preP.nE,6);
+        obj.curr.strain = zeros([1, tmp, 0, 0]*obj.preP.nE,6);
+        obj.curr.status = zeros([1, tmp, 0, 0]*obj.preP.nE,2);
+        obj.conv = obj.curr;
         obj.iniStress = zeros([1, tmp, 0, 0]*obj.preP.nE,6);
-        obj.displ = zeros(obj.mesh.nDim*obj.mesh.nNodes,1);
+        obj.dispConv = zeros(obj.mesh.nDim*obj.mesh.nNodes,1);
+        obj.dispCurr = zeros(obj.mesh.nDim*obj.mesh.nNodes,1);
 %         obj.avStress = zeros(obj.mesh.nCells,6);
 %         obj.avStrain = zeros(obj.mesh.nCells,6);
 %         obj.iniAvStress = zeros(obj.mesh.nCells,6);
@@ -222,6 +244,8 @@ classdef State < matlab.mixin.Copyable
         end
       end
       %
+      obj.conv.stress = obj.iniStress;
+      %
       if isSinglePhaseFlow(obj.model)
 %         if 5<1
         max_z = 410;
@@ -237,6 +261,18 @@ classdef State < matlab.mixin.Copyable
         end
 %         end
       end
+
+      l = 0;
+      for el = 1:obj.mesh.nCells
+        switch obj.mesh.cellVTKType(el)
+          case 10 % Tetra
+            % TODO
+          case 12 % Hexa
+            obj.conv.status((l+1):(l+obj.GaussPts.nNode),:) = obj.preP.initializeStatus(el, ...
+                obj.iniStress((l+1):(l+obj.GaussPts.nNode),:));
+            l = l + obj.GaussPts.nNode;
+        end
+      end
     end
   end
   
@@ -248,11 +284,12 @@ classdef State < matlab.mixin.Copyable
         cp = State(obj.model,obj.grid,obj.material,obj.preP,obj.GaussPts);
       end
       %
-      cp.stress = obj.stress;
-      cp.displ = obj.displ;
+      cp.curr = obj.curr;
+      cp.conv = obj.conv;
+      cp.dispConv = obj.dispConv;
 %       cp.avStress = obj.avStress;
       cp.iniStress = obj.iniStress;
-      cp.displ = obj.displ;
+      cp.dispConv = obj.dispConv;
 %       cp.iniAvStress = obj.iniAvStress;
       cp.pressure = obj.pressure;
       cp.t = obj.t;

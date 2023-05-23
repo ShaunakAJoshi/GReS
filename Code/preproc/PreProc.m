@@ -24,6 +24,11 @@ classdef PreProc < handle
       data = varargin;
       obj.setPreProc(nIn,grid,mat,data);
     end
+
+    function [status] = initializeStatus(obj,el,sigma)
+      mat = obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw;
+      [status] = mat.initializeStatus(sigma);
+    end
     
     function dof = getDoFID(obj,el)
       top = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
@@ -31,14 +36,9 @@ classdef PreProc < handle
       dof = dof + repmat(-(obj.mesh.nDim-1):0,1,obj.mesh.cellNumVerts(el));
     end
     
-    function D = getStiffMatrix(obj,el,sz)
+    function [D, sigma, status] = updateMaterial(obj, el, sigma, eps, dt, status)
       mat = obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw;
-      % Material stiffness matrix
-      if isa(mat,'HypoElastic')
-        D = mat.getStiffnessMatrix(sz);
-      else
-        D = mat.getStiffnessMatrix();
-      end
+      [D, sigma, status] = mat.getStiffnessMatrix(sigma, eps, dt, status);
     end
     
 %     function specGrav = getFluidSpecGrav(obj)

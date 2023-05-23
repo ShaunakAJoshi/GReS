@@ -182,7 +182,7 @@ classdef Discretizer < handle
       obj.rhs = obj.fConst + obj.K*stateTmp.pressure - obj.K2*statek.pressure;
     end
     
-    function computePoroSyst(obj,state)
+    function computePoroSyst(obj,state,dt)
       % Compute the Jacobian and residual of the geomechanical problem
       %METHOD1 Summary of this method goes here
       %   Detailed explanation goes here
@@ -202,7 +202,7 @@ classdef Discretizer < handle
             vol = getVolume(obj.elements,el);
             B = zeros(6,4*obj.mesh.nDim);
             B(obj.preP.indB(1:36,2)) = N(obj.preP.indB(1:36,1));
-            D = obj.preP.getStiffMatrix(el,state.stress(l2+1,3)+state.iniStress(l2+1,3));
+            D = obj.preP.updateMaterial(el,state.stress(l2+1,3)+state.iniStress(l2+1,3));
             KLoc = B'*D*B*vol;
             s1 = obj.preP.nEntryKLoc(1);
             %
@@ -211,35 +211,27 @@ classdef Discretizer < handle
               s2 = 1;
 %             end
           case 12 % Hexahedra
-%             [N,dJWeighed] = getDerBasisFAndDet(obj.elements,el);
-%             sh1 = 0;
-%             KLoc = zeros(obj.mesh.cellNumVerts(1)*obj.mesh.nDim);
-%             for i=1:obj.GaussPts.nNode
-%               B = zeros(6,obj.mesh.cellNumVerts(1)*obj.mesh.nDim);
-%               B(obj.i2) = N(obj.i1+sh1);
-%               KLoc = KLoc + B'*D*B*dJWeighed(i);
-%               sh1 = sh1 + obj.mesh.nDim*obj.mesh.cellNumVerts(1);
-%             end
-              [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
-              B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
-              B(obj.preP.indB(:,2)) = N(obj.preP.indB(:,1));
-%               KTmp = pagemtimes(B,'ctranspose',D,'none');
-%       end
-              D = obj.preP.getStiffMatrix(el,state.stress(l2+1:l2+obj.GaussPts.nNode,3)+state.iniStress(l2+1:l2+obj.GaussPts.nNode,3));
-              Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
-              Ks = Ks.*reshape(dJWeighed,1,1,[]);
-              KLoc = sum(Ks,3);
-              clear Ks;
-              s1 = obj.preP.nEntryKLoc(2);
-              %
-%               if obj.flCompRHS
-                sz = state.stress(l2+1:l2+obj.GaussPts.nNode,:);
-                sz = reshape(sz',6,1,obj.GaussPts.nNode);
-                fTmp = pagemtimes(B,'ctranspose',sz,'none');
-                fTmp = fTmp.*reshape(dJWeighed,1,1,[]);
-                fLoc = sum(fTmp,3);
-                s2 = obj.GaussPts.nNode;
-%               end
+            [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
+            B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
+            B(obj.preP.indB(:,2)) = N(obj.preP.indB(:,1));
+            [D, sigma, status] = obj.preP.updateMaterial(el, ...
+                 state.conv.stress(l2+1:l2+obj.GaussPts.nNode,:), ...
+                 state.curr.strain(l2+1:l2+obj.GaussPts.nNode,:), ...
+                 dt, ...
+                 state.conv.status(l2+1:l2+obj.GaussPts.nNode,:));
+            state.curr.status(l2+1:l2+obj.GaussPts.nNode,:) = status;
+            state.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = sigma;
+            Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
+            Ks = Ks.*reshape(dJWeighed,1,1,[]);
+            KLoc = sum(Ks,3);
+            clear Ks;
+            s1 = obj.preP.nEntryKLoc(2);
+            sz = sigma - state.iniStress(l2+1:l2+obj.GaussPts.nNode,:);
+            sz = reshape(sz',6,1,obj.GaussPts.nNode);
+            fTmp = pagemtimes(B,'ctranspose',sz,'none');
+            fTmp = fTmp.*reshape(dJWeighed,1,1,[]);
+            fLoc = sum(fTmp,3);
+            s2 = obj.GaussPts.nNode;
         end
         %
         dof = obj.preP.getDoFID(el);
