@@ -106,11 +106,6 @@ res = res(1:iter);
 %    fprintf('Non convergence with residual %15.6e\n', rnorm);
 %end
 
-% To have better results when q ~= 0
-if (q/p < rtol)
-    q = 0.0;
-end
-
 % n tensor in vector form
 if (qtrial > 0)
     strial = p*sbar + s0;

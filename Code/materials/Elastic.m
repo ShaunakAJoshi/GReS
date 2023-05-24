@@ -15,7 +15,7 @@ classdef Elastic < handle
   methods (Access = public)
     % Class constructor method
     function obj = Elastic(fID, matFileName)
-      % Calling the function to set the object properties 
+      % Calling the function to set the object properties
       obj.readMaterialParameters(fID, matFileName);
     end
 
@@ -40,12 +40,12 @@ classdef Elastic < handle
         DAll(:,:,i) = D;
       end
     end
-    
+
     % Method that returns the M factor
     function m = getMFactor(obj)
       m = obj.M;
     end
-    
+
     % Get vertical compressibility
     function cM = getRockCompressibility(obj)
       cM = obj.cM;

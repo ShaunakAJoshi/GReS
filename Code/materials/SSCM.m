@@ -2,15 +2,15 @@ classdef SSCM < handle
   % ELASTIC ISOTROPIC material class
 
   properties (Access = private)
-    ni = 0.3;
-    lambda = 0.61e-01;
-    kappa = 0.84e-02;
-    mu = 0.11e-02;
-    tau = 2.73785e-03;
-    cohes = 0.0;
-    M = 0.133000E+01;
-    fric_ang = 0.523599E+00;
-    OCR = 1.39;
+    ni;
+    lambda;
+    kappa;
+    mu;
+    tau;
+    cohes;
+    M;
+    fric_ang;
+    OCR;
     itmax = 50;
     atol = 1.e-12;
     rtol = 1.e-8;
@@ -19,7 +19,7 @@ classdef SSCM < handle
   methods (Access = public)
     % Class constructor method
     function obj = SSCM(fID, matFileName)
-      % Calling the function to set the object properties 
+      % Calling the function to set the object properties
       obj.readMaterialParameters(fID, matFileName);
     end
 
@@ -45,12 +45,12 @@ classdef SSCM < handle
       end
       sigmaOut = -sigmaOut;
     end
-    
+
     % Method that returns the M factor
     function m = getMFactor(obj)
       m = obj.M;
     end
-    
+
     % Get vertical compressibility
     function cM = getRockCompressibility(obj)
       cM = obj.cM;
