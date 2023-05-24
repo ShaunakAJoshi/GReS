@@ -9,13 +9,17 @@ Ds = diag([1;1;1;0.5;0.5;0.5]);
 Dev = eye(6) - 1/3*(m*m');
 
 p0 = (sigma0(1)+sigma0(2)+sigma0(3))/3;
-q0 = sqrt(sigma0(1)*(sigma0(1)-sigma0(2))+sigma0(2)*(sigma0(2)-sigma0(3))+ ...
-    sigma0(3)*(sigma0(3)-sigma0(1))+3*(sigma0(4)^2+sigma0(5)^2+sigma0(6)^2));
-s0 = Dev*sigma0;
+% s0 = Dev*sigma0;
+s0 = sigma0;
+s0(1:3) = s0(1:3) - p0;
 
 Kbar = 1/kappa;
 Gbar = 3/2*(1-2*ni)/(1+ni)*Kbar;
-sbar = 2*Gbar*(Dev*(Ds*devp));
+% sbar = 2*Gbar*(Dev*(Ds*devp));
+devpv = devp(1)+devp(2)+devp(3);
+sbar = zeros(6,1);
+sbar(1:3) = 2*Gbar*(devp(1:3) - devpv/3);
+sbar(4:6) = Gbar*devp(4:6);
 pbar = Kbar*(m'*devp);
 sbar_sbar = sbar(1)*sbar(1) + sbar(2)*sbar(2) + sbar(3)*sbar(3) + 2*(sbar(4)*sbar(4) + sbar(5)*sbar(5) + sbar(6)*sbar(6));
 sbar_s0 = sbar(1)*s0(1) + sbar(2)*s0(2) + sbar(3)*s0(3) + 2*(sbar(4)*s0(4) + sbar(5)*s0(5) + sbar(6)*s0(6));
@@ -141,8 +145,16 @@ c12 = -F12/detF;
 c21 = -F21/detF;
 c22 = F11/detF;
 
-stif = 2/3*c21*K*(nt*m')*Ds + c12*2*G*(m*nt') + 4/3*G*(c22-q/qtrial)*(nt*nt') + 2*G*q/qtrial*Dev*Ds + c11*K*(m*m')*Ds + ...
-    2/3*q/qtrial*(3*Gbar*(Dev*Ds - 2/3*(nt*nt'))*devp)*(c11*K*m'*Ds + c12*2*G*nt');
+% Another form for the same consistent tangent operator
+%stif = 2/3*c21*K*(nt*m')*Ds + c12*2*G*(m*nt') + 4/3*G*(c22-q/qtrial)*(nt*nt') + 2*G*q/qtrial*Dev*Ds + c11*K*(m*m')*Ds + ...
+%    2/3*q/qtrial*(3*Gbar*(Dev*Ds - 2/3*(nt*nt'))*devp)*(c11*K*m'*Ds + c12*2*G*nt');
+neps = nt'*devp;
+% sbar constains Dev*Ds*devp since sbar = 2*Gbar*Dev*Ds*devp
+sbar = sbar/(2*Gbar);
+stif = 2/3*(-2*Gbar*q/qtrial*c11*neps+c21)*K*(nt*m') + c12*2*G*(m*nt') + ...
+       4/3*(-2*Gbar*q/qtrial*c12*neps+(c22-q/qtrial))*G*(nt*nt') + 2*G*q/qtrial*Dev*Ds + c11*K*(m*m') + ...
+       2*Gbar*q/qtrial*c11*K*(sbar*m') + 4*Gbar*q/qtrial*c12*G*(sbar*nt');
+
 %stif = 0.5*(stif + stif');
 
 end
