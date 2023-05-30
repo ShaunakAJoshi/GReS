@@ -145,15 +145,19 @@ c12 = -F12/detF;
 c21 = -F21/detF;
 c22 = F11/detF;
 
-% Another form for the same consistent tangent operator
-%stif = 2/3*c21*K*(nt*m')*Ds + c12*2*G*(m*nt') + 4/3*G*(c22-q/qtrial)*(nt*nt') + 2*G*q/qtrial*Dev*Ds + c11*K*(m*m')*Ds + ...
-%    2/3*q/qtrial*(3*Gbar*(Dev*Ds - 2/3*(nt*nt'))*devp)*(c11*K*m'*Ds + c12*2*G*nt');
-neps = nt'*devp;
+edev = nt'*devp;
 % sbar constains Dev*Ds*devp since sbar = 2*Gbar*Dev*Ds*devp
-sbar = sbar/(2*Gbar);
-stif = 2/3*(-2*Gbar*q/qtrial*c11*neps+c21)*K*(nt*m') + c12*2*G*(m*nt') + ...
-       4/3*(-2*Gbar*q/qtrial*c12*neps+(c22-q/qtrial))*G*(nt*nt') + 2*G*q/qtrial*Dev*Ds + c11*K*(m*m') + ...
-       2*Gbar*q/qtrial*c11*K*(sbar*m') + 4*Gbar*q/qtrial*c12*G*(sbar*nt');
+t = sbar/(2*Gbar);
+
+d1 = 2/3*(c21-2*Gbar*q/qtrial*c11*edev)*K;
+d2 = 2*G*c12;
+d3 = 4/3*((c22-q/qtrial)-2*Gbar*q/qtrial*c12*edev)*G;
+d4 = c11*K;
+d5 = 2*G*q/qtrial;
+d6 = 2*Gbar*q/qtrial*c11*K;
+d7 = 4*Gbar*q/qtrial*c12*G;
+
+stif = d1*(nt*m') + d2*(m*nt') + d3*(nt*nt') + d4*(m*m') + d5*Dev*Ds + d6*(t*m') + d7*(t*nt');
 
 %stif = 0.5*(stif + stif');
 
