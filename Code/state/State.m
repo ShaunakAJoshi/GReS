@@ -61,14 +61,10 @@ classdef State < matlab.mixin.Copyable
           dof = getDoFID(obj.preP,el);
           switch obj.mesh.cellVTKType(el)
             case 10 % Tetra
-              N = getDerBasisF(obj.elements,el);
+              N = getDerBasisF(obj.elements.tetra,el);
               B = zeros(6,4*obj.mesh.nDim);
               B(obj.preP.indB(1:36,2)) = N(obj.preP.indB(1:36,1));
-              D = obj.preP.getStiffMatrix(el,obj.stress(l+1,3) ...
-                  + obj.iniStress(l+1,3));  % obj.stress before being updated
-              dStress = D*B*dSol(dof);
-              obj.stress(l+1,:) = obj.stress(l+1,:) + dStress';
-  %             obj.avStress(el,:) = obj.stress(l+1,:);
+              obj.curr.strain(l+1,:) = (B*du(dof))';
               l = l + 1;
             case 12 % Hexa
               N = getDerBasisFAndDet(obj.elements.hexa,el,2);
@@ -94,12 +90,11 @@ classdef State < matlab.mixin.Copyable
         dof = getDoFID(obj.preP,el);
         switch obj.mesh.cellVTKType(el)
           case 10 % Tetra
-            N = getDerBasisF(obj.elements,el);
+            N = getDerBasisF(obj.elements.tetra,el);
             B = zeros(6,4*obj.mesh.nDim);
             B(obj.preP.indB(1:36,2)) = N(obj.preP.indB(1:36,1));
             dStrain = B*obj.dispCurr(dof);
             avStrain(el,:) = dStrain;
-            avStress(el,:) = obj.stress(l+1,:);
             l = l + 1;
           case 12 % Hexa
             [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
@@ -145,7 +140,9 @@ classdef State < matlab.mixin.Copyable
       for el = 1:obj.mesh.nCells
         switch obj.mesh.cellVTKType(el)
           case 10 % Tetra
-            % TODO
+            obj.conv.status(l+1,:) = obj.preP.initializeStatus(el, ...
+                obj.iniStress(l+1,:));
+            l = l + 1;
           case 12 % Hexa
             obj.conv.status((l+1):(l+obj.GaussPts.nNode),:) = obj.preP.initializeStatus(el, ...
                 obj.iniStress((l+1):(l+obj.GaussPts.nNode),:));
@@ -261,18 +258,7 @@ classdef State < matlab.mixin.Copyable
         end
 %         end
       end
-
-      l = 0;
-      for el = 1:obj.mesh.nCells
-        switch obj.mesh.cellVTKType(el)
-          case 10 % Tetra
-            % TODO
-          case 12 % Hexa
-            obj.conv.status((l+1):(l+obj.GaussPts.nNode),:) = obj.preP.initializeStatus(el, ...
-                obj.iniStress((l+1):(l+obj.GaussPts.nNode),:));
-            l = l + obj.GaussPts.nNode;
-        end
-      end
+      initializeStatus(obj);
     end
   end
   

@@ -198,18 +198,21 @@ classdef Discretizer < handle
         % Get the right material stiffness for each element
         switch obj.mesh.cellVTKType(el)
           case 10 % Tetrahedra
-            N = getDerBasisF(obj.elements,el);
-            vol = getVolume(obj.elements,el);
+            N = getDerBasisF(obj.elements.tetra,el);
+            vol = findVolume(obj.elements.tetra,el);
             B = zeros(6,4*obj.mesh.nDim);
             B(obj.preP.indB(1:36,2)) = N(obj.preP.indB(1:36,1));
-            D = obj.preP.updateMaterial(el,state.stress(l2+1,3)+state.iniStress(l2+1,3));
+            [D, sigma, status] = obj.preP.updateMaterial(el, ...
+                 state.conv.stress(l2+1,:), ...
+                 state.curr.strain(l2+1,:), ...
+                 dt, ...
+                 state.conv.status(l2+1,:));
+            state.curr.status(l2+1,:) = status;
+            state.curr.stress(l2+1,:) = sigma;
             KLoc = B'*D*B*vol;
             s1 = obj.preP.nEntryKLoc(1);
-            %
-%             if obj.flCompRHS
-              fLoc = (B')*(state.stress(l2+1,:))'*vol;
-              s2 = 1;
-%             end
+            fLoc = (B')*(sigma - state.iniStress(l2+1,:))'*vol;
+            s2 = 1;
           case 12 % Hexahedra
             [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
             B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
@@ -240,8 +243,7 @@ classdef Discretizer < handle
         jjVec(l1+1:l1+s1) = jjLoc(:);
         KVec(l1+1:l1+s1) = KLoc(:);
         % Accumulate the residual contributions
-          obj.rhs(dof) = obj.rhs(dof) + fLoc;
-%         end
+        obj.rhs(dof) = obj.rhs(dof) + fLoc;
         l1 = l1 + s1;
         l2 = l2 + s2;
       end
