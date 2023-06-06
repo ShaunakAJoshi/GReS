@@ -258,7 +258,9 @@ classdef State < matlab.mixin.Copyable
         end
 %         end
       end
-      initializeStatus(obj);
+      if isPoromechanics(obj.model)
+        initializeStatus(obj);
+      end
     end
   end
   

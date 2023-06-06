@@ -159,6 +159,8 @@ d7 = 4*Gbar*q/qtrial*c12*G;
 
 stif = d1*(nt*m') + d2*(m*nt') + d3*(nt*nt') + d4*(m*m') + d5*Dev*Ds + d6*(t*m') + d7*(t*nt');
 
+%stif = sqrtm(stif'*stif);
+
 %stif = 0.5*(stif + stif');
 
 end
