@@ -501,7 +501,7 @@ classdef Mortar3D < handle
         %
 
         function [n_n,varargout] = computeNodalNormal(obj,elem)
-           % Return vector n of weighted normals
+           % Return vector n of weighed normals
            n_n = zeros(length(obj.intSlave.coordinates),3);
            area = elem.findAreaAndCentroid(1:obj.intSlave.nSurfaces); % area of each cell
            elem_normal = elem.computeNormal(1:obj.intSlave.nSurfaces);

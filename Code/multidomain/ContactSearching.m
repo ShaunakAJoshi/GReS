@@ -60,6 +60,7 @@ classdef ContactSearching < handle
             for i = 1:size(BBtree,1)
                 % get elements of i-th node of the bounding volume tree
                 surfList = find(elemMap(:,i));
+                %fprintf('%i \n',i)
                 [treeNodes(i,:), leftCells, rightCells] = populateTreeNode(obj,msh,surfList);
                 if ~isempty(leftCells) % TreeNode is not a leaf Node
                     BBtree(i,:) = [2*k 2*k+1];
@@ -138,6 +139,13 @@ classdef ContactSearching < handle
                id = surfPrim < median(surfPrim); 
                lCells = surfID(id);
                rCells = surfID(~id);
+               % avoid empty sets if the median is computed only on 2
+               % numbers
+               if isempty(lCells) || isempty(rCells)
+                  id = surfPrim > median(surfPrim);
+                  lCells = surfID(id);
+                  rCells = surfID(~id);
+               end
                assert(length(lCells)+length(rCells) == length(surfID), 'Some elements left out from splitting procedure');
                assert(~isempty(lCells),'Empty leaf cells');
                assert(~isempty(rCells),'Empty leaf cells');

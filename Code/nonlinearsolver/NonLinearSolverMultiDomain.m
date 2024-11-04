@@ -308,8 +308,7 @@ classdef NonLinearSolverMultiDomain < handle
        end
 
        function [t, dt] = updateTime(obj,conv,dt)
-           t = obj.simParameters.tMax;
-           told = t;
+           tMax = obj.simParameters.tMax;
            for i = 1:obj.nDom
                if obj.meshGlue.model(i).OutState.modTime
                    tmp = find(obj.t<obj.meshGlue.model(i).outState.timeList(),1,'first');
@@ -321,8 +320,8 @@ classdef NonLinearSolverMultiDomain < handle
                else
                    t = obj.t + obj.dt;
                end
-               if t > told
-                   t = told;
+               if t > tMax
+                   t = tMax;
                end
            end
            dt = t - obj.t;

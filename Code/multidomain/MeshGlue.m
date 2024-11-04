@@ -48,7 +48,7 @@ classdef MeshGlue < handle
                % set interface structure
                intStruct = [intStruct; struct('Master',d(1),'Slave',d(2),...
                   'masterSet',mortar.nodesMaster,'slaveSet',mortar.nodesSlave,...
-                  'nodeNormal',n_a,'InterpOperator',full(D\M),'mortar',mortar,'slaveMat',D,'crossMat',M)];
+                  'nodeNormal',n_a,'InterpOperator',D\M,'mortar',mortar,'slaveMat',D,'crossMat',M)];
             end
          end
          obj.interfaces = intStruct;

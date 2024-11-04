@@ -11,6 +11,10 @@ if ~strcmp(item,'VolumeForce')
    fprintf(fID,'%s            %% BC type \n',type);
 end
 fprintf(fID,'%s            %% Physics \n',physic);
+if strcmp(type,'Neu')
+   assert(numel(dir)==1,'Only one direction is allowed for Neumann BCs');
+   fprintf(fID,'%s \n',dir);
+end
 fprintf(fID,'%s            %% BC name \n',bcName);
 listName = strcat(fName,'/list');
 fprintf(fID,'%s \n',listName);
@@ -46,11 +50,17 @@ if isempty(dir)
    fprintf(fList,'%i         %% Number of fixed entities \n',length(list));
    fprintf(fList,'%i \n',list);
 else
-   tmp = ismember(["x","y","z"],dir);
-   fprintf(fList,'%i ',tmp*length(list));
-   fprintf(fList,'   %% Number of fixed entities \n');
-   list = repmat(list,sum(tmp),1);
-   fprintf(fList,'%i \n',list);
+   if strcmp(type,'Dir')
+      tmp = ismember(["x","y","z"],dir);
+      fprintf(fList,'%i ',tmp*length(list));
+      fprintf(fList,'   %% Number of fixed entities \n');
+      list = repmat(list,sum(tmp),1);
+      fprintf(fList,'%i \n',list);
+   elseif strcmp(type,'Neu')
+      fprintf(fList,'%i ',length(list));
+      fprintf(fList,'   %% Number of fixed entities \n');
+      fprintf(fList,'%i \n',list);
+   end
 end
 
 % writing BC vals for each time step
