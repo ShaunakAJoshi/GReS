@@ -81,8 +81,10 @@ classdef Mortar3D < handle
           switch obj.intSlave.surfaceVTKType(1)
              case 5 % Triangle mesh Master
                 obj.slaveCellType = 10;
+                obj.nNslave = 3;
              case 9 % Quad mesh Master
                 obj.slaveCellType = 12;
+                obj.nNslave = 4;
           end
           obj.nElMaster = size(obj.masterTopol,1);
           obj.nElSlave = size(obj.slaveTopol,1);
@@ -774,7 +776,7 @@ classdef Mortar3D < handle
 
 
     methods(Static)
-
+       
         function Nslave_dual = computeDualBasisF(Nslave,gpW)
             % compute dual basis function on slave GPs
             % get matrix of BF phi = Nslave*A

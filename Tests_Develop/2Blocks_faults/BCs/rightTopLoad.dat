@@ -2,7 +2,7 @@ SurfBC            % BC item
 Neu            % BC type 
 Poro            % Physics 
 z 
-right_TopLoad            % BC name 
+right_topLoad            % BC name 
 BCs/rightTopLoad/list 
 5.000000 BCs/rightTopLoad/time0.dat 
 10.000000 BCs/rightTopLoad/time1.dat 

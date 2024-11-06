@@ -73,15 +73,6 @@ classdef State < matlab.mixin.Copyable
                             N = getDerBasisFAndDet(obj.elements.hexa,el,2);
                             B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
                             B(obj.elements.indB(:,2)) = N(obj.elements.indB(:,1));
-                            %               D = obj.preP.getStiffMatrix(el,obj.stress(l+1:l+obj.GaussPts.nNode,3) ...
-                            %                   + obj.iniStress(l+1:l+obj.GaussPts.nNode,3));  % obj.stress before being updated
-                            %               dStress = pagemtimes(D,pagemtimes(B,dSol(dof)));
-                            %               obj.stress((l+1):(l+obj.GaussPts.nNode),:) = ...
-                            %                 obj.stress((l+1):(l+obj.GaussPts.nNode),:) + ...
-                            %                 reshape(dStress,6,obj.GaussPts.nNode)';
-                            %             vol = getVolume(obj.elements,el); % Volumetric average
-                            %             dStress = dStress.*reshape(dJWeighed,1,1,[]);
-                            %             obj.avStress(el,:) = sum(dStress,3)/vol;
                             obj.curr.strain((l+1):(l+obj.GaussPts.nNode),:) = ...
                                 reshape(pagemtimes(B,du(dof)),6,obj.GaussPts.nNode)';
                             l = l + obj.GaussPts.nNode;

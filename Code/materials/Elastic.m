@@ -10,6 +10,8 @@ classdef Elastic < handle
     M
     % Vertical compressibility Cm
     cM
+    % constitutive matrix
+    Dmat
   end
 
   methods (Access = public)
@@ -27,21 +29,8 @@ classdef Elastic < handle
     % Material stiffness matrix calculation using the object properties
     function [DAll, sigmaOut, status] = getStiffnessMatrix(obj, sigmaIn, epsilon, dt, status)
       nptGauss = size(sigmaIn,1);
-%       sigmaOut = zeros(nptGauss,6);    % MODIFICA SN
-      % Stiffness matrix
-%       DAll = zeros(6,6,nptGauss);      % MODIFICA SN
-      D = zeros(6);
-      D([1 8 15]) = 1-obj.nu;
-      D([2 3 7 9 13 14]) = obj.nu;
-      D([22 29 36]) = (1-2*obj.nu)/2;
-      D = obj.E/((1+obj.nu)*(1-2*obj.nu))*D;
-      % MODIFICA SN
-%       for i = 1 : nptGauss
-%         sigmaOut(i,:) = sigmaIn(i,:) + epsilon(i,:)*D;
-%         DAll(:,:,i) = D;
-%       end
-      sigmaOut = sigmaIn + epsilon*D;
-      DAll = repmat(D,[1, 1, nptGauss]);
+      sigmaOut = sigmaIn + epsilon*obj.Dmat;
+      DAll = repmat(obj.Dmat,[1, 1, nptGauss]);
     end
     %
     % Material stiffness matrix calculation using the object properties
@@ -66,19 +55,25 @@ classdef Elastic < handle
   end
 
   methods (Access = private)
-    % Assigning material parameters (check also the Materials class)
-    % to object properties
-    function readMaterialParameters(obj, fID, matFileName)
-      tmpVec = readDataInLine(fID, matFileName, 2);
-      %
-      obj.E = tmpVec(1);
-      obj.nu = tmpVec(2);
-      %
-      % Compute the M factor
-      obj.M = obj.nu/(1-obj.nu);
-      %
-      % Compute vertical compressibility
-      obj.cM = (1+obj.nu)*(1-2*obj.nu)/(obj.E*(1-obj.nu));
+     % Assigning material parameters (check also the Materials class)
+     % to object properties
+     function readMaterialParameters(obj, fID, matFileName)
+        tmpVec = readDataInLine(fID, matFileName, 2);
+        %
+        obj.E = tmpVec(1);
+        obj.nu = tmpVec(2);
+        %
+        % Compute the M factor
+        obj.M = obj.nu/(1-obj.nu);
+        %
+        % Compute vertical compressibility
+        obj.cM = (1+obj.nu)*(1-2*obj.nu)/(obj.E*(1-obj.nu));
+        % Compute consititutive tensor
+        D = zeros(6);
+        D([1 8 15]) = 1-obj.nu;
+        D([2 3 7 9 13 14]) = obj.nu;
+        D([22 29 36]) = (1-2*obj.nu)/2;
+        obj.Dmat = obj.E/((1+obj.nu)*(1-2*obj.nu))*D;
     end
   end
 end

@@ -89,11 +89,13 @@ classdef Poromechanics < handle
                         B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
                         B(obj.elements.indB(:,2)) = N(obj.elements.indB(:,1));
                         [D, sigma, status] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
-                            state.conv.stress(l2+1:l2+obj.GaussPts.nNode,:), ...
-                            state.curr.strain(l2+1:l2+obj.GaussPts.nNode,:), ...
-                            dt,state.conv.status(l2+1:l2+obj.GaussPts.nNode,:), el, state.t);
+                           state.conv.stress(l2+1:l2+obj.GaussPts.nNode,:), ...
+                           state.curr.strain(l2+1:l2+obj.GaussPts.nNode,:), ...
+                           dt,state.conv.status(l2+1:l2+obj.GaussPts.nNode,:), el, state.t);
                         state.curr.status(l2+1:l2+obj.GaussPts.nNode,:) = status;
-                        state.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = sigma;
+                        if ~isLinear(obj)
+                           state.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = sigma;
+                        end
                         Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
                         Ks = Ks.*reshape(dJWeighed,1,1,[]);
                         KLoc = sum(Ks,3);
@@ -122,13 +124,32 @@ classdef Poromechanics < handle
 
 
         function computeRhs(obj,varargin)
-            stateTmp = varargin{1};
-            %computing rhs for poromechanics field
-            if isLinear(obj) % linear case
-                ents = obj.dofm.field2ent('Poro');
-                theta = obj.simParams.theta;
-                obj.rhs = theta*obj.K*stateTmp.dispCurr(ents) + ...
-                    (1-theta)*obj.K*stateTmp.dispConv(ents);
+           stateTmp = varargin{1};
+           %computing rhs for poromechanics field
+           if isLinear(obj) % linear case
+              % update elastic stress
+              subInd = obj.dofm.subList(ismember(obj.dofm.subPhysics, 'Poro'));
+              [subCells, ~] = find(obj.dofm.subCells(:,subInd));
+              l1 = 0;
+              for el=subCells'
+                 D = obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw.Dmat;
+                 % Get the right material stiffness for each element
+                 switch obj.mesh.cellVTKType(el)
+                    case 10 % Tetrahedra
+                       stateTmp.curr.stress(l1+1,:) = stateTmp.curr.stress(l1+1,:)+stateTmp.curr.strain.stress(l1+1,:)*D;
+                       s1 = 1;
+                    case 12 % Hexahedra
+                       stateTmp.curr.stress((l1+1):(l1+obj.GaussPts.nNode),:) = ...
+                          stateTmp.curr.stress((l1+1):(l1+obj.GaussPts.nNode),:)+...
+                          stateTmp.curr.strain((l1+1):(l1+obj.GaussPts.nNode),:)*D;
+                       s1 = obj.GaussPts.nNode;
+                 end
+                 l1 = l1+s1;
+              end
+                 ents = obj.dofm.field2ent('Poro');
+                 theta = obj.simParams.theta;
+                 obj.rhs = theta*obj.K*stateTmp.dispCurr(ents) + ...
+                  (1-theta)*obj.K*stateTmp.dispConv(ents);
             else % non linear case: rhs computed with internal forces (B^T*sigma)
                 obj.rhs = obj.fInt; % provisional assuming theta = 1;
             end

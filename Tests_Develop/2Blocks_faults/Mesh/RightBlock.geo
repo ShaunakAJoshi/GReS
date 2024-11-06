@@ -20,6 +20,6 @@ Transfinite Surface {1,2,3,4,5,6};
 
 
 //Recombine Surface {:};
-MeshSize {:} = 0.5;
+MeshSize {:} = 1;
 Mesh 3;
 Save "RightBlock.msh";

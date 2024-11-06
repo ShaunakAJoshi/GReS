@@ -19,6 +19,6 @@ Transfinite Surface {1,2,3,4,5,6};
 
 
 //Recombine Surface {:};
-MeshSize {:} = 0.75;
+MeshSize {:} = 1.5;
 Mesh 3;
 Save "LeftBlock.msh";
