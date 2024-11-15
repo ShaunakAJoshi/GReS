@@ -1,6 +1,5 @@
 classdef State < matlab.mixin.Copyable
-    %UNTITLED Summary of this class goes here
-    %   Detailed explanation goes here
+    % State object - stores solution fields
 
     properties (Access = public)
         t = 0
@@ -20,15 +19,8 @@ classdef State < matlab.mixin.Copyable
         elements
         material
         GaussPts
-        %     avStress
-        %     avStrain
-        %     fluidPot
-        %     density = 2200/10^6   % kg/m3/10^6
     end
 
-    %   properties (Constant)
-    %     gravAcc = 9.80665   % m/s2
-    %   end
 
     methods (Access = public)
         function obj = State(symmod,grid,mat,varargin)
@@ -41,6 +33,7 @@ classdef State < matlab.mixin.Copyable
 
         function advanceState(obj)
             obj.dispConv = obj.dispCurr;
+            % Strain is an incremental value within each time step
             obj.curr.strain = 0.0*obj.curr.strain;
             obj.conv.stress = obj.curr.stress;
             obj.conv.status = obj.curr.status;
@@ -90,6 +83,8 @@ classdef State < matlab.mixin.Copyable
             %
 
         function [avStress,avStrain] = finalizeStatePoro(obj)
+            % avStrain stores total strain of each cell (avarage)
+            % diffent from state.strain, which is an incremental measure
             avStress = zeros(obj.mesh.nCells,6);
             avStrain = zeros(obj.mesh.nCells,6);
             l = 0;
@@ -200,21 +195,14 @@ classdef State < matlab.mixin.Copyable
                 if ~isempty(obj.GaussPts)
                     tmp = obj.GaussPts.nNode;
                 end
-                % NOT ELEGANT AT ALL. FIX!
                 obj.curr.stress = zeros([1, tmp, 0, 0]*obj.elements.nCellsByType,6);
                 obj.curr.strain = zeros([1, tmp, 0, 0]*obj.elements.nCellsByType,6);
                 obj.curr.status = zeros([1, tmp, 0, 0]*obj.elements.nCellsByType,2);
                 obj.conv = obj.curr;
-                obj.iniStress = zeros([1, tmp, 0, 0]*obj.elements.nCellsByType,6);
+                obj.iniStress = zeros([1, tmp, 0, 0]*obj.elements.nCellsByType,6); 
                 obj.dispConv = zeros(obj.mesh.nDim*obj.mesh.nNodes,1);
                 obj.dispCurr = zeros(obj.mesh.nDim*obj.mesh.nNodes,1);
                 %
-                %         obj.stress = zeros([1, tmp, 0, 0]*obj.elements.nCellsByType,6);
-                %         obj.iniStress = zeros([1, tmp, 0, 0]*obj.elements.nCellsByType,6);
-                %         obj.displ = zeros(obj.mesh.nDim*obj.mesh.nNodes,1);
-                %         obj.avStress = zeros(obj.mesh.nCells,6);
-                %         obj.avStrain = zeros(obj.mesh.nCells,6);
-                %         obj.iniAvStress = zeros(obj.mesh.nCells,6);
             end
             %
             if isFlow(obj.model)

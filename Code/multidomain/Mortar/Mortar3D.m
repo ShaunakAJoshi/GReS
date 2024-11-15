@@ -24,6 +24,8 @@ classdef Mortar3D < handle
         nNslave               % number of nodes per elements in master mesh
         masterCellType
         slaveCellType
+        D
+        M
     end
 
     methods
@@ -325,6 +327,8 @@ classdef Mortar3D < handle
             if strcmp(mult_type,'dual')
                 D = diag(sum(D,2)); % make sure D is diagonal by lumping
             end
+            obj.D = D;
+            obj.M = M;
             %scale projection operator to recover partition of unity
             %E = E./sum(E,2);
             if nargout == 3
@@ -677,6 +681,30 @@ classdef Mortar3D < handle
                  end
            end
         end
+
+        function E = getMortarOperator(obj,varargin)
+           if nargin > 2
+              error('Too many input arguments \n');
+           end
+           E = obj.D\obj.M;
+           if isempty(varargin)
+              % directly return mortar operator (scalar interpolation)
+              return
+           else
+              nc = varargin{1};
+              idRow = 1:size(E,1);
+              idCol = 1:size(E,2);
+              Enew = sparse(nc*numel(idRow),3*numel(idCol));
+              for k = nc-1:-1:0
+                 r = nc*idRow - k;
+                 c = nc*idCol - k;
+                 Enew(r,c) = E;
+              end
+              E = Enew;
+              %
+           end
+        end
+
     end
 
     methods (Access=private)        
@@ -768,6 +796,7 @@ classdef Mortar3D < handle
           sVec = sVec(1:s);
           connMat = sparse(mVec,sVec,true(s,1),nM,nS);
        end
+
     end
 
 
