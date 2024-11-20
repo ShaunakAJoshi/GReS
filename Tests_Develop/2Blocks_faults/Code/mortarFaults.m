@@ -39,6 +39,7 @@ classdef mortarFaults < handle
       E           % mortar operator
       R           % global rotation matrix
       tolGap = 1e-7; % Gap tolerance to avoid instabilities [m]
+      iniMult; % initial multiplier vector
    end
 
    methods
@@ -104,7 +105,7 @@ classdef mortarFaults < handle
                J = computeJacobian(obj);
 
                % apply BCs to global system
-               applyBC_faults(obj,J,rhs,obj.t);
+               [J,rhs] = applyBC_faults(obj,J,rhs,obj.t);
 
                
                % compute base rhs norm for relative convergence
@@ -129,23 +130,31 @@ classdef mortarFaults < handle
                      && (rhsNorm > absTol)) || itNR == 0
                   itNR = itNR + 1;
                   %
-                  du = J\-rhs;
+                  du = J\(-rhs);
 
                   % update solution fields (disp, multipliers)
+                  updateStateFaults(obj,du);
+
+                  % printe state (even if not converged)
+                  for i = 1:obj.nDom
+                     obj.state(i).advanceState();
+                     printState(obj.models(i).OutState,obj.state(i));
+                     obj.models(i).OutState.finalize();
+                  end
+                  return
 
                   % update nodal gaps
+                  computeNodalGap(obj);
 
                   % recompute rhs
+                  rhs = computeRhs(obj);
 
                   % assemble jacobian
-
-
-
-
+                  J = computeJacobian(obj);
 
                   % Apply BCs to global system
+                  applyBC_faults(obj,J,rhs,obj.t);
   
-
                   % compute Rhs norm
                   rhsNorm = norm(rhs,2);
                   if obj.simParameters.verbosity > 1
@@ -162,17 +171,14 @@ classdef mortarFaults < handle
                      if isPoromechanics(obj.meshGlue.model(i).ModelType)
                         obj.state(i).curr.advanceState();
                      end
-                     if isVariabSatFlow(obj.meshGlue.model(i).ModelType)
-                        obj.state(i).curr.updateSaturation()
-                     end
                   end
                   if obj.t > obj.simParameters.tMax   % For Steady State
                      for i = 1:obj.nDom
-                        printState(obj.meshGlue.model(i).OutState,obj.state(i).curr);
+                        printState(obj.models(i).OutState,obj.state(i).curr);
                      end
                   else
                      for i = 1:obj.nDom
-                        printState(obj.meshGlue.model(i).OutState,obj.state(i).prev,obj.state(i).curr);
+                        printState(obj.models(i).OutState,obj.state(i).prev,obj.state(i).curr);
                      end
                   end
                end
@@ -208,7 +214,7 @@ classdef mortarFaults < handle
          obj.multipliers = zeros(3*obj.nS,1);
          obj.gap = zeros(3*obj.nS,1);  % NO INITIAL GAP
          % state struct easier to access (we only work with a curr. state)
-         obj.state = [obj.meshGlue.model(1).State;obj.meshGlue.model(2).State];
+         obj.state = [obj.models(1).State;obj.models(2).State];
          % compute global rotation matrix
          obj.R = getGlobalRotationMatrix(obj);
          % initialize stress (not flexible at all)
@@ -255,6 +261,41 @@ classdef mortarFaults < handle
          end
       end
 
+      function updateStateFaults(obj,du)
+         % update solution vectors and derived quantities (strains)
+         obj.state(obj.tagMaster).dispCurr = obj.state(obj.tagMaster).dispCurr + ...
+            du(obj.dofMap.master);
+         obj.state(obj.tagSlave).dispCurr = obj.state(obj.tagSlave).dispCurr + ...
+            du(obj.dofMap.slave);
+         obj.multipliers = obj.multipliers + du(obj.dofMap.slave(end)+1:end);
+         %
+         % Update stress
+         l = 0;
+         for i = 1:obj.nDom
+            du = obj.state(i).dispCurr - obj.state(i).dispConv;
+            for el=1:obj.models(i).Grid.topology.nCells
+               dof = getDoFID(obj.models(i).Grid.topology,el);
+               switch obj.models(i).Grid.topology.cellVTKType(el)
+                  case 10 % Tetra
+                     N = getDerBasisF(obj.models(i).Grid.cells.tetra,el);
+                     B = zeros(6,4*obj.models(i).Grid.topology.nDim);
+                     B(obj.models(i).Grid.cells.indB(1:36,2)) = ...
+                        N(obj.models(i).Grid.cells.indB(1:36,1));
+                     obj.state(i).curr.strain(l+1,:) = (B*du(dof))';
+                     l = l + 1;
+                  case 12 % Hexa
+                     N = getDerBasisFAndDet(obj.models(i).Grid.cells.hexa,el,2);
+                     B = zeros(6,8*obj.models(i).Grid.topology.nDim,obj.models(i).Gauss.nNode);
+                     B(obj.models(i).Grid.cells.indB(:,2)) = N(obj.models(i).Grid.cells.indB(:,1));
+                     obj.state(i).curr.strain((l+1):(l+obj.models(i).Gauss.nNode),:) = ...
+                        reshape(pagemtimes(B,du(dof)),6,obj.models(i).Gauss.nNode)';
+                     l = l + obj.models(i).Gauss.nNode;
+               end
+            end
+         end
+      end
+
+
 
       function [t, dt] = updateTime(obj,conv,dt)
          tMax = obj.simParameters.tMax;
@@ -288,7 +329,7 @@ classdef mortarFaults < handle
          nInt = 4; % numb. of interpolation points for RBF intrpolation
          tol = 1e-3;
          type = 'gauss';
-         mult_type = 'dual';
+         mult_type = 'standard';
          c_ns = 0;  % counter for GP not projected
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          % set Gauss class
@@ -315,7 +356,8 @@ classdef mortarFaults < handle
             nSlave = mortar.intSlave.surfaces(j,:);
             n_el = (n(nSlave,:))';
             n_el = n_el(:); % local nodal normal vector
-            Rloc = getRotationMatrix(obj,n_el);
+            %Rloc = getRotationMatrix(obj,n_el);
+            Rloc = eye(3*obj.nNslave);
             %A = diag(repelem(area_nod(nSlave),3));
             NSlave = getBasisFinGPoints(elemSlave); % Slave basis functions
             switch mult_type
@@ -415,6 +457,8 @@ classdef mortarFaults < handle
          obj.Dn = sparse(isVec,jsVec,Dnvec,3*obj.nS,3*obj.nS);
          obj.Dt = sparse(isVec,jsVec,Dtvec,3*obj.nS,3*obj.nS);
          obj.L = sparse(isVec,jsVec,Lvec,3*obj.nS,3*obj.nS);
+         % eliminate small numerical quantities in obj.Dg
+         obj.Dg(abs(obj.Dg)<1e-12) = 0;
       end
 
       function R = getRotationMatrix(obj,n_el)
@@ -664,10 +708,56 @@ classdef mortarFaults < handle
          J = sparse(i,j,Jvec,obj.nDoF,obj.nDoF);
       end
 
+      function J = computeJacobian2(obj)
+         % dof ordering: master - slave - lagrange
+         % interface dofs are not separated by inner dofs numbering
+         % this method might be inneficient, because access to sparse
+         % matrices might be slow
+         lagDof = getContactDofs(obj,'lag',1:obj.nS); % complete set of multipliers
+         % mechanics block
+         Km = getPoro(obj.models(obj.tagMaster).Discretizer).K;
+         Ks = getPoro(obj.models(obj.tagSlave).Discretizer).K;
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.master,obj.dofMap.master,Km);
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slave,obj.dofMap.slave,Ks);
+         clear Km; clear Ks;
+         % mesh tying blocks
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.intMaster,lagDof,-obj.Mg');
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.intSlave,lagDof,obj.Dg');
+         % stick blocks
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intMaster,-obj.Mg);
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intSlave,obj.Dg);
+         % slip blocks
+         if any(obj.activeSet.curr.slip)
+            slipDofs = obj.get_dof(obj.activeSet.curr.slip);
+            % contribution to normal component
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,-obj.Mn(slipDofs,:));
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,obj.Dn(slipDofs,:));
+            % contribution to tangential component
+            T = computeDtDgt(obj); % non linear contribution
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,-T*obj.Mt(slipDofs,:));
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,T*obj.Dt(slipDofs,:));
+            N = computeDtDtn(obj); % non linear contribution
+            % select only tangential components of mass matrix
+            tComp = repmat([false;true;true],numel(obj.activeSet.curr.slip),1);
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.slip,...
+               N*obj.L(slipDofs,slipDofs));
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.slip,...
+               tComp'.*obj.L(slipDofs,slipDofs).*tComp);
+         end
+         % open blocks
+         if any(obj.activeSet.curr.open)
+            openDofs = obj.get_dof(obj.activeSet.curr.open);
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.open,obj.dofMap.open,...
+               obj.L(openDofs,openDofs));
+         end
+         J = sparse(i,j,Jvec,obj.nDoF,obj.nDoF);
+      end
+
 
       function rhsVal = computeRhsMeshTying(obj)
-         rhsMaster = -obj.Mg'*obj.multipliers;
-         rhsSlave = obj.Dg'*obj.multipliers;
+         % subtract initial stress state
+         rhsMaster = -obj.Mg'*(obj.multipliers-obj.iniMult);
+         rhsSlave = obj.Dg'*(obj.multipliers-obj.iniMult);
          rhsVal = [rhsMaster;rhsSlave];
       end
 
@@ -761,16 +851,19 @@ classdef mortarFaults < handle
          id = strcmp(["x","y","z"],dir);
          v = val*id;
          % set normal stress for master and slave domains
-         id = [id false(1,3)];
-         obj.state(1).iniStress(:,id) = val; 
-         obj.state(2).iniStress(:,id) = val; 
+         id2 = [id false(1,3)];
+         obj.state(1).iniStress(:,id2) = val; 
+         obj.state(2).iniStress(:,id2) = val; 
          % refer stress to local nodal normal
          v_loc = obj.R*repmat(v',obj.nS,1);
          % make sure contact traction is negative (compression)
          obj.multipliers(:) = -abs(v_loc);
+         obj.iniMult = obj.multipliers;
+         obj.state(1).conv.stress = obj.state(1).iniStress;
+         obj.state(2).conv.stress = obj.state(2).iniStress;
       end
 
-      function applyBC_faults(obj,J,rhs,t)
+      function [J,rhs] = applyBC_faults(obj,J,rhs,t)
          % Apply Boundary condition to fault mechanics system
          % Block dof indexing is used employing getContactDoF method of mortar
          % faults class
@@ -808,6 +901,9 @@ classdef mortarFaults < handle
                if domID == obj.tagMaster
                   dof = bcDofs;
                elseif domID == obj.tagSlave
+                  if strcmp(type,'Dir')  % remove constraint on dofs belonging to the interface
+                  bcDofs = bcDofs(~ismember(bcDofs,obj.dofMap.intSlave));
+                  end
                   dof = bcDofs + 3*obj.totNodMaster;
                end
                % mapping is trivial with only two domains

@@ -39,7 +39,7 @@ classdef MeshGlue < handle
                      nGP = obj.dealIntegrationParams(fName,d(2),str{4});
                      [D,M] = mortar.computeMortarElementBased(nGP);
                   case 'RBF'
-                     [nGP,nInt,mult_type] = obj.dealIntegrationParams(fName,d(2),str{4:5});
+                     [nGP,nInt,mult_type] = obj.dealIntegrationParams(fName,d(2),str{4:end});
                      [D,M] = mortar.computeMortarRBF(nGP,nInt,'gauss',mult_type);
                   otherwise
                      error('Invalid tag for integration scheme in %s',fName);
@@ -67,7 +67,7 @@ classdef MeshGlue < handle
             assert(~isnan(varargout{1}),'Invalid entry for interpolation points in %s',fName);
          end
          if nargin > 5
-            varargout{2} = varargin{2}; 
+            varargout{2} = varargin{3}; 
          else
              varargout{2} = 'dual';
          end

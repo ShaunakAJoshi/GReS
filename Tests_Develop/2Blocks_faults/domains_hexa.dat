@@ -1,0 +1,42 @@
+% Input for multidomain simulations 
+% Domain 1 
+<Domain> 
+<Name> 
+Left_block
+<ModelType> 
+Poromechanics_FEM
+<Geometry> 
+Mesh/LeftBlock_hexa.msh
+<Gauss>
+12 2 3
+<Material> 
+Materials/MaterialsList.dat
+<BoundaryConditions> 
+2
+BCs/leftBot.dat
+BCs/leftLat.dat
+<OutState> 
+outTime.dat
+<EndDomain> 
+ 
+% Domain 2 
+<Domain> 
+<Name> 
+Right_block
+<ModelType> 
+Poromechanics_FEM
+<Geometry> 
+Mesh/RightBlock_hexa.msh
+<Gauss>
+12 2 3
+<Material> 
+Materials/MaterialsList.dat
+<BoundaryConditions> 
+3
+BCs/rightBot.dat
+BCs/rightLatLoad.dat
+BCs/rightTopLoad.dat
+<OutState> 
+outTime.dat
+<EndDomain> 
+ 
