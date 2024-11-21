@@ -329,7 +329,7 @@ classdef mortarFaults < handle
          nInt = 4; % numb. of interpolation points for RBF intrpolation
          tol = 1e-3;
          type = 'gauss';
-         mult_type = 'standard';
+         mult_type = 'dual';
          c_ns = 0;  % counter for GP not projected
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          % set Gauss class
