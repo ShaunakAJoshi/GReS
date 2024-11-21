@@ -107,83 +107,82 @@ classdef mortarFaults < handle
                % apply BCs to global system
                [J,rhs] = applyBC_faults(obj,J,rhs,obj.t);
 
-               
+
                % compute base rhs norm for relative convergence
-               % Norm of unbalanced forces 
+               % Norm of unbalanced forces
                rhsNorm = norm(rhs(1:3*(obj.totNodMaster+obj.totNodSlave)),2);
                itNR = 0;
 
                % NR printing
                if obj.simParameters.verbosity > 1
-                  fprintf('Iter     ||rhs||\n');
+                   fprintf('Iter     ||rhs||\n');
                end
                % Relative residual
                tolWeigh = obj.simParameters.relTol*rhsNorm;
 
 
                if obj.simParameters.verbosity > 1
-                  fprintf('0     %e\n',rhsNorm);
+                   fprintf('0     %e\n',rhsNorm);
                end
 
                % Newton Raphson loop
                while ((rhsNorm > tolWeigh) && (itNR < obj.simParameters.itMaxNR) ...
-                     && (rhsNorm > absTol)) || itNR == 0
-                  itNR = itNR + 1;
-                  %
-                  du = J\(-rhs);
+                       && (rhsNorm > absTol)) || itNR == 0
+                   itNR = itNR + 1;
+                   %
+                   du = J\(-rhs);
 
-                  % update solution fields (disp, multipliers)
-                  updateStateFaults(obj,du);
+                   % update solution fields (disp, multipliers)
+                   updateStateFaults(obj,du);
 
-                  % printe state (even if not converged)
-                  for i = 1:obj.nDom
-                     obj.state(i).advanceState();
-                     printState(obj.models(i).OutState,obj.state(i));
-                     obj.models(i).OutState.finalize();
-                  end
-                  return
+                   % printe state (even if not converged)
+                   for i = 1:obj.nDom
+                       obj.state(i).advanceState();
+                       printState(obj.models(i).OutState,obj.state(i));
+                       obj.models(i).OutState.finalize();
+                       plotFunction(obj.meshGlue.interfaces.mortar.intSlave,'Fault',(reshape(obj.multipliers,3,[]))',...
+                           ["sigma_n","tau_1","tau_2"]);
+                   end
 
-                  % update nodal gaps
-                  computeNodalGap(obj);
+                   % update nodal gaps
+                   computeNodalGap(obj);
 
-                  % recompute rhs
-                  rhs = computeRhs(obj);
+                   % recompute rhs
+                   rhs = computeRhs(obj);
 
-                  % assemble jacobian
-                  J = computeJacobian(obj);
+                   % assemble jacobian
+                   J = computeJacobian(obj);
 
-                  % Apply BCs to global system
-                  applyBC_faults(obj,J,rhs,obj.t);
-  
-                  % compute Rhs norm
-                  rhsNorm = norm(rhs,2);
-                  if obj.simParameters.verbosity > 1
-                     fprintf('%d     %e\n',itNR,rhsNorm);
-                  end
+                   % Apply BCs to global system
+                   [J,rhs] = applyBC_faults(obj,J,rhs,obj.t);
+
+                   % compute Rhs norm
+                   rhsNorm = norm(rhs,2);
+                   if obj.simParameters.verbosity > 1
+                       fprintf('%d     %e\n',itNR,rhsNorm);
+                   end
                end
                %
                % Check NR convergence
                flConv = (rhsNorm < tolWeigh || rhsNorm < absTol);
                if flConv % Convergence
-                  for i = 1:obj.nDom
-                     obj.state(i).curr.t = obj.t;
-                     % Print the solution, if needed
-                     if isPoromechanics(obj.meshGlue.model(i).ModelType)
-                        obj.state(i).curr.advanceState();
-                     end
-                  end
-                  if obj.t > obj.simParameters.tMax   % For Steady State
-                     for i = 1:obj.nDom
-                        printState(obj.models(i).OutState,obj.state(i).curr);
-                     end
-                  else
-                     for i = 1:obj.nDom
-                        printState(obj.models(i).OutState,obj.state(i).prev,obj.state(i).curr);
-                     end
-                  end
+                   for i = 1:obj.nDom
+                       obj.state(i).curr.t = obj.t;
+                       % Print the solution, if needed
+                       obj.state(i).advanceState();
+                   end
+               if obj.t > obj.simParameters.tMax   % For Steady State
+                   for i = 1:obj.nDom
+                       printState(obj.models(i).OutState,obj.state(i));
+                   end
+               else
+                   for i = 1:obj.nDom
+                       printState(obj.models(i).OutState,obj.state(i).prev,obj.state(i).curr);
+                   end
                end
-               % Update active set 
+               % Update active set
                flagActiveSet = updateActiveSet(obj);
+               end
             end
             %
             % Manage next time step
@@ -628,7 +627,7 @@ classdef mortarFaults < handle
          % \Delta_n g_T (in global coordinates)
          % Use mortar operator E to map master nodes to slave side
          usCurr = obj.state(obj.tagSlave).dispCurr(obj.dofMap.nodSlave);
-         umCurr = obj.state(obj.tagMaster).dispConv(obj.dofMap.nodMaster);
+         umCurr = obj.state(obj.tagMaster).dispCurr(obj.dofMap.nodMaster);
          g_old = obj.gap;
          obj.gap = usCurr - obj.E*umCurr;
          obj.g_T = obj.gap - g_old; % global nodal gap
@@ -668,51 +667,6 @@ classdef mortarFaults < handle
          % dof ordering: master - slave - lagrange
          % interface dofs are not separated by inner dofs numbering
          i = []; j = []; Jvec = []; 
-         lagDof = getContactDofs(obj,'lag',1:obj.nS); % complete set of multipliers
-         % mechanics block
-         Km = getPoro(obj.models(obj.tagMaster).Discretizer).K;
-         Ks = getPoro(obj.models(obj.tagSlave).Discretizer).K;
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.master,obj.dofMap.master,Km);
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slave,obj.dofMap.slave,Ks);
-         clear Km; clear Ks;
-         % mesh tying blocks
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.intMaster,lagDof,-obj.Mg');
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.intSlave,lagDof,obj.Dg');
-         % stick blocks
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intMaster,-obj.Mg);
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intSlave,obj.Dg);
-         % slip blocks
-         if any(obj.activeSet.curr.slip)
-            slipDofs = obj.get_dof(obj.activeSet.curr.slip);
-            % contribution to normal component
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,-obj.Mn(slipDofs,:));
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,obj.Dn(slipDofs,:));
-            % contribution to tangential component
-            T = computeDtDgt(obj); % non linear contribution
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,-T*obj.Mt(slipDofs,:));
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,T*obj.Dt(slipDofs,:));
-            N = computeDtDtn(obj); % non linear contribution
-            % select only tangential components of mass matrix
-            tComp = repmat([false;true;true],numel(obj.activeSet.curr.slip),1);
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.slip,...
-               N*obj.L(slipDofs,slipDofs));
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.slip,...
-               tComp'.*obj.L(slipDofs,slipDofs).*tComp);
-         end
-         % open blocks
-         if any(obj.activeSet.curr.open)
-            openDofs = obj.get_dof(obj.activeSet.curr.open);
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.open,obj.dofMap.open,...
-               obj.L(openDofs,openDofs));
-         end
-         J = sparse(i,j,Jvec,obj.nDoF,obj.nDoF);
-      end
-
-      function J = computeJacobian2(obj)
-         % dof ordering: master - slave - lagrange
-         % interface dofs are not separated by inner dofs numbering
-         % this method might be inneficient, because access to sparse
-         % matrices might be slow
          lagDof = getContactDofs(obj,'lag',1:obj.nS); % complete set of multipliers
          % mechanics block
          Km = getPoro(obj.models(obj.tagMaster).Discretizer).K;
@@ -901,10 +855,12 @@ classdef mortarFaults < handle
                if domID == obj.tagMaster
                   dof = bcDofs;
                elseif domID == obj.tagSlave
-                  if strcmp(type,'Dir')  % remove constraint on dofs belonging to the interface
-                  bcDofs = bcDofs(~ismember(bcDofs,obj.dofMap.intSlave));
-                  end
-                  dof = bcDofs + 3*obj.totNodMaster;
+                   bcDofs = bcDofs + 3*obj.totNodMaster;
+                    if strcmp(type,'Dir')  % remove constraint on dofs belonging to the interface
+                        dof = bcDofs(~ismember(bcDofs,obj.dofMap.intSlave));
+                    else
+                       dof = bcDofs;
+                   end
                end
                % mapping is trivial with only two domains
                switch type

@@ -29,10 +29,10 @@ leftMesh.importGMSHmesh(meshLeftFile);
 rightMesh.importGMSHmesh(meshRightFile);
 
 % write BC files
-%setBCfiles(leftMesh,rightMesh);
+setBCfiles(leftMesh,rightMesh);
 
-plotFunction(leftMesh,'out_L',zeros(leftMesh.nNodes,1));
-plotFunction(rightMesh,'out_R',zeros(rightMesh.nNodes,1));
+plotFunction(leftMesh,'out_L',zeros(leftMesh.nNodes,1),"sol");
+plotFunction(rightMesh,'out_R',zeros(rightMesh.nNodes,1),"sol");
 
 
 simParam = SimulationParameters('simParam.dat');

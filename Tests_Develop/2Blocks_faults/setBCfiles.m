@@ -1,9 +1,4 @@
 function setBCfiles(leftMesh,rightMesh)
-% writing BC files
-if isfolder('BCs')
-   [~,~,~] = rmdir('BCs','s');
-   % directory become empty
-end
 mkdir BCs 
 % custom BCs
 writeBCfiles('BCs/leftLat','SurfBC','Dir','Poro',["x","y"],'left_lateral_roller',0,0,leftMesh,1); % left block lateral fix

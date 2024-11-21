@@ -200,87 +200,87 @@ classdef VTKOutput < handle
          end
 
          % Add fake fields to all the meshes (2D and 3D) to be able to always visualize all of them
-         if (isfield(pointData3D, 'name'))
-            pointData3DNames = extractfield(pointData3D, 'name');
-         else
-            pointData3DNames = [];
-         end
-         if (isfield(cellData3D, 'name'))
-            cellData3DNames = extractfield(cellData3D, 'name');
-         else
-            cellData3DNames = [];
-         end
-         if (isfield(pointData2D, 'name'))
-            pointData2DNames = extractfield(pointData2D, 'name');
-         else
-            pointData2DNames = [];
-         end
-         if (isfield(cellData2D, 'name'))
-            cellData2DNames = extractfield(cellData2D, 'name');
-         else
-            cellData2DNames = [];
-         end
-         pointDataNames = unique([pointData3DNames, pointData2DNames]);
-         cellDataNames = unique([cellData3DNames, cellData2DNames]);
-
-         for i = 1 : length(pointDataNames)
-            if (~ismember(pointDataNames{i}, pointData3DNames))
-               for j = 1 : length(pointData2D)
-                  if (strcmp(pointData2D(j).name, pointDataNames{i}))
-                     ndims = size(pointData2D(j).data,2);
-                  end
-               end
-               nfields = length(pointData3D);
-               pointData3D = setfield(pointData3D, {nfields+1, 1}, 'name', pointDataNames{i});
-               pointData3D = setfield(pointData3D, {nfields+1, 1}, 'data', ones(obj.mesh.nNodes,ndims)*obj.NotANumber);
-            end
-            if (~ismember(pointDataNames{i}, pointData2DNames))
-               for j = 1 : length(pointData3D)
-                  if (strcmp(pointData3D(j).name, pointDataNames{i}))
-                     ndims = size(pointData3D(j).data,2);
-                  end
-               end
-               nfields = length(pointData2D);
-               pointData2D = setfield(pointData2D, {nfields+1, 1}, 'name', pointDataNames{i});
-               %pointData2D = setfield(pointData2D, {nfields+1, 1}, 'data', ones(obj.surfaceNumNodes,1)*obj.NotANumber);
-               pointData2D = setfield(pointData2D, {nfields+1, 1}, 'data', ones(obj.mesh.nNodes,ndims)*obj.NotANumber);
-            end
-         end
-
-         for i = 1 : length(cellDataNames)
-            if (~ismember(cellDataNames{i}, cellData3DNames))
-               for j = 1 : length(cellData2D)
-                  if (strcmp(cellData2D(j).name, cellDataNames{i}))
-                     ndims = size(cellData2D(j).data,2);
-                  end
-               end
-               nfields = length(cellData3D);
-               cellData3D = setfield(cellData3D, {nfields+1, 1}, 'name', cellDataNames{i});
-               cellData3D = setfield(cellData3D, {nfields+1, 1}, 'data', ones(obj.mesh.nCells,ndims)*obj.NotANumber);
-            end
-            if (~ismember(cellDataNames{i}, cellData2DNames))
-               for j = 1 : length(cellData3D)
-                  if (strcmp(cellData3D(j).name, cellDataNames{i}))
-                     ndims = size(cellData3D(j).data,2);
-                  end
-               end
-               nfields = length(cellData2D);
-               cellData2D = setfield(cellData2D, {nfields+1, 1}, 'name', cellDataNames{i});
-               cellData2D = setfield(cellData2D, {nfields+1, 1}, 'data', ones(obj.surfaceNumElems,ndims)*obj.NotANumber);
-            end
-         end
+         % if (isfield(pointData3D, 'name'))
+         %    pointData3DNames = extractfield(pointData3D, 'name');
+         % else
+         %    pointData3DNames = [];
+         % end
+         % if (isfield(cellData3D, 'name'))
+         %    cellData3DNames = extractfield(cellData3D, 'name');
+         % else
+         %    cellData3DNames = [];
+         % end
+         % if (isfield(pointData2D, 'name'))
+         %    pointData2DNames = extractfield(pointData2D, 'name');
+         % else
+         %    pointData2DNames = [];
+         % end
+         % if (isfield(cellData2D, 'name'))
+         %    cellData2DNames = extractfield(cellData2D, 'name');
+         % else
+         %    cellData2DNames = [];
+         % end
+         % pointDataNames = unique([pointData3DNames, pointData2DNames]);
+         % cellDataNames = unique([cellData3DNames, cellData2DNames]);
+         % 
+         % for i = 1 : length(pointDataNames)
+         %    if (~ismember(pointDataNames{i}, pointData3DNames))
+         %       for j = 1 : length(pointData2D)
+         %          if (strcmp(pointData2D(j).name, pointDataNames{i}))
+         %             ndims = size(pointData2D(j).data,2);
+         %          end
+         %       end
+         %       nfields = length(pointData3D);
+         %       pointData3D = setfield(pointData3D, {nfields+1, 1}, 'name', pointDataNames{i});
+         %       pointData3D = setfield(pointData3D, {nfields+1, 1}, 'data', ones(obj.mesh.nNodes,ndims)*obj.NotANumber);
+         %    end
+         %    if (~ismember(pointDataNames{i}, pointData2DNames))
+         %       for j = 1 : length(pointData3D)
+         %          if (strcmp(pointData3D(j).name, pointDataNames{i}))
+         %             ndims = size(pointData3D(j).data,2);
+         %          end
+         %       end
+         %       nfields = length(pointData2D);
+         %       pointData2D = setfield(pointData2D, {nfields+1, 1}, 'name', pointDataNames{i});
+         %       %pointData2D = setfield(pointData2D, {nfields+1, 1}, 'data', ones(obj.surfaceNumNodes,1)*obj.NotANumber);
+         %       pointData2D = setfield(pointData2D, {nfields+1, 1}, 'data', ones(obj.mesh.nNodes,ndims)*obj.NotANumber);
+         %    end
+         % end
+         % 
+         % for i = 1 : length(cellDataNames)
+         %    if (~ismember(cellDataNames{i}, cellData3DNames))
+         %       for j = 1 : length(cellData2D)
+         %          if (strcmp(cellData2D(j).name, cellDataNames{i}))
+         %             ndims = size(cellData2D(j).data,2);
+         %          end
+         %       end
+         %       nfields = length(cellData3D);
+         %       cellData3D = setfield(cellData3D, {nfields+1, 1}, 'name', cellDataNames{i});
+         %       cellData3D = setfield(cellData3D, {nfields+1, 1}, 'data', ones(obj.mesh.nCells,ndims)*obj.NotANumber);
+         %    end
+         %    if (~ismember(cellDataNames{i}, cellData2DNames))
+         %       for j = 1 : length(cellData3D)
+         %          if (strcmp(cellData3D(j).name, cellDataNames{i}))
+         %             ndims = size(cellData3D(j).data,2);
+         %          end
+         %       end
+         %       nfields = length(cellData2D);
+         %       cellData2D = setfield(cellData2D, {nfields+1, 1}, 'name', cellDataNames{i});
+         %       cellData2D = setfield(cellData2D, {nfields+1, 1}, 'data', ones(obj.surfaceNumElems,ndims)*obj.NotANumber);
+         %    end
+         % end
 
          fname = sprintf('%s/%s/%s', obj.folderName, outName, obj.cellFileName);
-         if any(obj.mesh.coordinates(:,3)~=0)
+         if ~isempty(pointData3D)
             mxVTKWriter(fname, time, obj.mesh.coordinates, obj.mesh.cells, obj.mesh.cellVTKType, ...
                obj.mesh.cellNumVerts, pointData3D, cellData3D);
-         else
+         end
+         if ~isempty(pointData2D)
             mxVTKWriter(fname, time, obj.mesh.coordinates, obj.mesh.surfaces, obj.mesh.surfaceVTKType, ...
                obj.mesh.surfaceNumVerts, pointData2D, cellData2D);
          end
 
          if (obj.hasFaults)
-
             for i = 1 : length(pointData2D)
                pointData2D(i).data = pointData2D(i).data(obj.glo2loc>0,:);
             end
