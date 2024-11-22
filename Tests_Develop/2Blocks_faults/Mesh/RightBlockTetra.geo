@@ -1,7 +1,7 @@
 Mesh.Format = 1; // msh output format
 Mesh.MshFileVersion = 2.2; // Version of the MSH file format to use
 
-lc = 4;
+lc = 1;
 // This variable can then be used in the definition of Gmsh's simplest
 // `elementary entity', a `Point'. A Point is uniquely identified by a tag (a
 // strictly positive integer; here `1') and defined by a list of four numbers:
@@ -31,7 +31,7 @@ Transfinite Surface {1}; // structured grid
 // Recombine Surface {1}; // using hexahedra
 
 // extruding mesh along the z direction
-Extrude {0, 0, 15} { Surface{1}; Layers{14};}
+Extrude {0, 0, 15} { Surface{1}; Layers{12};}
 Physical Volume("Right", 1) = {1}; 
 Physical Surface("Right_axial",2) = {17};
 Physical Surface("Right_shear",3) = {26};

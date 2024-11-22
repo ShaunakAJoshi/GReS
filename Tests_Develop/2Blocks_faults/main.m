@@ -29,7 +29,7 @@ leftMesh.importGMSHmesh(meshLeftFile);
 rightMesh.importGMSHmesh(meshRightFile);
 
 % write BC files
-setBCfiles(leftMesh,rightMesh);
+%setBCfiles(leftMesh,rightMesh);
 
 plotFunction(leftMesh,'out_L',zeros(leftMesh.nNodes,1),"sol");
 plotFunction(rightMesh,'out_R',zeros(rightMesh.nNodes,1),"sol");
@@ -53,5 +53,5 @@ e = sqrt(sum(e.^2));
 coes = 0;
 phi = 30; % degrees
 
-solver = mortarFaults(simParam,mG,coes,phi);
+solver = NonLinearSolverFaults(simParam,mG,coes,phi);
 
