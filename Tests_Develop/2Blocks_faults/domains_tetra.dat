@@ -2,7 +2,7 @@
 % Domain 1 
 <Domain> 
 <Name> 
-Left_block
+Left_block_tetra
 <ModelType> 
 Poromechanics_FEM
 <Geometry> 
@@ -10,9 +10,10 @@ Mesh/LeftBlock_tetra.msh
 <Material> 
 Materials/MaterialsList.dat
 <BoundaryConditions> 
-2
+3
 BCs/leftBot.dat
 BCs/leftLat.dat
+BCs/leftYFix.dat
 <OutState> 
 outTime.dat
 <EndDomain> 
@@ -20,7 +21,7 @@ outTime.dat
 % Domain 2 
 <Domain> 
 <Name> 
-Right_block
+Right_block_tetra
 <ModelType> 
 Poromechanics_FEM
 <Geometry> 
@@ -28,8 +29,9 @@ Mesh/RightBlock_tetra.msh
 <Material> 
 Materials/MaterialsList.dat
 <BoundaryConditions> 
-3
+4
 BCs/rightBot.dat
+BCs/rightYFix.dat
 BCs/rightLatLoad.dat
 BCs/rightTopLoad.dat
 <OutState> 

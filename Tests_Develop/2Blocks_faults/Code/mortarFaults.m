@@ -76,11 +76,11 @@ classdef mortarFaults < handle
          % compute mortar matrices within one simulation loop use radial
          % basis functions to evaluate matrix M
          mortar = obj.meshGlue.interfaces(1).mortar; % only one interface defined
-         nGP = 4; % numb. of gauss points for element based integration
-         nInt = 4; % numb. of interpolation points for RBF intrpolation
+         nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration
+         nInt = obj.meshGlue.interfaces(1).nInt; % numb. of interpolation points for RBF intrpolation
          tol = 1e-3;
          type = 'gauss';
-         mult_type = 'dual';
+         mult_type = obj.meshGlue.interfaces(1).multType;
          c_ns = 0;  % counter for GP not projected
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          % set Gauss class

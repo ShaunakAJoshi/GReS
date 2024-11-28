@@ -6,6 +6,7 @@ classdef OutState < handle
         modTime = false %flag for time step size matching timeList
         timeList
         m
+        timeID = 1
     end
 
     properties (Access = private)
@@ -13,7 +14,6 @@ classdef OutState < handle
         GaussPts
         printPath
         mesh
-        timeID = 1
         VTK
         flOutData
         material

@@ -13,7 +13,7 @@ fprintf('2blocks model \n')
 fprintf('___________________\n\n')
 [leftMesh,rightMesh] = deal(Mesh(),Mesh());
 
-simulTag = 'tetra';
+simulTag = 'hexa';
 switch simulTag
    case 'tetra'
       domainFile = 'domains_tetra.dat';
@@ -28,11 +28,11 @@ end
 leftMesh.importGMSHmesh(meshLeftFile);
 rightMesh.importGMSHmesh(meshRightFile);
 
-% write BC files
-%setBCfiles(leftMesh,rightMesh);
-
 plotFunction(leftMesh,'out_L',zeros(leftMesh.nNodes,1),"sol");
 plotFunction(rightMesh,'out_R',zeros(rightMesh.nNodes,1),"sol");
+
+% write BC files
+setBCfiles(leftMesh,rightMesh);
 
 
 simParam = SimulationParameters('simParam.dat');
@@ -54,4 +54,8 @@ coes = 0;
 phi = 30; % degrees
 
 solver = NonLinearSolverFaults(simParam,mG,coes,phi);
+% measure accuracy
+% errMult = sqrt(sum((abs(solver.currMultipliers(1:3:end))-2).^2));
 
+solver.models(1).OutState.finalize();
+solver.models(2).OutState.finalize();

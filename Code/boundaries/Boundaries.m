@@ -236,7 +236,7 @@ classdef Boundaries < handle
 
         
         % get component-wise numbering
-        if nEnts > 1
+        if numel(nEnts) > 1
             comps = length(nEnts);
             %handle multicomponents dof
             i1 = 1;
@@ -279,7 +279,11 @@ classdef Boundaries < handle
     function ents = getCompEntities(obj,identifier,ents)
        % map entities number to component dof
        % consider solution components
-       nEnts = obj.getNumbLoadedEntities(identifier);
+       if strcmp(obj.getCond(identifier),"SurfBC")
+          nEnts = obj.getNumbLoadedEntities(identifier);
+       elseif strcmp(obj.getCond(identifier),"NodeBC")
+          nEnts = obj.getData(identifier).data.nEntities;
+       end
        comps = length(nEnts);
        i1 = 1;
        for i = 1:comps
@@ -295,6 +299,7 @@ classdef Boundaries < handle
        %needed for applying Dirichlet BCs
        %(pressure, displacement)...
        ents = obj.getData(identifier).data.entities;
+       nEnts = obj.getData(identifier).data.nEntities;
     end
     
      function ents = getLoadedEntities(obj, identifier)

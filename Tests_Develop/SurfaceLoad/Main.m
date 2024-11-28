@@ -51,7 +51,7 @@ bound = Boundaries(fileName,model,grid,dofmanager);
 %
 resState = State(model,grid,mat,GaussPts);
 % Create and set the print utility
-printUtils = OutState(model,mat,grid,'outTime.dat');
+printUtils = OutState(model,mat,grid,'outTime.dat','printOff');
 %
 % Print the reservoir initial state
 printUtils.printState(resState);

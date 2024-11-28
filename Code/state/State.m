@@ -138,6 +138,7 @@ classdef State < matlab.mixin.Copyable
             objTo.dispConv = objFrom.dispConv;
             objTo.conv = objFrom.conv;
             objTo.curr = objFrom.curr;
+            objTo.iniStress = objFrom.iniStress;
             %
             % Flow
             objTo.pressure = objFrom.pressure;
