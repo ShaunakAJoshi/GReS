@@ -317,27 +317,27 @@ classdef mortarFaults < handle
          end
       end
 
-      function tLim = computeLimitTraction(obj,activeSet)
+      function tLim = computeLimitTraction(obj,activeSet,mult)
          % TO DO: add check on magnitud gap
          % get limit traction array in local coordinates
-         tLim = zeros(3*numel(activeSet.new.slip),1);
-         for i = activeSet.new.slip'
+         tLim = zeros(3*numel(activeSet.curr.slip),1);
+         l = 1;
+         for i = activeSet.curr.slip'
             dofSlip = get_dof(i);
-            gapNorm = norm(obj.g_T(i),2);
-            if gapNorm < obj.tolGap
-               tL = zeros(3,1);
-            else
-               tL = repelem(tau_max(obj,i),3,1).*obj.g_T(dofSlip)/gapNorm; % traction in global coords
-               tL = obj.getNodeRotationMatrix(i)'*tL; % traction in local coords
-               tL(1) = 0; % set normal component to 0 for rhs computation
-            end
-            tLim(3*i-2:3*i) = tL;
+            gapNorm = norm(obj.g_T(dofSlip),2);
+            tL = repelem(tau_max(obj,i,mult),3,1).*obj.g_T(dofSlip)/gapNorm; % traction in global coords
+            tL = obj.getNodeRotationMatrix(i)'*tL; % traction in local coords
+            tL(1) = 0; % set normal component to 0 for rhs computation
+            % force tL to have the same component as multiplier
+            tL = sign(mult(3*l-2:3*l)).*abs(tL);
+            tLim(3*l-2:3*l) = tL;
+            l = l+1;
          end
       end
 
       function tau = tau_max(obj,i,multipliers)
          % use the normal component of contact traction
-         tau = obj.coes - tan(deg2rad(obj.phi))*multipliers(3*i-1);
+         tau = obj.coes - tan(deg2rad(obj.phi))*multipliers(3*i-2);
       end
 
       function computeNodalGap(obj,state,dofMap)
@@ -365,52 +365,72 @@ classdef mortarFaults < handle
          end
       end
 
-      function Tmat = computeDtDgt(obj,activeSet)
+      function Tmat = computeDtDgt(obj,activeSet,mult)
          % compute derivative of tangential traction w.r.t tangential gap
          % quantities are in global coordinates
          iVec = zeros(9*numel(activeSet.curr.slip),1);
          jVec = zeros(9*numel(activeSet.curr.slip),1);
          Tvec = zeros(9*numel(activeSet.curr.slip),1);
          l = 0;
+         s = 1;
+         nSlip = numel(activeSet.curr.slip);
          for i = activeSet.curr.slip'
-            dof = get_dof(i);
-            tLim = tau_max(obj,i);
-            DgT = obj.g_T(dof);
+            dofLoc = get_dof(s);
+            dofMult = get_dof(i);
+            tLim = tau_max(obj,i,mult);
+            DgT = obj.g_T(dofMult);
             normgT = norm(DgT);
             if normgT > obj.tolGap
-               Tloc = tLim*(normgT^2*eye(3)-Dgt*Dgt')/normgT^3; % 3x3 local mat in global coords
-               [ii,jj] = meshgrid(dof,dof);
+               Tloc = tLim*(normgT^2*eye(3)-DgT*DgT')/normgT^3; % 3x3 local mat in global coords
+               [ii,jj] = meshgrid(dofLoc,dofLoc);
                iVec(l+1:l+9) = ii(:);
                jVec(l+1:l+9) = jj(:);
                Tvec(l+1:l+9) = Tloc(:);
                l = l+9;
             end
+            s = s+1;
          end
-         Tmat = sparse(iVec,jVec,Tvec,3*obj.nS,3*obj.nS);
+        iVec = iVec(iVec~=0); 
+        jVec = jVec(jVec~=0);
+        if isempty(iVec) && isempty(jVec)
+           Tmat = sparse(3*nSlip,3*nSlip);
+        else
+           Tmat = sparse(iVec,jVec,Tvec,3*nSlip,3*nSlip);
+        end
       end
 
-      function Nmat = computeDtDtn(obj,activeSet)
+      function Nmat = computeDtDtn(obj,activeSet,mult)
          % compute derivative of tangential traction w.r.t tangential gap
          % quantities are in local coordinates
          iVec = zeros(2*numel(activeSet.curr.slip),1);
          jVec = zeros(2*numel(activeSet.curr.slip),1);
          Nvec = zeros(2*numel(activeSet.curr.slip),1);
          l = 0;
+         s = 1;
+         nSlip = numel(activeSet.curr.slip);
          for i = activeSet.curr.slip'
-            dof = get_dof(i);
-            tLim = tau_max(obj,i);
-            DgT = obj.getNodeRotationMatrix(i)'*obj.g_T(dof); % local tangential gap
+            dofMult = get_dof(i);
+            dofLoc = get_dof(s);
+            tLim = tau_max(obj,i,mult);
+            DgT = obj.getNodeRotationMatrix(i)'*obj.g_T(dofMult); % local tangential gap
             DgT = DgT([2 3]); % if evrything is ok, the first component is actually 0
             normgT = norm(DgT);
             if normgT > obj.tolGap
-               Nloc = tLim*gT/normgT; % 3x3 local mat in global coords
-               iVec(l+1:l+2) = [dof(2);dof(3)];
-               jVec(l+1:l+2) = [dof(1);dof(1)];
+               Nloc = tLim*DgT/normgT; % 3x3 local mat in global coords
+               iVec(l+1:l+2) = [dofLoc(2);dofLoc(3)];
+               jVec(l+1:l+2) = [dofLoc(1);dofLoc(1)];
                Nvec(l+1:l+2) = Nloc(:);
                l = l+2;
             end
+            s = s+1;
          end
-         Nmat = sparse(iVec,jVec,Nvec,3*obj.nS,3*obj.nS);
+         iVec = iVec(iVec~=0);
+         jVec = jVec(jVec~=0);
+         if isempty(iVec) && isempty(jVec)
+            Nmat = sparse(3*nSlip,3*nSlip);
+         else
+            Nmat = sparse(iVec,jVec,Nvec,3*nSlip,3*nSlip);
+         end
       end
    end
 end

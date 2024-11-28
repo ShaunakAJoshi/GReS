@@ -157,6 +157,9 @@ classdef NonLinearSolverFaults < handle
                   % Update active set
                   flagActiveSet = updateActiveSet(obj);
                   obj.activeSet.prev = obj.activeSet.curr;
+                  itAS = itAS+1;
+               else
+                  flagActiveSet = false;
                end
             end
             %
@@ -350,10 +353,11 @@ classdef NonLinearSolverFaults < handle
          [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.intMaster,lagDof,-obj.mortar.Mg');
          [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.intSlave,lagDof,obj.mortar.Dg');
          % stick blocks
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intMaster,-obj.mortar.Mn);
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intSlave,obj.mortar.Dn);
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intMaster,-obj.mortar.Mt);
-         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intSlave,obj.mortar.Dt);
+         stickDofs = get_dof(obj.activeSet.curr.stick);
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intMaster,-obj.mortar.Mn(stickDofs,:));
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intSlave,obj.mortar.Dn(stickDofs,:));
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intMaster,-obj.mortar.Mt(stickDofs,:));
+         [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.stick,obj.dofMap.intSlave,obj.mortar.Dt(stickDofs,:));
          % slip blocks
          if any(obj.activeSet.curr.slip)
             slipDofs = get_dof(obj.activeSet.curr.slip);
@@ -361,10 +365,10 @@ classdef NonLinearSolverFaults < handle
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,-obj.mortar.Mn(slipDofs,:));
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,obj.mortar.Dn(slipDofs,:));
             % contribution to tangential component
-            T = computeDtDgt(obj); % non linear contribution
+            T = computeDtDgt(obj.mortar,obj.activeSet,obj.currMultipliers); % non linear contribution
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,-T*obj.mortar.Mt(slipDofs,:));
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,T*obj.mortar.Dt(slipDofs,:));
-            N = computeDtDtn(obj); % non linear contribution
+            N = computeDtDtn(obj.mortar,obj.activeSet,obj.currMultipliers); % non linear contribution
             % select only tangential components of mass matrix
             tComp = repmat([false;true;true],numel(obj.activeSet.curr.slip),1);
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.slip,...
@@ -435,7 +439,7 @@ classdef NonLinearSolverFaults < handle
       function rhsSlip = computeRhsSlip(obj)
          if ~isempty(obj.activeSet.curr.slip)
             dofSlip = get_dof(obj.activeSet.curr.slip);
-            tracLim = computeLimitTraction(obj); % limit traction in active nodes
+            tracLim = computeLimitTraction(obj.mortar,obj.activeSet,obj.currMultipliers); % limit traction in active nodes
             usCurr = obj.state(obj.mortar.tagSlave).dispCurr(obj.dofMap.nodSlave);
             umCurr = obj.state(obj.mortar.tagMaster).dispConv(obj.dofMap.nodMaster);
             rhsSlip1 = obj.mortar.Dn*usCurr - obj.mortar.Mn*umCurr; % normal components
@@ -471,7 +475,9 @@ classdef NonLinearSolverFaults < handle
          obj.currMultipliers(:) = -abs(v_loc);
          obj.iniMult = obj.currMultipliers;
          obj.state(1).conv.stress = obj.state(1).iniStress;
+         %obj.state(1).curr.stress = obj.state(1).iniStress;
          obj.state(2).conv.stress = obj.state(2).iniStress;
+         %obj.state(2).curr.stress = obj.state(2).iniStress;
       end
    end
 
@@ -500,8 +506,9 @@ classdef NonLinearSolverFaults < handle
                   time = tList(tID);
                   outVar = fac*obj.currMultipliers + (1-fac)*obj.prevMultipliers;
                   outVar = (reshape(outVar,3,[]))';
+                  outVar = [outVar sqrt(outVar(:,2).^2 + outVar(:,3).^2)];
                   pointData = repmat(struct('name',[],'data',[]),3,1);
-                  name = ["sigma_n","tau_1","tau_2"];
+                  name = ["sigma_n","tau_1","tau_2","tau_norm"];
                   for i = 1:size(outVar,2)
                      pointData(i).name = convertStringsToChars(name(i));
                      pointData(i).data = outVar(:,i);
