@@ -136,6 +136,7 @@ classdef State < matlab.mixin.Copyable
             objTo.t = objFrom.t;
             % Poromechanics
             objTo.dispConv = objFrom.dispConv;
+            objTo.dispCurr = objFrom.dispCurr;
             objTo.conv = objFrom.conv;
             objTo.curr = objFrom.curr;
             objTo.iniStress = objFrom.iniStress;

@@ -329,7 +329,7 @@ classdef mortarFaults < handle
             tL = obj.getNodeRotationMatrix(i)'*tL; % traction in local coords
             tL(1) = 0; % set normal component to 0 for rhs computation
             % force tL to have the same component as multiplier
-            tL = sign(mult(3*l-2:3*l)).*abs(tL);
+            tL = sign(mult(dofSlip)).*abs(tL);
             tLim(3*l-2:3*l) = tL;
             l = l+1;
          end

@@ -56,6 +56,6 @@ phi = 30; % degrees
 solver = NonLinearSolverFaults(simParam,mG,coes,phi);
 % measure accuracy
 % errMult = sqrt(sum((abs(solver.currMultipliers(1:3:end))-2).^2));
-
+%%
 solver.models(1).OutState.finalize();
 solver.models(2).OutState.finalize();

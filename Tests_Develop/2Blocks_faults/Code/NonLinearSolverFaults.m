@@ -10,7 +10,7 @@ classdef NonLinearSolverFaults < handle
       dt
       state
       stateOld
-      maxActiveSetIters = 4 % maximum number of active set iterations
+      maxActiveSetIters = 2 % maximum number of active set iterations
       activeSet
       iniMult; % initial multiplier vector
       currMultipliers % store current and previous contact tractions
@@ -51,24 +51,28 @@ classdef NonLinearSolverFaults < handle
          while obj.t < obj.simParameters.tMax
             % Update the simulation time and time step ID
             absTol = obj.simParameters.absTol;
-            obj.tStep = obj.tStep + 1;
-            obj.t = obj.t + obj.dt;
-            % Apply Dirichlet value to individual domain solutions
-            % Apply the Dirichlet condition value to the solution vector
-            applyDirFault(obj);
-
-            if obj.simParameters.verbosity > 0
-               fprintf('\nTSTEP %d   ---  TIME %f  --- DT = %e\n',obj.tStep,obj.t,obj.dt);
-               fprintf('-----------------------------------------------------------\n');
-            end
 
             itAS = 0;
             flagActiveSet = true;
 
             % Active set loop
             while (flagActiveSet) && (itAS < obj.maxActiveSetIters)
+
+               obj.tStep = obj.tStep + 1;
+               obj.t = obj.t + obj.dt;
+               % Apply Dirichlet value to individual domain solutions
+         
+               if (obj.simParameters.verbosity > 0) && (itAS == 0)
+                  fprintf('\nTSTEP %d   ---  TIME %f  --- DT = %e\n',obj.tStep,obj.t,obj.dt);
+                  fprintf('-----------------------------------------------------------\n');
+               end
+
                fprintf('Active set iteration n. %i \n',itAS)
 
+               % Apply the Dirichlet condition value to the solution vector
+               applyDirFault(obj);
+
+               % Update dof based on current active set
                obj.updateDoFMap;
 
                % Compute rhs terms (no BCS)
@@ -108,14 +112,6 @@ classdef NonLinearSolverFaults < handle
                   % update solution fields (disp, multipliers)
                   updateStateFaults(obj,du);
 
-                  % printe state (even if not converged)
-                  % for i = 1:obj.nDom
-                  %     printState(obj.models(i).OutState,obj.state(i));
-                  %     obj.models(i).OutState.finalize();
-                  %     plotFunction(obj.mortar.meshGlue.interfaces.mortar.intSlave,'Fault',(reshape(obj.currMultipliers,3,[]))',...
-                  %         ["sigma_n","tau_1","tau_2"]);
-                  % end
-
                   % update nodal gaps
                   computeNodalGap(obj.mortar,obj.state,obj.dofMap);
 
@@ -129,20 +125,39 @@ classdef NonLinearSolverFaults < handle
                   [J,rhs] = applyBCFaults(obj,J,rhs,obj.t);
 
                   % compute Rhs norm
+                  %rhsNorm = norm(rhs(1:3*(obj.mortar.totNodMaster+obj.mortar.totNodSlave)),2);
                   rhsNorm = norm(rhs,2);
                   if obj.simParameters.verbosity > 1
                      fprintf('%d     %e\n',itNR,rhsNorm);
                   end
-               end
+
+                  %controllo primo calcolo dello slip! print
+                  if norm(obj.mortar.g_T)>1e-10
+                     for i = 1:obj.nDom
+                        obj.state(i).t = obj.t;
+                        obj.state(i).advanceState();
+                        printState(obj.models(i).OutState,obj.stateOld(i),obj.state(i));
+                     end
+                     printID = printFault(obj,tListFault,vtkFault,printID,'transient');
+                     vtkFault.finalize();
+                     return
+                  end
+               end % end newton 
                %
                % Check NR convergence
                flConv = (rhsNorm < tolWeigh || rhsNorm < absTol);
                if flConv % Convergence
                   for i = 1:obj.nDom
                      obj.state(i).t = obj.t;
-                     % Print the solution, if needed
                      obj.state(i).advanceState();
                   end
+                  % Update active set if NR converged
+                  flagActiveSet = updateActiveSet(obj);
+                  obj.activeSet.prev = obj.activeSet.curr;
+                  itAS = itAS+1;
+               end
+               % Print converged active set solution
+               if (flConv) && (~flagActiveSet) 
                   if obj.t > obj.simParameters.tMax   % For Steady State
                      for i = 1:obj.nDom
                         printState(obj.models(i).OutState,obj.state(i));
@@ -154,19 +169,13 @@ classdef NonLinearSolverFaults < handle
                      end
                      printID = printFault(obj,tListFault,vtkFault,printID,'transient');
                   end
-                  % Update active set
-                  flagActiveSet = updateActiveSet(obj);
-                  obj.activeSet.prev = obj.activeSet.curr;
-                  itAS = itAS+1;
-               else
-                  flagActiveSet = false;
                end
+               %
+               %
+               manageNextTimeStep(obj,flConv,flagActiveSet);
             end
             %
-            % Manage next time step
-            manageNextTimeStep(obj,flConv);
          end
-         vtkFault.finalize();
          %
       end
 
@@ -188,24 +197,35 @@ classdef NonLinearSolverFaults < handle
          buildDoFMap(obj);
       end
 
-      function manageNextTimeStep(obj,flConv)
-         if ~flConv   % Perform backstep
+
+      function manageNextTimeStep(obj,flConv,flActSet)
+         % flConv -> newton raphson converged
+         % flActSet -> active set changed
+
+         if ~flConv
             for i = 1:obj.nDom
                transferState(obj.stateOld(i),obj.state(i));
             end
-            obj.prevMultipliers = obj.currMultipliers;
             obj.t = obj.t - obj.dt;
             obj.tStep = obj.tStep - 1;
-            obj.dt = obj.dt/obj.simParameters.divFac;
             obj.dt = obj.dt/obj.simParameters.divFac;  % Time increment chop
             if obj.dt < obj.simParameters.dtMin
-               error('Minimum time step reached')
+                  error('Minimum time step reached')
             elseif obj.simParameters.verbosity > 0
                fprintf('\n %s \n','BACKSTEP');
             end
+            return
          end
 
-         if flConv % Go on if converged
+         if flActSet
+            for i = 1:obj.nDom
+               transferState(obj.stateOld(i),obj.state(i)); % refresh state
+            end
+            obj.currMultipliers = obj.prevMultipliers; % restore multipliers
+            obj.t = obj.t - obj.dt;
+            obj.tStep = obj.tStep - 1;
+         else
+            % update time step
             obj.dt = min([obj.dt*obj.simParameters.multFac,obj.simParameters.dtMax]);
             obj.dt = max([obj.dt obj.simParameters.dtMin]);
             for i = 1:obj.nDom
@@ -336,6 +356,12 @@ classdef NonLinearSolverFaults < handle
          rhs(obj.dofMap.slip) = rhs(obj.dofMap.slip) + computeRhsSlip(obj);
          % Open nodes rhs
          rhs(obj.dofMap.open) = rhs(obj.dofMap.open) + computeRhsOpen(obj);
+         %
+         fprintf('Rhs mechanics: %.4f \n',norm(computeRhsMechanics(obj)));
+         fprintf('Rhs mesh tying: %.4f \n',norm(computeRhsMeshTying(obj)))
+         fprintf('Rhs stick: %.4f \n',norm(computeRhsStick(obj)))
+         fprintf('Rhs slip: %.4f \n',norm(computeRhsSlip(obj)))
+         fprintf('Rhs open: %.4f \n',norm(computeRhsOpen(obj)))
       end
 
       function J = computeJacobian(obj)
@@ -441,9 +467,11 @@ classdef NonLinearSolverFaults < handle
             dofSlip = get_dof(obj.activeSet.curr.slip);
             tracLim = computeLimitTraction(obj.mortar,obj.activeSet,obj.currMultipliers); % limit traction in active nodes
             usCurr = obj.state(obj.mortar.tagSlave).dispCurr(obj.dofMap.nodSlave);
-            umCurr = obj.state(obj.mortar.tagMaster).dispConv(obj.dofMap.nodMaster);
+            umCurr = obj.state(obj.mortar.tagMaster).dispCurr(obj.dofMap.nodMaster);
             rhsSlip1 = obj.mortar.Dn*usCurr - obj.mortar.Mn*umCurr; % normal components
-            rhsSlip2 = obj.mortar.L(dofSlip,dofSlip)*(obj.currMultipliers(dofSlip)-tracLim); % tangential components
+            t_T = repmat([false;true;true],numel(obj.activeSet.curr.slip),1).*obj.currMultipliers(dofSlip);
+            deltaTraction = t_T - tracLim;
+            rhsSlip2 = obj.mortar.L(dofSlip,dofSlip)*deltaTraction; % tangential components
             rhsSlip = rhsSlip1(dofSlip) + rhsSlip2;
          else
             rhsSlip = [];
@@ -504,11 +532,16 @@ classdef NonLinearSolverFaults < handle
                   % Linear interpolation
                   fac = (tList(tID) - obj.stateOld(1).t)/(obj.state(1).t - obj.stateOld(1).t);
                   time = tList(tID);
-                  outVar = fac*obj.currMultipliers + (1-fac)*obj.prevMultipliers;
-                  outVar = (reshape(outVar,3,[]))';
-                  outVar = [outVar sqrt(outVar(:,2).^2 + outVar(:,3).^2)];
+                  outVar = zeros(obj.mortar.nS,6);
+                  interpMult= fac*obj.currMultipliers + (1-fac)*obj.prevMultipliers;
+                  outVar(:,1:3) = (reshape(interpMult,3,[]))';
+                  outVar(:,4) = sqrt(outVar(:,2).^2 + outVar(:,3).^2);
+                  % gap values
+                  outVar(:,5) = obj.mortar.g_N;
+                  gt = (reshape(obj.mortar.g_T,3,[]))';
+                  outVar(:,6) = sqrt(gt(:,2).^2+gt(:,3).^2);
                   pointData = repmat(struct('name',[],'data',[]),3,1);
-                  name = ["sigma_n","tau_1","tau_2","tau_norm"];
+                  name = ["sigma_n","tau_1","tau_2","tau_norm","g_N","||g_T||"];
                   for i = 1:size(outVar,2)
                      pointData(i).name = convertStringsToChars(name(i));
                      pointData(i).data = outVar(:,i);
