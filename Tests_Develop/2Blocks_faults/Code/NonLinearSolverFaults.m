@@ -10,7 +10,7 @@ classdef NonLinearSolverFaults < handle
       dt
       state
       stateOld
-      maxActiveSetIters = 2 % maximum number of active set iterations
+      maxActiveSetIters = 1 % maximum number of active set iterations
       activeSet
       iniMult; % initial multiplier vector
       currMultipliers % store current and previous contact tractions
@@ -55,9 +55,10 @@ classdef NonLinearSolverFaults < handle
             itAS = 0;
             flagActiveSet = true;
 
-            % Active set loop
-            while (flagActiveSet) && (itAS < obj.maxActiveSetIters)
+            obj.mortar.gapOld = obj.mortar.gap; 
 
+            % Active set loop
+            while flagActiveSet
                obj.tStep = obj.tStep + 1;
                obj.t = obj.t + obj.dt;
                % Apply Dirichlet value to individual domain solutions
@@ -115,6 +116,48 @@ classdef NonLinearSolverFaults < handle
                   % update nodal gaps
                   computeNodalGap(obj.mortar,obj.state,obj.dofMap);
 
+                  % get information on slipping nodes
+                  k = 0;
+                  % if ~isempty(obj.activeSet.curr.slip)
+                  %    isTopMaster = [obj.models(1).Grid.topology.coordinates(:,1)==2.5, ...
+                  %       obj.models(1).Grid.topology.coordinates(:,3)==15];
+                  %    n_m = find(all(isTopMaster,2));
+                  %    n_s = obj.mortar.idSlave(obj.activeSet.curr.slip);
+                  %    u_master = obj.state(1).dispCurr(get_dof(n_m));
+                  %    u_slave = obj.state(2).dispCurr(get_dof(n_s));
+                  %    for is = obj.activeSet.curr.slip'
+                  %       dof_mult = get_dof(is);
+                  %       slave_id = obj.mortar.idSlave(is);
+                  %       u_s = obj.state(2).dispCurr(get_dof(slave_id));
+                  %       gap_loc = obj.mortar.gap(dof_mult);
+                  %       mult = obj.currMultipliers(dof_mult);
+                  %       tnorm = sqrt(mult(2)^2 + mult(3)^2);
+                  %       tlim = obj.mortar.tau_max(is,obj.currMultipliers);
+                  %       k = k+3;
+                  %       fprintf(['it %i: Slip node %i - y = %.3f du = [%.2e %.2e %.2e] gap = ...' ...
+                  %          '[%.2e %.2e %.2e], \n sn = %.3e, tNorm = %.3e, tLim = %.3e \n \n'], itAS,is,...
+                  %          obj.models(2).Grid.topology.coordinates(slave_id,2),u_s',gap_loc',obj.currMultipliers(dof_mult(1)),tnorm,tlim);
+                  %    end
+                  % end
+
+                  if ~isempty(obj.activeSet.curr.slip)
+                     % get gap from extreme nodes of the fault
+                     nm = [6;7]; % boundary master nodes at top
+                     ns = [5;8]; % boundary slave nodes at top
+                     dum = du(obj.mortar.getContactDofs('master',nm));
+                     um = obj.state(1).dispCurr(get_dof(nm));
+                     dus = du(obj.mortar.getContactDofs('slave',ns));
+                     us = obj.state(2).dispCurr(get_dof(ns));
+                     fprintf('y = 0 \n')
+                     fprintf('master du = %.3e %.3e %.3e, slave du = %.3e %.3e %.3e \n',...
+                        dum(1:3)', dus(1:3)');
+                     fprintf('master disp = %.3e %.3e %.3e, slave disp = %.3e %.3e %.3e \n',um(1:3)',us(1:3)')
+                     fprintf('y = 10 \n')
+                     fprintf('master du = %.3e %.3e %.3e, slave du = %.3e %.3e %.3e \n',...
+                        dum(4:6)', dus(4:6)');
+                     fprintf('master disp = %.3e %.3e %.3e, slave disp = %.3e %.3e %.3e \n',um(4:6)',us(4:6)')
+                  end
+
                   % recompute rhs
                   rhs = computeRhs(obj);
 
@@ -132,16 +175,16 @@ classdef NonLinearSolverFaults < handle
                   end
 
                   %controllo primo calcolo dello slip! print
-                  if norm(obj.mortar.g_T)>1e-10
-                     for i = 1:obj.nDom
-                        obj.state(i).t = obj.t;
-                        obj.state(i).advanceState();
-                        printState(obj.models(i).OutState,obj.stateOld(i),obj.state(i));
-                     end
-                     printID = printFault(obj,tListFault,vtkFault,printID,'transient');
-                     vtkFault.finalize();
-                     return
-                  end
+                  % if norm(obj.mortar.g_T)>1e-10
+                  %    for i = 1:obj.nDom
+                  %       obj.state(i).t = obj.t;
+                  %       obj.state(i).advanceState();
+                  %       printState(obj.models(i).OutState,obj.stateOld(i),obj.state(i));
+                  %    end
+                  %    printID = printFault(obj,tListFault,vtkFault,printID,'transient');
+                  %    vtkFault.finalize();
+                  %    return
+                  % end
                end % end newton 
                %
                % Check NR convergence
@@ -155,6 +198,9 @@ classdef NonLinearSolverFaults < handle
                   flagActiveSet = updateActiveSet(obj);
                   obj.activeSet.prev = obj.activeSet.curr;
                   itAS = itAS+1;
+                  if itAS > obj.maxActiveSetIters
+                     flagActiveSet = false;
+                  end
                end
                % Print converged active set solution
                if (flConv) && (~flagActiveSet) 
@@ -392,13 +438,14 @@ classdef NonLinearSolverFaults < handle
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,obj.mortar.Dn(slipDofs,:));
             % contribution to tangential component
             T = computeDtDgt(obj.mortar,obj.activeSet,obj.currMultipliers); % non linear contribution
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,-T*obj.mortar.Mt(slipDofs,:));
-            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,T*obj.mortar.Dt(slipDofs,:));
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intMaster,obj.mortar.Mt(slipDofs,:)*T);
+            [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.intSlave,-obj.mortar.Dt(slipDofs,:)*T);
             N = computeDtDtn(obj.mortar,obj.activeSet,obj.currMultipliers); % non linear contribution
             % select only tangential components of mass matrix
             tComp = repmat([false;true;true],numel(obj.activeSet.curr.slip),1);
+            % provisional matrices consistent with Jha formulation
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.slip,...
-               N*obj.mortar.L(slipDofs,slipDofs));
+               -N*obj.mortar.L(slipDofs,slipDofs));
             [i,j,Jvec] = addBlockJ(i,j,Jvec,obj.dofMap.slip,obj.dofMap.slip,...
                tComp'.*obj.mortar.L(slipDofs,slipDofs).*tComp);
          end
@@ -410,6 +457,7 @@ classdef NonLinearSolverFaults < handle
          end
          J = sparse(i,j,Jvec,obj.mortar.nDoF,obj.mortar.nDoF);
       end
+
 
 
       function rhsVal = computeRhsMeshTying(obj)

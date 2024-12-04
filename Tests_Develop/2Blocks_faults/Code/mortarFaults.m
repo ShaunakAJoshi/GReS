@@ -26,12 +26,13 @@ classdef mortarFaults < handle
       totNodSlave  % total number of slave domain nodes
       nDoF
       activeSet   % group nodes based on active set state
-      gap         % g
+      gap         % current gap vector
+      gapOld     % gap of previous time step
       g_T         % \Delta_n g_T
       g_N         % n \cdot g
       E           % mortar operator
       R           % global rotation matrix
-      tolGap = 1e-5; % tolerance on normal and tangential gaps
+      tolGap = 1e-8; % tolerance on normal and tangential gaps
       tolNormal = 1e-3 % tolerance on normal traction
       tolTang = 1e-2 % relative tolerance w.r.t tau_lim
    end
@@ -325,11 +326,18 @@ classdef mortarFaults < handle
          for i = activeSet.curr.slip'
             dofSlip = get_dof(i);
             gapNorm = norm(obj.g_T(dofSlip),2);
-            tL = repelem(tau_max(obj,i,mult),3,1).*obj.g_T(dofSlip)/gapNorm; % traction in global coords
-            tL = obj.getNodeRotationMatrix(i)'*tL; % traction in local coords
-            tL(1) = 0; % set normal component to 0 for rhs computation
-            % force tL to have the same component as multiplier
-            tL = sign(mult(dofSlip)).*abs(tL);
+            if gapNorm > obj.tolGap
+               % principle of maximum plastic dissipation
+               tL = repelem(tau_max(obj,i,mult),3,1).*obj.g_T(dofSlip)/gapNorm;
+               tL = -obj.getNodeRotationMatrix(obj.idSlave(i))'*tL; % traction in local coords
+               tL(1) = 0; 
+            else
+               % keep direction of previous lagrange multiplier
+               lambda = mult(get_dof(i));
+               lambda(1) = 0;
+               tL = repelem(tau_max(obj,i,mult),3,1).*(lambda/norm(lambda));
+               % this is already in local components
+            end
             tLim(3*l-2:3*l) = tL;
             l = l+1;
          end
@@ -347,9 +355,11 @@ classdef mortarFaults < handle
          % Use mortar operator E to map master nodes to slave side
          usCurr = state(obj.tagSlave).dispCurr(dofMap.nodSlave);
          umCurr = state(obj.tagMaster).dispCurr(dofMap.nodMaster);
-         g_old = obj.gap;
          obj.gap = usCurr - obj.E*umCurr;
-         obj.g_T = obj.gap - g_old; % global nodal gap
+         if isempty(obj.gapOld)
+            obj.gapOld = obj.gap;
+         end
+         obj.g_T = obj.gap - obj.gapOld; % global nodal gap
          area_nod = sqrt(sum(obj.meshGlue.interfaces.nodeNormal.^2,2)); % nodal area
          n = obj.meshGlue.interfaces.nodeNormal./area_nod; % unit nodal normal
          % compute tangential component
@@ -378,7 +388,7 @@ classdef mortarFaults < handle
             dofLoc = get_dof(s);
             dofMult = get_dof(i);
             tLim = tau_max(obj,i,mult);
-            DgT = obj.g_T(dofMult);
+            DgT = -obj.getNodeRotationMatrix(obj.idSlave(i))*obj.g_T(dofMult);
             normgT = norm(DgT);
             if normgT > obj.tolGap
                Tloc = tLim*(normgT^2*eye(3)-DgT*DgT')/normgT^3; % 3x3 local mat in global coords
@@ -411,12 +421,16 @@ classdef mortarFaults < handle
          for i = activeSet.curr.slip'
             dofMult = get_dof(i);
             dofLoc = get_dof(s);
-            tLim = tau_max(obj,i,mult);
-            DgT = obj.getNodeRotationMatrix(i)'*obj.g_T(dofMult); % local tangential gap
+            %tLim = tau_max(obj,i,mult);
+            DgT = -obj.getNodeRotationMatrix(i)'*obj.g_T(dofMult); % local tangential gap
             DgT = DgT([2 3]); % if evrything is ok, the first component is actually 0
             normgT = norm(DgT);
+            %lambda_t = mult(dofMult);
+            %lambda_t = lambda_t([2 3]);
+            %normLambda = norm(lambda_t);
             if normgT > obj.tolGap
-               Nloc = tLim*DgT/normgT; % 3x3 local mat in global coords
+               Nloc = -tan(deg2rad(obj.phi))*DgT/normgT; % 3x3 local mat in global coords
+               %Nloc = tLim*(normgT^2*eye(3)-DgT*DgT')/normgT^3;
                iVec(l+1:l+2) = [dofLoc(2);dofLoc(3)];
                jVec(l+1:l+2) = [dofLoc(1);dofLoc(1)];
                Nvec(l+1:l+2) = Nloc(:);
