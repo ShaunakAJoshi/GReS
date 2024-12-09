@@ -550,6 +550,8 @@ classdef mortarFaults < handle
          nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration (use this for all matrices)
          mult_type = obj.meshGlue.interfaces(1).multType;
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
+         area_nod = sqrt(sum(obj.meshGlue.interfaces(1).nodeNormal.^2,2)); % nodal area
+         nvec = obj.meshGlue.interfaces(1).nodeNormal./area_nod; % normalized nodal normals
          % set Gauss class
          gS = Gauss(mortar.slaveCellType,nGP,2); % gauss class for slave integration
          elemSlave = getElem(mortar,gS,'slave');
@@ -575,24 +577,26 @@ classdef mortarFaults < handle
             Nmult = obj.dispSP(NSlaveMult);
             % compute limit tau according to mohr coulomb
             sn = mult(3*nSlave-2);
-            sn = Nmult(1,1:3:end,:)*sn; % interpolated normal
+            sn = pagemtimes(Nmult(1,1:3:end,:),sn); % interpolated normal
             tauLim = obj.coes - tan(deg2rad(obj.phi))*sn;
             if norm(obj.g_T(get_dof(nSlave))) < obj.tolGap
                lt = mult(get_dof(nSlave));
+               lt(1:3:end) = 0; % get only tangential component of active nodes
                lt = pagemtimes(Nmult,lt);
                norm_lt = pagenorm(lt);
-               tLim = pagemetimes(tauLim,pagemtimes(lt,1/norm_lt));
+               tLim = pagemtimes(tauLim,pagemtimes(lt,1/norm_lt));
             else
-               gt = obj.g_T(get_dof(nSlave));
+               n_el = (nvec(nSlave,:))';
+               n_el = n_el(:); % local nodal normal vector
+               Rloc = getRotationMatrix(obj,n_el);
+               gt = Rloc'*obj.g_T(get_dof(nSlave));
                gt = pagemtimes(Ns,gt);    % interpolated gap
                norm_gt = pagenorm(gt);
-               tLim = pagemetimes(tauLim,pagemtimes(gt,1/norm_gt)); % 3D limit stress
+               tLim = pagemtimes(tauLim,pagemtimes(gt,1/norm_gt)); % 3D limit stress
             end
-            % the limit traction has to be rotated
             rhsTmp = pagemtimes(Nmult,'transpose',tLim,'none');
             rhsTmp = rhsTmp.*reshape(dJWeighed,1,1,[]);
             rhsLoc = sum(rhsTmp,3);
-            rhsLoc = obj.R(dofSlave,dofSlave)*rhsLoc;
             rhs(dofSlave) = rhsLoc;
          end
       end

@@ -10,7 +10,7 @@ classdef NonLinearSolverFaults < handle
       dt
       state
       stateOld
-      maxActiveSetIters = 4 % maximum number of active set iterations
+      maxActiveSetIters = 1 % maximum number of active set iterations
       activeSet
       iniMult; % initial multiplier vector
       currMultipliers % store current and previous contact tractions
@@ -529,6 +529,7 @@ classdef NonLinearSolverFaults < handle
             t_T = repmat([false;true;true],numel(obj.activeSet.curr.slip),1).*obj.currMultipliers(dofSlip);
             deltaTraction = t_T - tracLim;
             rhsSlip2 = obj.mortar.L(dofSlip,dofSlip)*t_T; % tangential components
+            rhsTest =  obj.mortar.L(dofSlip,dofSlip)*tracLim;
             rhsSlip3 = computeRhsLimitTraction(obj.mortar,obj.currMultipliers,obj.activeSet);
             rhsSlip = rhsSlip1(dofSlip) + rhsSlip2 + rhsSlip3(dofSlip);
          else
