@@ -2,11 +2,13 @@
 % Domain 1 
 <Domain> 
 <Name> 
-Left_block_tetra
+Left_block_hexa_dual
 <ModelType> 
 Poromechanics_FEM
 <Geometry> 
-Mesh/LeftBlock_tetra.msh
+Mesh/LeftBlock_hexa.msh
+<Gauss>
+12 2 3
 <Material> 
 Materials/MaterialsList.dat
 <BoundaryConditions> 
@@ -21,11 +23,13 @@ outTime.dat
 % Domain 2 
 <Domain> 
 <Name> 
-Right_block_tetra
+Right_block_hexa_dual
 <ModelType> 
 Poromechanics_FEM
 <Geometry> 
-Mesh/RightBlock_tetra.msh
+Mesh/RightBlock_hexa.msh
+<Gauss>
+12 2 3
 <Material> 
 Materials/MaterialsList.dat
 <BoundaryConditions> 

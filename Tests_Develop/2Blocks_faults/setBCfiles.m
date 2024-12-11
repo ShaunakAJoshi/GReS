@@ -7,7 +7,7 @@ writeBCfiles('BCs/rightBot','SurfBC','Dir','Poro',"z",'right_bottom',0,0,rightMe
 writeBCfiles('BCs/rightLatLoad','SurfBC','Neu','Poro',"x",'right_latLoad',[0 1 6 11 16],[0 -5 -5 0 0],rightMesh,2); % right block bottom fix
 writeBCfiles('BCs/rightTopLoad','SurfBC','Neu','Poro',"z",'right_topLoad',[0 1 6 11 16],[0 0 -18 -18 0],rightMesh,3); % right block bottom fix
 % fix y direction in the symmetry vertical axis
-tol = 1e-3;
+tol = 1e-2;
 nL = find(all([abs(leftMesh.coordinates(:,2)-5)<tol,leftMesh.coordinates(:,3)<tol],2));
 nR = find(all([abs(rightMesh.coordinates(:,2)-5)<tol,rightMesh.coordinates(:,3)<tol],2));
 if isempty(nL) || isempty(nR)

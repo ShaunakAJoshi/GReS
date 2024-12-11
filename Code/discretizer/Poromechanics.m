@@ -174,7 +174,8 @@ classdef Poromechanics < handle
         end
 
         function out = isLinear(obj)
-            out = true;
+            out = false;
+            return
               for i = 1:obj.mesh.nCellTag
                 out = isa(obj.material.getMaterial(i).ConstLaw,"Elastic");
                 if ~out

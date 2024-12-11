@@ -2,7 +2,7 @@
 % Domain 1 
 <Domain> 
 <Name> 
-Left_block_hexa
+Left_block_hexa_standard
 <ModelType> 
 Poromechanics_FEM
 <Geometry> 
@@ -23,7 +23,7 @@ outTime.dat
 % Domain 2 
 <Domain> 
 <Name> 
-Right_block_hexa
+Right_block_hexa_standard
 <ModelType> 
 Poromechanics_FEM
 <Geometry> 

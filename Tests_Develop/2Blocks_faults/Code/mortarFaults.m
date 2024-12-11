@@ -77,17 +77,29 @@ classdef mortarFaults < handle
          % compute mortar matrices within one simulation loop use radial
          % basis functions to evaluate matrix M
          mortar = obj.meshGlue.interfaces(1).mortar; % only one interface defined
-         nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration
-         nInt = obj.meshGlue.interfaces(1).nInt; % numb. of interpolation points for RBF intrpolation
+         % detect elements lying in the boundary of the interface
          tol = 1e-3;
-         type = 'gauss';
+         boundElem = zeros(mortar.nElSlave,1);
+         s =0;
+         for i = 1:mortar.nElSlave
+            nList = mortar.intSlave.surfaces(i,:);
+            yMin = 0; yMax = 10; zMin = 0; zMax = 15;
+            idY = any([abs(mortar.intSlave.coordinates(nList,2)-yMin)<tol,abs(mortar.intSlave.coordinates(nList,2)-yMax)<tol],2);
+            idZ = any([abs(mortar.intSlave.coordinates(nList,3)-zMin)<tol,abs(mortar.intSlave.coordinates(nList,3)-zMax)<tol],2);
+            if any(any([idY,idZ],2))
+               boundElem(s+1) = i;
+               s = s+1;
+            end
+         end
+         boundElem = boundElem(boundElem~=0);
+         %
+         nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration
          mult_type = obj.meshGlue.interfaces(1).multType;
          c_ns = 0;  % counter for GP not projected
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          % set Gauss class
          gM = Gauss(mortar.masterCellType,3,2); % gauss class for Master element interpolation
          gS = Gauss(mortar.slaveCellType,nGP,2); % gauss class for slave integration
-         elemMaster = getElem(mortar,gM,'master');
          elemSlave = getElem(mortar,gS,'slave');
          [imVec,jmVec,Mgvec,Mtvec,Mnvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
          [isVec,jsVec,Dgvec,Dtvec,Dnvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
@@ -114,6 +126,12 @@ classdef mortarFaults < handle
                case 'dual'
                   NSlaveMult = mortar.computeDualBasisF(NSlave,dJWeighed);
             end
+            % modify multiplier basis for elements containing boundary
+            % nodes 
+            % if ismember(j,boundElem)
+            %    NSlaveMult = ones(size(NSlaveMult))/size(NSlaveMult,2); 
+            %    % constant unit function
+            % end
             master_elems = find(mortar.elemConnectivity(:,j));
             for jm = master_elems'
                nMaster = mortar.intMaster.surfaces(jm,:);
@@ -194,7 +212,7 @@ classdef mortarFaults < handle
          obj.Dt = sparse(isVec,jsVec,Dtvec,3*obj.nS,3*obj.nS);
          obj.L = sparse(isVec,jsVec,Lvec,3*obj.nS,3*obj.nS);
          % eliminate small numerical quantities in obj.Dg
-         obj.Dg(abs(obj.Dg)<1e-12) = 0;
+         %obj.Dg(abs(obj.Dg)<1e-12) = 0;
       end
 
       function R = getRotationMatrix(obj,n_el)
