@@ -270,11 +270,11 @@ classdef mortarFaults < handle
          % reshape basis functions to obtain displacement shape function
          % input: nG x nN matrix
          % output: 3 x nN x nG
-         s2 = 3*obj.nNslave;
+         s2 = 3*size(Nin,2);
          s3 = size(Nin,1);
          N = zeros(3*s2,s3);
-         Nin = repelem(Nin',3,1);
-         N(obj.indN,:) = Nin;
+         Nrep = repelem(Nin',3,1);
+         N(obj.indN(1:s2),:) = Nrep;
          Nout = reshape(N,[3,s2,s3]); % reshaped 3D matrix
       end
 
@@ -320,18 +320,18 @@ classdef mortarFaults < handle
          for i = activeSet.curr.slip'
             dofSlip = get_dof(i);
             gapNorm = norm(obj.g_T(dofSlip),2);
-            if gapNorm > obj.tolGap
-               % principle of maximum plastic dissipation
-               tL = repelem(tau_max(obj,i,mult),3,1).*obj.g_T(dofSlip)/gapNorm;
-               tL = obj.getNodeRotationMatrix(obj.idSlave(i))'*tL; % traction in local coords
-               tL(1) = 0; 
-            else
+            % if gapNorm > obj.tolGap
+            %    % principle of maximum plastic dissipation
+            %    tL = repelem(tau_max(obj,i,mult),3,1).*obj.g_T(dofSlip)/gapNorm;
+            %    tL = obj.getNodeRotationMatrix(obj.idSlave(i))'*tL; % traction in local coords
+            %    tL(1) = 0; 
+            % else
                % keep direction of previous lagrange multiplier
                lambda = mult(get_dof(i));
                lambda(1) = 0;
                tL = repelem(tau_max(obj,i,mult),3,1).*(lambda/norm(lambda));
                % this is already in local components
-            end
+            %end
             tLim(3*l-2:3*l) = tL;
             l = l+1;
          end
@@ -403,7 +403,6 @@ classdef mortarFaults < handle
            Tmat = sparse(iVec,jVec,Tvec,3*nSlip,3*nSlip);
         end
       end
-
 
       function [TD,TM,N] = computeConsistencyMatrices(obj,activeSet,mult)
          % compute the non linear consistency matrices by directly evaluating
@@ -571,16 +570,20 @@ classdef mortarFaults < handle
          area_nod = sqrt(sum(obj.meshGlue.interfaces(1).nodeNormal.^2,2)); % nodal area
          nvec = obj.meshGlue.interfaces(1).nodeNormal./area_nod; % normalized nodal normals
          % set Gauss class
-         gS = Gauss(mortar.slaveCellType,nGP,2); % gauss class for slave integration
+         gS = Gauss(mortar.slaveCellType,4,2); % gauss class for slave integration
          elemSlave = getElem(mortar,gS,'slave');
          rhs = zeros(length(mult),1);
+         % compute nodal limit traction
+         tLim = obj.computeLimitTraction(activeSet,mult);
          for j = 1:mortar.nElSlave
             %Compute Slave quantities
             nSlave = mortar.intSlave.surfaces(j,:); % slave node id
-            dofSlave = get_dof(nSlave);
-            if ~ismember(nSlave,activeSet.curr.slip)
+            activeNodes = ismember(nSlave,activeSet.curr.slip);
+            if ~any(activeNodes)
                continue
             end
+            dofSlave = get_dof(sort(nSlave(activeNodes)));
+            t = tLim(get_dof(find(ismember(activeSet.curr.slip,nSlave(activeNodes)))));
             dJWeighed = elemSlave.getDerBasisFAndDet(j,3); % Weighted Jacobian
             %get Gauss Points position in the real space
             NSlave = getBasisFinGPoints(elemSlave); % Get slave basis functions
@@ -591,18 +594,10 @@ classdef mortarFaults < handle
                   NSlaveMult = mortar.computeDualBasisF(NSlave,dJWeighed);
             end
             % prepare 3D matrices for Gauss integration
-            Ns = obj.dispSP(NSlave);
-            Nmult = obj.dispSP(NSlaveMult);
-            % compute limit tau according to mohr coulomb
-            sn = mult(3*nSlave-2);
-            sn = pagemtimes(Nmult(1,1:3:end,:),sn); % interpolated normal
-            tauLim = obj.coes - tan(deg2rad(obj.phi))*sn;
+            Ns = obj.dispSP(NSlave(:,activeNodes));
+            Nmult = obj.dispSP(NSlaveMult(:,activeNodes));       
             if norm(obj.g_T(get_dof(nSlave))) < obj.tolGap
-               lt = mult(get_dof(nSlave));
-               lt(1:3:end) = 0; % get only tangential component of active nodes
-               ltGP = pagemtimes(Nmult,lt);
-               norm_lt = pagenorm(ltGP);
-               tLim = pagemtimes(tauLim,pagemtimes(ltGP,1/norm_lt));
+               tLim = pagemtimes(Nmult,t);
             else
                n_el = (nvec(nSlave,:))';
                n_el = n_el(:); % local nodal normal vector
@@ -612,10 +607,10 @@ classdef mortarFaults < handle
                norm_gt = pagenorm(gtGP);
                tLim = pagemtimes(tauLim,pagemtimes(gtGP,1/norm_gt)); % 3D limit stress - should i use weighed gap instead?
             end
-            rhsTmp = pagemtimes(Nmult,'transpose',tLim,'none');
+            rhsTmp = pagemtimes(Nmult(2:3,:,:),'transpose',tLim(2:3,:,:),'none');
             rhsTmp = rhsTmp.*reshape(dJWeighed,1,1,[]);
             rhsLoc = sum(rhsTmp,3);
-            rhs(dofSlave) = rhsLoc;
+            rhs(dofSlave) = rhs(dofSlave)+rhsLoc;
          end
       end
 
