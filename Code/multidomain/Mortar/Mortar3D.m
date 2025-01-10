@@ -252,7 +252,7 @@ classdef Mortar3D < handle
             %[wFMatS,w1MatS,ptsIntMatS] = getWeights(obj,'slave',nInt,elemSlave,type);
             % Interpolation for support detection
             %[wFSupp,w1Supp] = getSuppWeight(obj);
-            tInterp = toc;
+            %tInterp = toc;
             % Loop trough slave elements
             cs = 0;
             cm = 0;
@@ -319,7 +319,7 @@ classdef Mortar3D < handle
                    c_ns = c_ns + 1;
                 end
             end
-            tInteg = toc;
+            %tInteg = toc;
             imVec = imVec(1:cm); jmVec = jmVec(1:cm);
             isVec = isVec(1:cs); jsVec = jsVec(1:cs);
             Mvec = Mvec(1:cm); Dvec = Dvec(1:cs);

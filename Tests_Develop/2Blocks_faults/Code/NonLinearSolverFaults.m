@@ -509,12 +509,12 @@ classdef NonLinearSolverFaults < handle
             slipDofs = get_dof(obj.activeSet.curr.slip);
             % contribution to normal component
             J(obj.dofMap.slip,obj.dofMap.intMaster) = -obj.mortar.Mn(slipDofs,:);
-            J(obj.dofMap.slip,obj.dofMap.intMaster) = obj.mortar.Dn(slipDofs,:);
+            J(obj.dofMap.slip,obj.dofMap.intSlave) = obj.mortar.Dn(slipDofs,:);
             % consistency matrices
             [TD,TM,N] = obj.mortar.computeConsistencyMatrices(obj.activeSet,obj.currMultipliers);
-            J(obj.dofMap.slip,obj.dofMap.intMaster) = TM(slipDofs,:);
-            J(obj.dofMap.slip,obj.dofMap.intSlave) = -TD(slipDofs,:);
-            J(obj.dofMap.slip,obj.dofMap.slip) = -N(slipDofs,slipDofs);
+            J(obj.dofMap.slip,obj.dofMap.intMaster) = J(obj.dofMap.slip,obj.dofMap.intMaster)+TM(slipDofs,:);
+            J(obj.dofMap.slip,obj.dofMap.intSlave) = J(obj.dofMap.slip,obj.dofMap.intSlave)-TD(slipDofs,:);
+            J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)-N(slipDofs,slipDofs);
             tComp = repmat([false;true;true],numel(obj.activeSet.curr.slip),1);
             J(obj.dofMap.slip,obj.dofMap.slip) = tComp'.*obj.mortar.L(slipDofs,slipDofs).*tComp;
          end
@@ -591,7 +591,7 @@ classdef NonLinearSolverFaults < handle
             rhsSlip2 = obj.mortar.L(dofSlip,dofSlip)*t_T; % tangential components
             %rhsTest =  obj.mortar.L(dofSlip,dofSlip)*tracLim;
             rhsSlip3 = computeRhsLimitTraction(obj.mortar,obj.currMultipliers,obj.activeSet);
-            rhsSlip = rhsSlip1(dofSlip) + rhsSlip2 + rhsSlip3(dofSlip);
+            rhsSlip = rhsSlip1(dofSlip) + rhsSlip2 - rhsSlip3(dofSlip);
          else
             rhsSlip = [];
          end

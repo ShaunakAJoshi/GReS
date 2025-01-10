@@ -2,8 +2,8 @@ Mesh.Format = 1; // msh output format
 Mesh.MshFileVersion = 2.2; // Version of the MSH file format to use
 
 nX = 4;
-nY = 4*11-1; // DEVE ESSERE DISPARI PER AVERE IL NODE IN Y=5
-nZ = 4*10;
+nY = 2*7-1; // DEVE ESSERE DISPARI PER AVERE IL NODE IN Y=5
+nZ = 2*8;
 
 // This variable can then be used in the definition of Gmsh's simplest
 // `elementary entity', a `Point'. A Point is uniquely identified by a tag (a

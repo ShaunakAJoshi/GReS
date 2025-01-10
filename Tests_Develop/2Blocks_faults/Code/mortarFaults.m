@@ -600,17 +600,17 @@ classdef mortarFaults < handle
             if norm(obj.g_T(get_dof(nSlave))) < obj.tolGap
                lt = mult(get_dof(nSlave));
                lt(1:3:end) = 0; % get only tangential component of active nodes
-               lt = pagemtimes(Nmult,lt);
-               norm_lt = pagenorm(lt);
-               tLim = pagemtimes(tauLim,pagemtimes(lt,1/norm_lt));
+               ltGP = pagemtimes(Nmult,lt);
+               norm_lt = pagenorm(ltGP);
+               tLim = pagemtimes(tauLim,pagemtimes(ltGP,1/norm_lt));
             else
                n_el = (nvec(nSlave,:))';
                n_el = n_el(:); % local nodal normal vector
                Rloc = getRotationMatrix(obj,n_el);
                gt = Rloc'*obj.g_T(get_dof(nSlave));
-               gt = pagemtimes(Ns,gt);    % interpolated gap
-               norm_gt = pagenorm(gt);
-               tLim = pagemtimes(tauLim,pagemtimes(gt,1/norm_gt)); % 3D limit stress
+               gtGP = pagemtimes(Ns,gt);    % interpolated gap
+               norm_gt = pagenorm(gtGP);
+               tLim = pagemtimes(tauLim,pagemtimes(gtGP,1/norm_gt)); % 3D limit stress - should i use weighed gap instead?
             end
             rhsTmp = pagemtimes(Nmult,'transpose',tLim,'none');
             rhsTmp = rhsTmp.*reshape(dJWeighed,1,1,[]);
