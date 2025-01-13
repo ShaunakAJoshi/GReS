@@ -463,7 +463,7 @@ classdef mortarFaults < handle
             gtGP = pagemtimes(Nt,gapGP);
             dtdgt = computeDerTracGap(obj,Nmult,nSlave(activeNodes),mult,gtGP); % 3D matrix with NL derivatives of tractions
             dtdtn = computeDerTracTn(obj,gtGP); % 3D matrix with NL derivatives of tractions
-            Ntmp = pagemtimes(Nmult([2 3],:,:),'transpose',pagemtimes(dtdtn,Nmult(1,:,:)),'none');
+            Ntmp = pagemtimes(Nmult,'transpose',pagemtimes(dtdtn,Nmult(1,:,:)),'none'); % in global coords
             Ntmp =  Ntmp.*reshape(dJWeighed,1,1,[]);
             Nloc = Rloc'*sum(Ntmp,3);
             dof_slave = get_dof(nSlave);
@@ -753,9 +753,9 @@ classdef mortarFaults < handle
          nG = size(gap,3);
          % Nslave, Nmult: 3D slave side matrix
          % result 3D matrix of size (3*nN)x(3*nN)xnG
-         dtdtn = repmat(zeros(2,1),1,1,nG);
+         dtdtn = repmat(zeros(3,1),1,1,nG);
          for i = 1:nG
-            g = gap([2 3]); % keep only tangential component (the first is zero by construction)
+            g = gap(:,:,i);
             dtdtn(:,:,i) = -tan(deg2rad(obj.phi))*(g/norm(g));
          end
       end
