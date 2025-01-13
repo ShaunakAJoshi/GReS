@@ -420,7 +420,7 @@ classdef mortarFaults < handle
          c_ns = 0;  % counter for GP not projected
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          % set Gauss class
-         gS = Gauss(mortar.slaveCellType,nGP,2); % gauss class for slave integration
+         gS = Gauss(mortar.slaveCellType,4,2); % gauss class for slave integration
          elemSlave = getElem(mortar,gS,'slave');
          [imVec,jmVec,Mtvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
          [isVec,jsVec,Dtvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNslave^2,1));
@@ -457,11 +457,15 @@ classdef mortarFaults < handle
             Ns = obj.dispSP(NSlave);
             Nmult = obj.dispSP(NSlaveMult(:,activeNodes));
             gapGP = computeGapInGP(obj,mortar,Ns,usCurr,umCurr,j,ptsGauss);
-            dtdgt = computeDerTracGap(obj,Ns,Nmult,nSlave(activeNodes),mult,); % 3D matrix with NL derivatives of tractions
-            dtdtn = computeDerTracTn(obj,Ns,nSlave(activeNodes),Rloc); % 3D matrix with NL derivatives of tractions
+            Nn = pagemtimes(Ns,n_el);
+            % tangential mortar matrices (global frame)
+            Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
+            gtGP = pagemtimes(Nt,gapGP);
+            dtdgt = computeDerTracGap(obj,Nmult,nSlave(activeNodes),mult,gtGP); % 3D matrix with NL derivatives of tractions
+            dtdtn = computeDerTracTn(obj,gtGP); % 3D matrix with NL derivatives of tractions
             Ntmp = pagemtimes(Nmult([2 3],:,:),'transpose',pagemtimes(dtdtn,Nmult(1,:,:)),'none');
             Ntmp =  Ntmp.*reshape(dJWeighed,1,1,[]);
-            Nloc = sum(Ntmp,3);
+            Nloc = Rloc'*sum(Ntmp,3);
             dof_slave = get_dof(nSlave);
             dof_mult = get_dof(nSlave(activeNodes));
             [jjS,iiS] = meshgrid(dof_slave,dof_mult);
@@ -728,33 +732,30 @@ classdef mortarFaults < handle
    end
 
    methods (Access=private)
-      function dtdgt = computeDerTracGap(obj,Nmult,nodeId,mult,g)
+      function dtdgt = computeDerTracGap(obj,Nmult,nodeId,mult,gapGPs)
          % N: 3D slave side matrix
          % result 3D matrix of size (3*nN)x(3*nN)xnG
          % nodeId: node list of input element
-         nG = size(Nslave,3);
+         nG = size(gapGPs,3);
          % gt = obj.g_T(get_dof(nodeId));
          sn = mult(3*nodeId-2);
          dtdgt = repmat(zeros(3,3),1,1,nG);
          for i = 1:nG
             % get limit tau at gauss point
+            g = gapGPs(:,:,i);
             sigma_n = Nmult(1,1:3:end,i)*sn;
             tauLim = obj.coes - tan(deg2rad(obj.phi))*sigma_n;
             dtdgt(:,:,i) = tauLim*((eye(3)*norm(g)^2 - g*g')/(norm(g))^3);
          end
       end
 
-      function dtdtn = computeDerTracTn(obj,Nslave,nodeId,Rloc)
-         nG = size(Nslave,3);
-         gt = obj.g_T(get_dof(nodeId));
-         % get rotation matrix
-         gt = Rloc'*gt; % get tangential gap in local coordinates
+      function dtdtn = computeDerTracTn(obj,gap)
+         nG = size(gap,3);
          % Nslave, Nmult: 3D slave side matrix
          % result 3D matrix of size (3*nN)x(3*nN)xnG
          dtdtn = repmat(zeros(2,1),1,1,nG);
          for i = 1:nG
-            g = Nslave(:,:,i)*gt; % get tangential gap in gauss point
-            g = g([2 3]); % keep only tangential component (the first is zero by construction)
+            g = gap([2 3]); % keep only tangential component (the first is zero by construction)
             dtdtn(:,:,i) = -tan(deg2rad(obj.phi))*(g/norm(g));
          end
       end

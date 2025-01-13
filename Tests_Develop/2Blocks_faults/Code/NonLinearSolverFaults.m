@@ -10,7 +10,7 @@ classdef NonLinearSolverFaults < handle
       dt
       state
       stateOld
-      maxActiveSetIters = 2 % maximum number of active set iterations
+      maxActiveSetIters = 1 % maximum number of active set iterations
       activeSet
       iniMult; % initial multiplier vector
       currMultipliers % store current and previous contact tractions
@@ -484,7 +484,7 @@ classdef NonLinearSolverFaults < handle
             [TD,TM,N] = obj.mortar.computeConsistencyMatrices(obj.activeSet,obj.currMultipliers,obj.state,obj.dofMap);
             J(obj.dofMap.slip,obj.dofMap.intMaster) = J(obj.dofMap.slip,obj.dofMap.intMaster)+TM(slipDofs,:);
             J(obj.dofMap.slip,obj.dofMap.intSlave) = J(obj.dofMap.slip,obj.dofMap.intSlave)-TD(slipDofs,:);
-            J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)+N(slipDofs,slipDofs);
+            J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)-N(slipDofs,slipDofs);
             tComp = repmat([false;true;true],numel(obj.activeSet.curr.slip),1);
             J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)+tComp'.*obj.mortar.L(slipDofs,slipDofs).*tComp;
          end
