@@ -10,7 +10,7 @@ classdef NonLinearSolverFaults < handle
       dt
       state
       stateOld
-      maxActiveSetIters = 3 % maximum number of active set iterations
+      maxActiveSetIters = 2 % maximum number of active set iterations
       activeSet
       iniMult; % initial multiplier vector
       currMultipliers % store current and previous contact tractions
@@ -481,12 +481,12 @@ classdef NonLinearSolverFaults < handle
             J(obj.dofMap.slip,obj.dofMap.intMaster) = -obj.mortar.Mn(slipDofs,:);
             J(obj.dofMap.slip,obj.dofMap.intSlave) = obj.mortar.Dn(slipDofs,:);
             % consistency matrices
-            [TD,TM,N] = obj.mortar.computeConsistencyMatrices(obj.activeSet,obj.currMultipliers);
+            [TD,TM,N] = obj.mortar.computeConsistencyMatrices(obj.activeSet,obj.currMultipliers,obj.state,obj.dofMap);
             J(obj.dofMap.slip,obj.dofMap.intMaster) = J(obj.dofMap.slip,obj.dofMap.intMaster)+TM(slipDofs,:);
             J(obj.dofMap.slip,obj.dofMap.intSlave) = J(obj.dofMap.slip,obj.dofMap.intSlave)-TD(slipDofs,:);
-            J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)-N(slipDofs,slipDofs);
+            J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)+N(slipDofs,slipDofs);
             tComp = repmat([false;true;true],numel(obj.activeSet.curr.slip),1);
-            J(obj.dofMap.slip,obj.dofMap.slip) = tComp'.*obj.mortar.L(slipDofs,slipDofs).*tComp;
+            J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)+tComp'.*obj.mortar.L(slipDofs,slipDofs).*tComp;
          end
          % open blocks
          if any(obj.activeSet.curr.open)
@@ -545,8 +545,8 @@ classdef NonLinearSolverFaults < handle
          rhsStick = obj.mortar.Dn*usCurr - obj.mortar.Mn*umCurr + ...
             obj.mortar.Dt*(usCurr-usConv) - obj.mortar.Mt*(umCurr-umConv);
          % rhsStick = obj.mortar.Dg*usCurr - obj.mortar.Mg*umCurr;
-         %rhsStick = rhsStick(get_dof(obj.activeSet.curr.stick));
-         rhsStick = 0;
+         rhsStick = rhsStick(get_dof(obj.activeSet.curr.stick));
+         %rhsStick = 0;
       end
 
       function rhsSlip = computeRhsSlip(obj)
@@ -557,12 +557,13 @@ classdef NonLinearSolverFaults < handle
             umCurr = obj.state(obj.mortar.tagMaster).dispCurr(obj.dofMap.nodMaster);
             rhsSlip1 = obj.mortar.Dn*usCurr - obj.mortar.Mn*umCurr; % normal components
             t_T = repmat([false;true;true],numel(obj.activeSet.curr.slip),1).*obj.currMultipliers(dofSlip);
-            %deltaTraction = t_T - tracLim;
+            tracError = norm(t_T - tracLim);
             rhsSlip2 = obj.mortar.L(dofSlip,dofSlip)*t_T; % tangential components
-            %rhsTest =  obj.mortar.L(dofSlip,dofSlip)*tracLim;
+            rhsTest =  obj.mortar.L(dofSlip,dofSlip)*tracLim;
             rhsSlip3 = computeRhsLimitTraction(obj.mortar,obj.currMultipliers,obj.activeSet);
-            rhsSlip4 = obj.mortar.L(dofSlip,dofSlip)*tracLim;
-            rhsSlip = rhsSlip1(dofSlip) + rhsSlip2;
+            rhsSlip4 = computeRhsLimitTraction2(obj.mortar,...
+               obj.currMultipliers,obj.state,obj.activeSet,obj.dofMap);
+            rhsSlip = rhsSlip1(dofSlip) + rhsSlip2 - rhsSlip4(dofSlip);
          else
             rhsSlip = [];
          end
