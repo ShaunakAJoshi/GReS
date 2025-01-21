@@ -10,12 +10,14 @@ classdef NonLinearSolverFaults < handle
       dt
       state
       stateOld
-      maxActiveSetIters = 1 % maximum number of active set iterations
+      maxActiveSetIters = 3 % maximum number of active set iterations
       activeSet
       iniMult; % initial multiplier vector
       currMultipliers % store current and previous contact tractions
       prevMultipliers
       dofMap      % group DoF based on master/slave/state
+      dirichNodes
+      results
    end
 
    methods
@@ -27,6 +29,16 @@ classdef NonLinearSolverFaults < handle
       end
 
       function simulationLoop(obj)
+         % sorting nodes on fault symmetry axis
+         coordSlave1 = obj.models(2).Grid.topology.coordinates(obj.mortar.idSlave,:);
+         coordSlave2 = obj.models(2).Grid.topology.coordinates;
+         id1 = find(abs(coordSlave1(:,2)-5)<1e-2);
+         id2 = find(all([abs(coordSlave2(:,2)-5)<1e-2 abs(coordSlave2(:,1)-2.5)<1e-2],2));
+         [~,idSort1] = sort(coordSlave1(id1,3),'ascend');
+         [~,idSort2] = sort(coordSlave2(id2,3),'ascend');
+         id1 = id1(idSort1);
+         id2 = id2(idSort2);
+           
          % provisional print utilities for faults
          if strcmp(obj.mortar.meshGlue.interfaces.multType,'dual')
             vtkFault = VTKOutput(obj.mortar.meshGlue.interfaces.mortar.intSlave,'Fault_dual');
@@ -57,13 +69,21 @@ classdef NonLinearSolverFaults < handle
             absTol = obj.simParameters.absTol;
 
             itAS = 0;
+            obj.initActiveSet();
             flagActiveSet = false;
 
-            obj.mortar.gapOld = obj.mortar.gap;
+            obj.mortar.gapOld = obj.mortar.gap; % previous gap vector
 
             obj.tStep = obj.tStep + 1;
             obj.t = obj.t + obj.dt;
-            % Apply Dirichlet value to individual domain solutions
+            
+            % update structure for results printing
+            initVecConv = zeros(obj.maxActiveSetIters*obj.simParameters.itMaxNR,1);
+            initVecTraction = zeros(numel(id1),1);
+            initVecDisp = zeros(numel(id2),1);
+            obj.results = [obj.results;...
+               struct('itNR',initVecConv,'itAS',initVecConv,...
+               'rhsNorm',initVecConv,'s_n',initVecTraction,'tauNorm',initVecTraction,'gap',initVecDisp)];
 
             if (obj.simParameters.verbosity > 0) && (itAS == 0)
                fprintf('\nTSTEP %d   ---  TIME %f  --- DT = %e\n',obj.tStep,obj.t,obj.dt);
@@ -73,9 +93,8 @@ classdef NonLinearSolverFaults < handle
 
             % Apply the Dirichlet condition value to the solution vector
             applyDirFault(obj);
-            
+            k = 0;
             while flagActiveSet || itAS==0
-               NRrhsNorm = zeros(obj.simParameters.itMaxNR,1);
                % Newton Raphson loop
                fprintf('Active set iteration n. %i \n',itAS)
                % Update dof based on current active set
@@ -94,8 +113,13 @@ classdef NonLinearSolverFaults < handle
 
                % compute base rhs norm for relative convergence
                % Norm of unbalanced forces
-               rhsNorm = norm(rhs(1:3*(obj.mortar.totNodMaster+obj.mortar.totNodSlave)),2);
+               rhsNorm = norm(rhs,2);
                itNR = 0;
+               k = k+1;
+               % update results structure
+               obj.results(obj.tStep).itNR(k) = itNR;
+               obj.results(obj.tStep).itAS(k) = itAS;
+               obj.results(obj.tStep).rhsNorm(k) = rhsNorm;
                % NR printing
                if obj.simParameters.verbosity > 1
                   fprintf('Iter     ||rhs||\n');
@@ -112,6 +136,7 @@ classdef NonLinearSolverFaults < handle
                      && (rhsNorm > absTol)) || itNR == 0
                   itNR = itNR + 1;
                   %
+                  k = k+1; 
                   du = J\(-rhs);
 
                   % update solution fields (disp, multipliers)
@@ -121,8 +146,6 @@ classdef NonLinearSolverFaults < handle
                   computeNodalGap(obj.mortar,obj.state,obj.dofMap);
 
                   % get information on slipping nodes
-                  k = 0;
-
                   if ~isempty(obj.activeSet.curr.slip)
                      % get gap from extreme nodes of the fault
                      nm = [6;7]; % boundary master nodes at top
@@ -161,8 +184,10 @@ classdef NonLinearSolverFaults < handle
                   if obj.simParameters.verbosity > 1
                      fprintf('%d     %e\n',itNR,rhsNorm);
                   end
-
-                  NRrhsNorm(itNR) = rhsNorm;
+                  % update results structure
+                  obj.results(obj.tStep).itNR(k) = itNR;
+                  obj.results(obj.tStep).itAS(k) = itAS;
+                  obj.results(obj.tStep).rhsNorm(k) = rhsNorm; 
 
                end % end newton
                %
@@ -173,19 +198,10 @@ classdef NonLinearSolverFaults < handle
                      obj.state(i).t = obj.t;
                      obj.state(i).advanceState();
                   end
-                  % Update active set if NR converged
-                  if flagActiveSet
-                     figure(1)
-                     semilogy(k+1:k+numel(NRrhsNorm),NRrhsNorm,'-o','DisplayName',strcat('Iter_',num2str(itNR)))
-                     legend('-DynamicLegend')
-                     hold on
-                  end
-                  k = k + numel(NRrhsNorm);
-                  flagActiveSet = updateActiveSet(obj);
+                  % store previous active set
                   obj.activeSet.prev = obj.activeSet.curr;
+                  flagActiveSet = updateActiveSet(obj);
                   itAS = itAS+1;
-                  % plot NR convergence
-                  NRrhsNorm = NRrhsNorm(NRrhsNorm~=0);
                   if itAS > obj.maxActiveSetIters
                      flagActiveSet = false;
                   end
@@ -203,8 +219,13 @@ classdef NonLinearSolverFaults < handle
                      end
                      printID = printFault(obj,tListFault,vtkFault,printID,'transient');
                   end
+                  sn = obj.currMultipliers(3*id1-2);
+                  tauNorm = sqrt(obj.currMultipliers(3*id1).^2+obj.currMultipliers(3*id1-1).^2);
+                  uz = obj.state(2).dispCurr(3*id2);
+                  obj.results(obj.tStep).s_n = sn;
+                  obj.results(obj.tStep).tauNorm = tauNorm;
+                  obj.results(obj.tStep).gap = uz;
                end
-               %
                %
                manageNextTimeStep(obj,flConv,flagActiveSet);
             end
@@ -228,6 +249,8 @@ classdef NonLinearSolverFaults < handle
          obj.activeSet = struct('prev',[],'curr',[]);
          obj.activeSet.prev = struct('stick',(1:obj.mortar.nS)','slip',[],'open',[]);
          obj.activeSet.curr = obj.activeSet.prev;
+         % define dirichlet nodes (always stick)
+         obj.dirichNodes = find(obj.mortar.meshGlue.interfaces.mortar.intSlave.coordinates(:,3) == 0);
          % build dof map with initial active set status
          buildDoFMap(obj);
       end
@@ -481,7 +504,7 @@ classdef NonLinearSolverFaults < handle
             J(obj.dofMap.slip,obj.dofMap.intMaster) = -obj.mortar.Mn(slipDofs,:);
             J(obj.dofMap.slip,obj.dofMap.intSlave) = obj.mortar.Dn(slipDofs,:);
             % consistency matrices
-            [TD,TM,N] = obj.mortar.computeConsistencyMatrices(obj.activeSet,obj.currMultipliers,obj.state,obj.dofMap);
+            [TD,TM,N] = obj.mortar.computeConsistencyMatrices(obj.activeSet,obj.currMultipliers,obj.state,obj.stateOld,obj.dofMap);
             J(obj.dofMap.slip,obj.dofMap.intMaster) = J(obj.dofMap.slip,obj.dofMap.intMaster)+TM(slipDofs,:);
             J(obj.dofMap.slip,obj.dofMap.intSlave) = J(obj.dofMap.slip,obj.dofMap.intSlave)-TD(slipDofs,:);
             J(obj.dofMap.slip,obj.dofMap.slip) = J(obj.dofMap.slip,obj.dofMap.slip)-N(slipDofs,slipDofs);
@@ -506,23 +529,32 @@ classdef NonLinearSolverFaults < handle
 
       function isChanged = updateActiveSet(obj)
          % update and compare active set
+         % dirichlet nodes are not subject to contact check and remain
+         % stick
+         idDir = ismember(obj.activeSet.curr.stick,obj.dirichNodes);
          % return true if some changes are made
-         % return 0 if the active set stays the same
-         list = (1:obj.mortar.nS)';
+         % return false if the active set stays the same
          multMat = (reshape(obj.currMultipliers,3,[]))';
+         % module of limit traction
          tLim = obj.mortar.coes - multMat(:,1)*tan(deg2rad(obj.mortar.phi));
          tauNorm = sqrt(multMat(:,2).^2+multMat(:,3).^2);
-         % open mode
-         isOpen = any([multMat(:,1) > obj.mortar.tolNormal ...
-            obj.mortar.g_N > obj.mortar.tolGap],2);
-         obj.activeSet.curr.open = find(isOpen);
-         list = list(~isOpen);
-         % stick mode
-         isStick = tauNorm(list) < tLim(list)*(1+obj.mortar.tolTang);
-         obj.activeSet.curr.stick = list(isStick);
-         list = list(~isStick);
-         % slip mode
-         obj.activeSet.curr.slip = list;
+         % stick mode to slip mode
+         stick2slip = tauNorm(obj.activeSet.curr.stick) > (1+obj.mortar.tolTang)*tLim(obj.activeSet.curr.stick);
+         stick2slip(idDir) = false;
+         obj.activeSet.curr.slip = unique([obj.activeSet.curr.slip; ...
+             obj.activeSet.curr.stick(stick2slip)]);
+         % stick mode to open mode 
+         stick2open = multMat(obj.activeSet.curr.stick,1) > obj.mortar.tolNormal;
+         stick2open(idDir) = false;
+         obj.activeSet.curr.open = unique([obj.activeSet.curr.open; ...
+             obj.activeSet.curr.stick(stick2open)]);
+         % open mode to stick node
+         open2stick = obj.mortar.g_N(obj.activeSet.curr.open) < obj.mortar.tolGap;
+         id = all([stick2open stick2slip],2);
+         stick2open(id) = false;
+         obj.activeSet.curr.stick = unique([obj.activeSet.curr.stick(~any([stick2open stick2slip],2));...
+             obj.activeSet.curr.open(open2stick)]);
+         obj.activeSet.curr.open = obj.activeSet.curr.open(~open2stick);
          % compare current and previous active set
          isChanged = compareSet(obj.activeSet.curr.open,obj.activeSet.prev.open);
          if isChanged
@@ -535,6 +567,13 @@ classdef NonLinearSolverFaults < handle
          else
             isChanged = compareSet(obj.activeSet.curr.slip,obj.activeSet.prev.slip);
          end
+      end
+
+      function initActiveSet(obj)
+          % move slip nodes to stick condition
+          obj.activeSet.curr.stick = unique([obj.activeSet.curr.stick;...
+              obj.activeSet.curr.slip]);
+          obj.activeSet.curr.slip = [];
       end
 
       function rhsStick = computeRhsStick(obj)
@@ -556,13 +595,13 @@ classdef NonLinearSolverFaults < handle
             usCurr = obj.state(obj.mortar.tagSlave).dispCurr(obj.dofMap.nodSlave);
             umCurr = obj.state(obj.mortar.tagMaster).dispCurr(obj.dofMap.nodMaster);
             rhsSlip1 = obj.mortar.Dn*usCurr - obj.mortar.Mn*umCurr; % normal components
-            t_T = repmat([false;true;true],numel(obj.activeSet.curr.slip),1).*obj.currMultipliers(dofSlip);
-            tracError = norm(t_T - tracLim);
+            t_T = repmat([false;true;true],numel(obj.activeSet.curr.slip),1).*(obj.currMultipliers(dofSlip));
+            %tracError = norm(t_T - tracLim);
             rhsSlip2 = obj.mortar.L(dofSlip,dofSlip)*t_T; % tangential components
-            rhsTest =  obj.mortar.L(dofSlip,dofSlip)*tracLim;
-            rhsSlip3 = computeRhsLimitTraction(obj.mortar,obj.currMultipliers,obj.activeSet);
+            %rhsTest =  obj.mortar.L(dofSlip,dofSlip)*tracLim;
+            %rhsSlip3 = computeRhsLimitTraction(obj.mortar,obj.currMultipliers,obj.activeSet);
             rhsSlip4 = computeRhsLimitTraction2(obj.mortar,...
-               obj.currMultipliers,obj.state,obj.activeSet,obj.dofMap);
+               obj.currMultipliers,obj.state,obj.stateOld,obj.activeSet,obj.dofMap);
             rhsSlip = rhsSlip1(dofSlip) + rhsSlip2 - rhsSlip4(dofSlip);
          else
             rhsSlip = [];
@@ -572,7 +611,7 @@ classdef NonLinearSolverFaults < handle
       function rhsOpen = computeRhsOpen(obj)
          if ~isempty(obj.activeSet.curr.open)
             rhsOpen = obj.mortar.L*obj.currMultipliers;
-            rhsOpen = rhsOpen(get_dof(obj.activeSet.curr.slip));
+            rhsOpen = rhsOpen(get_dof(obj.activeSet.curr.open));
          else
             rhsOpen = [];
          end

@@ -318,13 +318,15 @@ classdef mortarFaults < handle
          % get limit traction array in local coordinates
          tLim = zeros(3*numel(activeSet.curr.slip),1);
          l = 1;
+         %Lmat = obj.L./sum(obj.L,2);
+         %mult = Lmat*mult; % compute variationally consistent traction
          for i = activeSet.curr.slip'
             dofSlip = get_dof(i);
             gapNorm = norm(obj.g_T(dofSlip),2);
             if gapNorm > obj.tolGap
                % principle of maximum plastic dissipation
                tL = repelem(tau_max(obj,i,mult),3,1).*obj.g_T(dofSlip)/gapNorm;
-               tL = obj.getNodeRotationMatrix(obj.idSlave(i))'*tL; % traction in local coords
+               tL = obj.getNodeRotationMatrix(i)'*tL; % traction in local coords
                tL(1) = 0; 
             else
                %keep direction of previous lagrange multiplier
@@ -341,7 +343,11 @@ classdef mortarFaults < handle
       function tau = tau_max(obj,nList,multipliers)
          % get tau max for input list of nodes
          % use the normal component of contact traction
-         tau = obj.coes - tan(deg2rad(obj.phi))*multipliers(3*nList-2);
+         % compute variationally consistent normal stress
+%          Lmat = obj.L./sum(obj.L,2);
+%          multipliers = Lmat*multipliers;
+         s_n = multipliers(3*nList-2);
+         tau = obj.coes - tan(deg2rad(obj.phi))*s_n;
       end
 
       function computeNodalGap(obj,state,dofMap)
@@ -407,11 +413,11 @@ classdef mortarFaults < handle
         end
       end
 
-      function [TD,TM,N] = computeConsistencyMatrices(obj,activeSet,mult,state,dofMap)
+      function [TD,TM,N] = computeConsistencyMatrices(obj,activeSet,mult,state,stateOld,dofMap)
          % compute the non linear consistency matrices by directly evaluating
          % the gap at the gauss points of the slave side
-         usCurr = state(obj.tagSlave).dispCurr(dofMap.nodSlave);
-         umCurr = state(obj.tagMaster).dispCurr(dofMap.nodMaster);
+         usDiff = state(obj.tagSlave).dispCurr(dofMap.nodSlave)-stateOld(obj.tagSlave).dispCurr(dofMap.nodSlave);
+         umDiff = state(obj.tagMaster).dispCurr(dofMap.nodMaster)-stateOld(obj.tagMaster).dispCurr(dofMap.nodMaster);
          area_nod = sqrt(sum(obj.meshGlue.interfaces(1).nodeNormal.^2,2)); % nodal area
          nvec = obj.meshGlue.interfaces(1).nodeNormal./area_nod;
          mortar = obj.meshGlue.interfaces(1).mortar; % only one interface defined
@@ -456,7 +462,7 @@ classdef mortarFaults < handle
             % compute slave only matrices
             Ns = obj.dispSP(NSlave);
             Nmult = obj.dispSP(NSlaveMult(:,activeNodes));
-            gapGP = computeGapInGP(obj,mortar,Ns,usCurr,umCurr,j,ptsGauss);
+            gapGP = computeGapInGP(obj,mortar,Ns,usDiff,umDiff,j,ptsGauss);
             Nn = pagemtimes(Ns,n_el);
             % tangential mortar matrices (global frame)
             Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
@@ -637,11 +643,11 @@ classdef mortarFaults < handle
       end
 
 
-      function rhs = computeRhsLimitTraction2(obj,mult,state,activeSet,dofMap)
+      function rhs = computeRhsLimitTraction2(obj,mult,state,stateOld,activeSet,dofMap)
          % compute rhs related to limit tracion: <mu,t*>_slip
          % gap is comptuted on each gauss point using exact Pi operator
-         usCurr = state(obj.tagSlave).dispCurr(dofMap.nodSlave);
-         umCurr = state(obj.tagMaster).dispCurr(dofMap.nodMaster);
+         usDiff = state(obj.tagSlave).dispCurr(dofMap.nodSlave)-stateOld(obj.tagSlave).dispCurr(dofMap.nodSlave);
+         umDiff = state(obj.tagMaster).dispCurr(dofMap.nodMaster)-stateOld(obj.tagMaster).dispCurr(dofMap.nodMaster);
          mortar = obj.meshGlue.interfaces(1).mortar; % only one interface defined
          nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration (use this for all matrices)
          mult_type = obj.meshGlue.interfaces(1).multType;
@@ -711,7 +717,7 @@ classdef mortarFaults < handle
                % end
                % gapGP = us - um;
                % ptsGauss = getGPointsLocation(elemSlave,j);
-               gapGP = computeGapInGP(obj,mortar,Ns,usCurr,umCurr,j,ptsGauss);
+               gapGP = computeGapInGP(obj,mortar,Ns,usDiff,umDiff,j,ptsGauss);
                % project gap onto tangential direction
                % normal mortar matrices (global frame)
                Nn = pagemtimes(Ns,n_el);
@@ -719,7 +725,7 @@ classdef mortarFaults < handle
                Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
                gtGP = pagemtimes(Nt,gapGP);
                norm_gt = pagenorm(gtGP);
-               tSlip = pagemtimes(tauLim,pagemtimes(gtGP,1/norm_gt)); nSlave = mortar.intSlave.surfaces(j,:); % slave node id% 3D limit stress - should i use weighed gap instead?
+               tSlip = pagemtimes(tauLim,pagemtimes(gtGP,1/norm_gt)); 
             end
             rhsTmp = pagemtimes(Nmult(2:3,:,:),'transpose',tSlip(2:3,:,:),'none');
             rhsTmp = rhsTmp.*reshape(dJWeighed,1,1,[]);
@@ -760,9 +766,11 @@ classdef mortarFaults < handle
          end
       end
 
-      function gapGP = computeGapInGP(obj,mortar,Ns,usCurr,umCurr,j,ptsGauss)
+      function gapGP = computeGapInGP(obj,mortar,Ns,usDiff,umDiff,j,ptsGauss)
+          % us and um are the displacement increment w.r.t previously
+          % converged time step
          nSlave = mortar.intSlave.surfaces(j,:); % slave node id
-         us = pagemtimes(Ns,usCurr(get_dof(nSlave)));
+         us = pagemtimes(Ns,usDiff(get_dof(nSlave)));
          % compute the tangential gap in each gauss point using
          % mortar projection
          master_elems = find(mortar.elemConnectivity(:,j));
@@ -773,7 +781,7 @@ classdef mortarFaults < handle
             [NMaster,id] = mortar.getMasterBasis(jm,ptsGauss);
             if any(id)
                Nm = obj.dispSP(NMaster(id,:));
-               um(:,:,idM(id)) = pagemtimes(Nm,umCurr(get_dof(nMaster)));
+               um(:,:,idM(id)) = pagemtimes(Nm,umDiff(get_dof(nMaster)));
             end
             ptsGauss = ptsGauss(~id,:);
             % index of non projected gp from previous projection

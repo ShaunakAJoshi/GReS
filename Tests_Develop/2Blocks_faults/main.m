@@ -74,8 +74,6 @@ mG = MeshGlue(model,interfFile);
 % e = fSInterp-fSAnal;
 % e = sqrt(sum(e.^2));
 
-
-
 solverDual = NonLinearSolverFaults(simParam,mG,coes,phi);
 
 solverDual.models(1).OutState.finalize();
@@ -223,71 +221,7 @@ movefile Fault* OUT
 % movefile Fault* OUT 
 
 %% plot profiles of multipliers along vertical axis (avoid opening paraview)
-% get list of nodes along vertical axis
-coordSlave1 = solverDual.models(2).Grid.topology.coordinates(solverDual.mortar.idSlave,:);
-coordSlave2 = solverDual.models(2).Grid.topology.coordinates;
-id1 = find(abs(coordSlave1(:,2)-5)<1e-2);
-id2 = find(all([abs(coordSlave2(:,2)-5)<1e-2 abs(coordSlave2(:,1)-2.5)<1e-2],2));
-[zSort1,idSort1] = sort(coordSlave1(id1,3),'ascend');
-[zSort2,idSort2] = sort(coordSlave2(id2,3),'ascend');
-id1 = id1(idSort1);
-id2 = id2(idSort2);
-sn = solverDual.currMultipliers(3*id1-2);
-tau = solverDual.currMultipliers(3*id1);
-uz = solverDual.state(2).dispCurr(3*id2);
-
-figure('Units', 'inches', 'Position', [1, 1, 10, 4]); % Width = 6 inches, Height = 4 inches
-
-t = tiledlayout(1,3, 'TileSpacing', 'loose', 'Padding', 'loose');
-
-nexttile(1)
-plot(sn,zSort1,'k-s','LineWidth',1)
-xlabel('\sigma_n (kPa)')
-ylabel('z (m)')
-xlim([-7,0]);
-hold on
-
-nexttile(2)
-plot(tau,zSort1,'k-s','LineWidth',1)
-xlabel('\tau norm (kPa)')
-ylabel('z (m)')
-xlim([-6 2]);
-hold on
-
-nexttile(3)
-plot(uz,zSort2,'k-s','LineWidth',1)
-xlabel('u_z(m)')
-ylabel('z (m)')
-xlim([-0.005 0.001]);
-hold on
-% 
-% sn = solverStandard.currMultipliers(3*id1-2);
-% tau = solverStandard.currMultipliers(3*id1);
-% uz = solverStandard.state(2).dispCurr(3*id2);
-% nexttile(1)
-% plot(sn,zSort1,'r-s','LineWidth',1)
-% xlabel('\sigma_n (kPa)')
-% ylabel('z (m)')
-% xlim([-7,0]);
-% legend('dual','standard')
-% 
-% nexttile(2)
-% plot(tau,zSort1,'r-s','LineWidth',1)
-% xlabel('\tau norm (kPa)')
-% ylabel('z (m)')
-% xlim([-6 2]);
-% lgd = legend('dual','standard');
-% lgd.Location = 'west';
-% nexttile(3)
-% plot(uz,zSort2,'r-s','LineWidth',1)
-% xlabel('u_z(m)')
-% ylabel('z (m)')
-% xlim([-0.005 0.001]);
-%legend('dual','standard')
-% 
-% stmp = strcat('Results/meshLev3.pdf');
-% exportgraphics(gcf,stmp,'ContentType','vector')
-
+plotStep(solverDual.results,15);
 
 
 
