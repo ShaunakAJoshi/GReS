@@ -1,46 +1,27 @@
-classdef Materials < handle
-  % MATERIAL - General material class
+classdef tabMaterials < handle
+  % General class for materials assigned with tabular input format
+  % Only Elastic class now support a tabular input format
 
-  properties (Access = public)
-    % Creation of a Dictionary object (faster than map)
-    %db = configureDictionary("double","struct"); 
-    % configureDictionary is not supported before 2023b
-    db 
-    matMap
+  properties (Access = private)
+    solid
+    fluid
   end
 
   methods (Access = public)
     % Class constructor method   
-    function obj = Materials(model,fListName)
-      obj.db = containers.Map('KeyType','double','ValueType','any');
-      % Calling the function to read input data from file
-      obj.matMap = zeros(100,100);
-      obj.readInputFiles(model,fListName)
+    function obj = tabMaterials(model,mesh,fName)
+      obj.readInputFile(model,mesh,fName)
     end
 
     % Get the material defined by matIdentifier and check if it is a
     % key of the Map db
-    function mat = getMaterial(obj,cellID)
-      %
-      % The preliminary check whether matID is key of db has been commented
-      % since it is highly expensive
-%       if (obj.db.isKey(matID))
-        [matID,~] = find(obj.matMap == cellID);
-        assert(length(matID)==1,['Zero or Multiple materials assigned to elements',...
-            ' with cellTags %i'], cellID)
-        mat = obj.db(matID);
-%       else
-%       Displaying error message if matIdentifier is not a key 
-%       of the map
-%         error('Material %s not present', matID);
-%       end
+    function mat = getMaterial(obj,cTag)
+       mat = obj.solid;
+      % 
     end
 
-    function fluidMat = getFluid(obj)
-        %fluid materials corresponds to null rows in materials map. 
-        %Fluid are not assigned to any cellTag
-        f = find(sum(obj.matMap,2)==0);
-        fluidMat = obj.db(f);
+    function mat = getFluid(obj)
+        mat = obj.fluid;
     end
     
     function varargout = computeSwAnddSw(obj,mesh,pkpt)
@@ -75,30 +56,6 @@ classdef Materials < handle
             varargout{3}(isElMat) = (1-Swr)*varargout{3}(isElMat);
         end
       end
-      % end
-      %
-      %
-      %
-      % if 5<1
-      % varargout{1} = ones(mesh.nCells,1);
-      % if nargout == 2
-      %   varargout{2} = zeros(mesh.nCells,1);
-      % end
-      % n = 3.1769;
-      % pEntry = 2.7840;
-      % m = 1 - 1/n;
-      % pkpt = -pkpt;
-      % isPos = pkpt >= 0;
-      % SeFun = @(p) (1 + (p./pEntry).^n).^(-m);
-      % dSeFun = @(p) -m.*(1 + (p./pEntry).^n).^(-m-1).*n./pEntry.*(p./pEntry).^(n-1);
-      % varargout{1}(isPos) = SeFun(pkpt(isPos));
-      % Swr = obj.getMaterial(1).PorousRock.getWaterResSat();
-      % varargout{1} = Swr + (1-Swr)*varargout{1};
-      % if nargout == 2
-      %   varargout{2}(isPos) = dSeFun(pkpt(isPos));
-      %   varargout{2} = (1-Swr)*varargout{2};
-      % end
-      % end
     end
     
     function varargout = computeLwAnddLw(obj,mesh,upElem,pkpt)
@@ -156,52 +113,21 @@ classdef Materials < handle
       varargout{2} = varargout{2}/mu;
       end
     end
-    
+
     function [status] = initializeStatus(obj,cTag,sigma)
-      mat = obj.getMaterial(cTag).ConstLaw;
-      [status] = mat.initializeStatus(sigma);
-    end
-    
-    function [D, sigma, status] = updateMaterial(obj, cTag, sigma, epsilon, dt, status, el, t)
        mat = obj.getMaterial(cTag).ConstLaw;
-       [D, sigma, status] = mat.getStiffnessMatrix(sigma, epsilon, dt, status, cTag);
+       [status] = mat.initializeStatus(sigma);
     end
-    
-%     function [Sw,dSw,lw,dlw] = computeSwAndLambda(obj,mesh,upElem,pkpt)
-%       % kr, dkr -> computed for every internal face
-%       % Sw, dSw -> computed for every element
-%       nIntFaces = length(upElem);
-%       Sw = zeros(mesh.nCells,1);
-%       dSw = zeros(mesh.nCells,1);
-%       lw = zeros(nIntFaces,1);
-%       dlw = zeros(nIntFaces,1);
-%       matUpElem = mesh.cellTag(upElem);
-%       for m = 1:mesh.nCellTag
-%         isElMat = matUpElem == m;
-%         p = pkpt(upElem(isElMat));
-%         [lw(isElMat), dlw(isElMat)] = obj.getMaterial(m).RelativePermCurve.interpTable(p);
-%         clear isElMat p
-%         isElMat = mesh.cellTag == m;
-%         p = pkpt(isElMat);
-%         [Sw(isElMat), dSw(isElMat)] = obj.getMaterial(m).CapillaryCurve.interpTable(p);
-%         Swr = obj.getMaterial(m).PorousRock.getWaterResSat();
-%         Sw(isElMat) = Swr + (1-Swr)*Sw(isElMat);
-%         dSw(isElMat) = (1-Swr)*dSw(isElMat);
-%       end
-%       mu = obj.getMaterial(obj.mesh.nCellTag+1).getDynViscosity();
-%       lw = lw/mu;
-%       dlw = dlw/mu;
-%     end
-    %
-    % Destructor
-    function delete(obj)
-      remove(obj.db,keys(obj.db));
+
+    function [D, sigma, status] = updateMaterial(obj, cTag, sigma, epsilon, dt, status, el, t)
+       mat = getMaterial(obj).ConstLaw;
+       [D, sigma, status] = mat.getStiffnessMatrix(sigma, epsilon, dt, status, el);
     end
   end
 
   methods (Access = private)
     % Reading the input file by material blocks
-    function readInputFile(obj, model, matFileName, matID, cellTags)
+    function readInputFile(obj, model, mesh, matFileName)
       fID = Materials.openReadOnlyFile(matFileName);
       %
       assert(~feof(fID),'No material properties have been assigned in %s',matFileName);
@@ -211,7 +137,7 @@ classdef Materials < handle
         % material name
         switch propName
           case 'Elastic'
-            matProp.ConstLaw = Elastic(fID, matFileName);
+            matProp.ConstLaw = Elastic(fID, matFileName, mesh);
           case 'HypoElastic'
             matProp.ConstLaw = HypoElastic(fID, matFileName);
           case 'TransvElastic'
@@ -225,7 +151,7 @@ classdef Materials < handle
           case 'RelativePermCurve'
             matProp.RelativePermCurve = TabularCurve(fID, matFileName);
           case 'Fluid'
-            matProp = Fluid(fID, matFileName);
+            obj.fluid = Fluid(fID, matFileName);
           otherwise
             error('Error in file %s\nMaterial property %s not available', matFileName, propName);
         end
@@ -239,70 +165,7 @@ classdef Materials < handle
           break
         end
       end
-      if isfield(matProp,'ConstLaw')
-          %check if non-fluid material has cellTags assigned
-          assert(~isempty(cellTags),"Undefined cellTags for material #%i", matID)
-      else
-          assert(isempty(cellTags),"Fluid material do not require any cellTag", matID)
-      end
-      obj.db(matID) = matProp;
-      fclose(fID);
-    end
-      
-      
-      
-%       % flBlock: flag reporting the reading status
-%       %          0 -> the material block has been read correctly
-%       %          1 -> error while reading the material block
-%       %               (end-of-file before the 'End' statement
-%       %          2 -> end of file reached
-%       flBlock = 0;
-%       % Number of blocks counter
-%       nBlock = 0;
-%       while (flBlock == 0)
-%         % Update the counter
-%         nBlock = nBlock + 1;
-%         % Reading the material block
-%         [flBlock,block] = Materials.readBlock(fid);
-%         if flBlock == 0
-%           if ~isnan(str2double(block(1)))
-%               error('The first entry in block %d of Materials file %s must be strings',nBlock,matFileName);
-%           end
-%           % Calling the specific material class based on the
-%           % material name
-%           switch lower(block(1))
-%             case 'elastic'
-%               obj.db(nBlock) = Elastic(block);
-%             case 'hypoelastic'
-%               obj.db(nBlock) = HypoElastic(block);
-%             case 'transvelastic'
-%               obj.db(nBlock) = TransvElastic(block);
-%             case 'porousrock'
-%               obj.db(nBlock) = PorousRock(block);
-%             case 'fluid'
-%               obj.db(nBlock) = Fluid(block);
-%             otherwise
-%               error('Material %s not available (block %d of Materials)', block(1),nBlock);
-%           end
-%         elseif flBlock == 1
-%           error('Error encountered while reading block %d of Material file',nBlock);
-%         end
-%       end
-%       fclose(fid);
-%     end
-    
-    % Reading boundary input file
-    function readInputFiles(obj, model, fListName)
-      fID = Materials.openReadOnlyFile(fListName);
-      [cellTags,matFileName] = readTokenList(fID, fListName);
-      matID = 0;
-      while ~strcmp(matFileName,'End')
-        matID = matID + 1;
-        readInputFile(obj, model, matFileName, matID, cellTags);
-        obj.matMap(matID,1:length(cellTags)) = cellTags;
-        [cellTags,matFileName] = readTokenList(fID, fListName);
-      end
-      obj.matMap = obj.matMap(1:matID,sum(obj.matMap,1)~=0);
+      obj.solid = matProp;
       fclose(fID);
     end
   end

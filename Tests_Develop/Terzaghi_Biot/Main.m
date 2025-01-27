@@ -17,19 +17,20 @@ fileName = 'TerzaghiH05_hexa.msh';
 % Import the mesh data into the Mesh object
 topology.importGMSHmesh(fileName);
 %
-%----------------------------- MATERIALS -----------------------------
-%
-% Set the input file name
-fileName = 'materialsList.dat';
-%
-% Create an object of the Materials class and read the materials file
-mat = Materials(model,fileName);
-%
+
 %------------------------------ ELEMENTS -----------------------------
 %
 GaussPts = Gauss(12,2,3);
 % Create an object of the "Elements" class and process the element properties
 elems = Elements(topology,GaussPts);
+
+%----------------------------- MATERIALS -----------------------------
+%
+% Set the input file name
+fileName = 'Materials/tabularMaterial.dat';
+%
+% Create an object of the Materials class and read the materials file
+mat = tabMaterials(model,topology,fileName);
 
 %saving z_vector coordinates for analytical solution calculation
 nodez = topology.coordinates(:,3);
@@ -71,7 +72,7 @@ end
 resState = State(model,grid,mat,file,GaussPts);
 
 % Create and set the print utility
-printUtils = OutState(model,mat,grid,'outTime.dat');
+printUtils = OutState(model,mat,grid,'outTime.dat','printOff');
 %
 % Print the reservoir initial state
 printUtils.printState(resState);

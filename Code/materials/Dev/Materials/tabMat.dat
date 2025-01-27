@@ -1,0 +1,4 @@
+Elastic                           % material model
+tab_E.dat                         % young modulus 
+tab_nu.dat                        % poisson ratio
+End

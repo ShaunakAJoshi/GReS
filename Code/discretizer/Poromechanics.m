@@ -90,7 +90,7 @@ classdef Poromechanics < handle
                         [D, sigma, status] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
                             state.conv.stress(l2+1:l2+obj.GaussPts.nNode,:), ...
                             state.curr.strain(l2+1:l2+obj.GaussPts.nNode,:), ...
-                            dt,state.conv.status(l2+1:l2+obj.GaussPts.nNode,:), el, state.t);
+                            dt,state.conv.status(l2+1:l2+obj.GaussPts.nNode,:), el);
                         state.curr.status(l2+1:l2+obj.GaussPts.nNode,:) = status;
                         state.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = sigma;
                         Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
@@ -129,7 +129,7 @@ classdef Poromechanics < handle
               [subCells, ~] = find(obj.dofm.subCells(:,subInd));
               l1 = 0;
               for el=subCells'
-                 D = obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw.Dmat;
+                 D = getElasticTensor(obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw,el);
                  % Get the right material stiffness for each element
                  switch obj.mesh.cellVTKType(el)
                     case 10 % Tetrahedra

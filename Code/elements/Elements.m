@@ -49,6 +49,7 @@ classdef Elements < handle
                 %          obj.vol(idHexa) = tmpVol;
                 %          obj.cellCentroid(idHexa,:) = tmpCentroid;
             end
+            obj.mesh.cellCentroid = obj.cellCentroid;
         end
     end
 

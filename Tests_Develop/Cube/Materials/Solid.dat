@@ -1,0 +1,4 @@
+Elastic                           % material model
+tab_E.dat                         % Young modulus            
+0.25                              % Poisson ratio  
+End
