@@ -221,7 +221,7 @@ classdef NonLinearSolverFaults < handle
                   end
                   sn = obj.currMultipliers(3*id1-2);
                   tauNorm = sqrt(obj.currMultipliers(3*id1).^2+obj.currMultipliers(3*id1-1).^2);
-                  uz = obj.state(2).dispCurr(3*id2);
+                  uz = obj.mortar.gap(3*id1);
                   obj.results(obj.tStep).s_n = sn;
                   obj.results(obj.tStep).tauNorm = tauNorm;
                   obj.results(obj.tStep).gap = uz;

@@ -221,7 +221,7 @@ movefile Fault* OUT
 % movefile Fault* OUT 
 
 %% plot profiles of multipliers along vertical axis (avoid opening paraview)
-plotStep(solverDual.results,15);
+%plotStep(solverDual.results,15);
 
 
 
