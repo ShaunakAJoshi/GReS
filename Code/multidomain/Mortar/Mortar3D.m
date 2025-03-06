@@ -257,78 +257,105 @@ classdef Mortar3D < handle
             cs = 0;
             cm = 0;
             for j = 1:obj.nElSlave
-                %Compute Slave quantities
-                dJWeighed = elemSlave.getDerBasisFAndDet(j,3); % Weighted Jacobian
-                %get Gauss Points position in the real space
-                ptsGauss = getGPointsLocation(elemSlave,j);
-                idSlave = obj.slaveTopol(j,:);
-                NSlave = getBasisFinGPoints(elemSlave); % Slave basis functions
-                switch mult_type
-                    case 'standard'
-                        NSlaveMult = NSlave; % Slave basis functions
-                    case 'dual'
-                        NSlaveMult = obj.computeDualBasisF(NSlave,dJWeighed);
-                end
-                % compute slave basis function (still using radial basis
-                % interpolation)
-                %ptsIntS = ptsIntMatS(:,[3*j-2 3*j-1 3*j]);
-                %fiNMS = obj.computeRBFfiNM(ptsIntS,ptsGauss,type);
-                %NSlave = (fiNMS*wFMatS(:,[4*j-3 4*j-2 4*j-1 4*j]))./(fiNMS*w1MatS(:,j));
-                master_elems = find(obj.elemConnectivity(:,j));
-                for jm = master_elems'
-                    idMaster = obj.masterTopol(jm,:);
-                    [NMaster,id] = obj.getMasterBasis(jm,ptsGauss); % compute interpolated master basis function \Pi(Nm)
-                    % ptsInt = ptsIntMat(:,repNum(3,jm));              
-                    % [fiNM,id1] = obj.computeRBFfiNM(ptsInt,ptsGauss,type);
-                    % switch obj.degree
-                    %     case 1
-                    %         NMaster = (fiNM*wFMat(:,repNum(obj.nNmaster,jm)))./(fiNM*w1Mat(:,jm));
-                    %         Nsupp = NMaster(:,[1 2 3]);
-                    %     case 2
-                    %         Ntmp = (fiNM*wFMat(:,repNum(obj.nNmaster+2,jm)))./(fiNM*w1Mat(:,jm));
-                    %         NMaster = Ntmp(:,1:obj.nNmaster);
-                    %         Nsupp = Ntmp(:,[end-1 end]);
-                    % end
-                    % % automatically detect supports computing interpolant
-                    % id = all([Nsupp >= 0-tol id1],2);
-                    Mdetect(jm,j) = sum(id);
-                    if any(id)
-                       NMaster = NMaster(id,:);
-                       Mloc = NSlaveMult(id,:)'*(NMaster.*dJWeighed(id)');
-                       Dloc = NSlaveMult(id,:)'*(NSlave(id,:).*dJWeighed(id)');
-                       nm = numel(Mloc);
-                       ns = numel(Dloc);
-                       % keeping M and D sparse to improve performance
-                       [jjM,iiM] = meshgrid(idMaster,idSlave);
-                       [jjS,iiS] = meshgrid(idSlave,idSlave);
+               %Compute Slave quantities
+               dJWeighed = elemSlave.getDerBasisFAndDet(j,3); % Weighted Jacobian
+               %get Gauss Points position in the real space
+               ptsGauss = getGPointsLocation(elemSlave,j);
+               idSlave = obj.slaveTopol(j,:);
+               NSlave = getBasisFinGPoints(elemSlave); % Slave basis functions
+               switch mult_type
+                  case 'standard'
+                     NSlaveMult = NSlave; % Slave basis functions
+                  case 'dual'
+                     NSlaveMult = obj.computeDualBasisF(NSlave,dJWeighed);
+               end
+               % compute slave basis function (still using radial basis
+               % interpolation)
+               %ptsIntS = ptsIntMatS(:,[3*j-2 3*j-1 3*j]);
+               %fiNMS = obj.computeRBFfiNM(ptsIntS,ptsGauss,type);
+               %NSlave = (fiNMS*wFMatS(:,[4*j-3 4*j-2 4*j-1 4*j]))./(fiNMS*w1MatS(:,j));
+               master_elems = find(obj.elemConnectivity(:,j));
+               for jm = master_elems'
+                  idMaster = obj.masterTopol(jm,:);
+                  [NMaster,id] = obj.getMasterBasis(jm,ptsGauss); % compute interpolated master basis function \Pi(Nm)
+                  % ptsInt = ptsIntMat(:,repNum(3,jm));
+                  % [fiNM,id1] = obj.computeRBFfiNM(ptsInt,ptsGauss,type);
+                  % switch obj.degree
+                  %     case 1
+                  %         NMaster = (fiNM*wFMat(:,repNum(obj.nNmaster,jm)))./(fiNM*w1Mat(:,jm));
+                  %         Nsupp = NMaster(:,[1 2 3]);
+                  %     case 2
+                  %         Ntmp = (fiNM*wFMat(:,repNum(obj.nNmaster+2,jm)))./(fiNM*w1Mat(:,jm));
+                  %         NMaster = Ntmp(:,1:obj.nNmaster);
+                  %         Nsupp = Ntmp(:,[end-1 end]);
+                  % end
+                  % % automatically detect supports computing interpolant
+                  % id = all([Nsupp >= 0-tol id1],2);
+                  Mdetect(jm,j) = sum(id);
+                  if any(id)
+                     if ~strcmp(mult_type,'P0')
+                        NMaster = NMaster(id,:);
+                        Mloc = NSlaveMult(id,:)'*(NMaster.*dJWeighed(id)');
+                        Dloc = NSlaveMult(id,:)'*(NSlave(id,:).*dJWeighed(id)');
+                        nm = numel(Mloc);
+                        ns = numel(Dloc);
+                        % keeping M and D sparse to improve performance
+                        [jjM,iiM] = meshgrid(idMaster,idSlave);
+                        [jjS,iiS] = meshgrid(idSlave,idSlave);
                         imVec(cm+1:cm+nm) = iiM(:); jmVec(cm+1:cm+nm) = jjM(:);
                         isVec(cs+1:cs+ns) = iiS(:); jsVec(cs+1:cs+ns) = jjS(:);
                         Mvec(cm+1:cm+nm) = Mloc(:);
                         Dvec(cs+1:cs+ns) = Dloc(:);
                         % sort out Points already projected
-                        dJWeighed = dJWeighed(~id);    
+                        dJWeighed = dJWeighed(~id);
                         ptsGauss = ptsGauss(~id,:);
                         NSlave = NSlave(~id,:);
                         NSlaveMult = NSlaveMult(~id,:);
                         cs = cs+ns;
                         cm = cm+nm;
-                    end
-                end
-                if ~all(id)
-                   fprintf('GP not sorted for slave elem %i \n',j);
-                   c_ns = c_ns + 1;
-                end
+                     else % P0 MULTIPLIER
+                        NMaster = NMaster(id,:);
+                        Mloc = sum(NMaster.*dJWeighed(id)',1);
+                        Dloc = sum(NSlave(id,:).*dJWeighed(id)',1);
+                        nm = numel(Mloc);
+                        ns = numel(Dloc);
+                        % keeping M and D sparse to improve performance
+                        [jjM,iiM] = meshgrid(idMaster,j);
+                        [jjS,iiS] = meshgrid(idSlave,j);
+                        imVec(cm+1:cm+nm) = iiM(:); jmVec(cm+1:cm+nm) = jjM(:);
+                        isVec(cs+1:cs+ns) = iiS(:); jsVec(cs+1:cs+ns) = jjS(:);
+                        Mvec(cm+1:cm+nm) = Mloc(:);
+                        Dvec(cs+1:cs+ns) = Dloc(:);
+                        % sort out Points already projected
+                        dJWeighed = dJWeighed(~id);
+                        ptsGauss = ptsGauss(~id,:);
+                        NSlave = NSlave(~id,:);
+                        cs = cs+ns;
+                        cm = cm+nm;
+                     end
+                  end
+               end
+               if ~all(id)
+                  fprintf('GP not sorted for slave elem %i \n',j);
+                  c_ns = c_ns + 1;
+               end
             end
-            %tInteg = toc;
             imVec = imVec(1:cm); jmVec = jmVec(1:cm);
             isVec = isVec(1:cs); jsVec = jsVec(1:cs);
             Mvec = Mvec(1:cm); Dvec = Dvec(1:cs);
-            M = sparse(imVec,jmVec,Mvec,obj.nNodesSlave,obj.nNodesMaster);
-            M = M(obj.nodesSlave, obj.nodesMaster);
-            D = sparse(isVec,jsVec,Dvec,obj.nNodesSlave,obj.nNodesSlave);
-            D = D(obj.nodesSlave,obj.nodesSlave);
+            if strcmp(mult_type,'P0')
+               M = sparse(imVec,jmVec,Mvec,obj.nElSlave,obj.nNodesMaster);
+               M = M(:,obj.nodesMaster);
+               D = sparse(isVec,jsVec,Dvec,obj.nElSlave,obj.nNodesSlave);
+               D = D(:,obj.nodesSlave);
+            else
+               M = sparse(imVec,jmVec,Mvec,obj.nNodesSlave,obj.nNodesMaster);
+               M = M(obj.nodesSlave, obj.nodesMaster);
+               D = sparse(isVec,jsVec,Dvec,obj.nNodesSlave,obj.nNodesSlave);
+               D = D(obj.nodesSlave,obj.nodesSlave);
+            end
             if strcmp(mult_type,'dual')
-                D = diag(sum(D,2)); % make sure D is diagonal by lumping
+               D = diag(sum(D,2)); % make sure D is diagonal by lumping
             end
             obj.D = D;
             obj.M = M;

@@ -57,6 +57,8 @@ switch multType
       interfFile = 'interface_dual.dat';
    case 'standard'
       interfFile = 'interface_standard.dat';
+   case 'P0'
+      interfFile = 'interface_P0.dat';
 end
 simParam = SimulationParameters('simParam.dat');
 model = buildModelStruct(domainFile,simParam);
