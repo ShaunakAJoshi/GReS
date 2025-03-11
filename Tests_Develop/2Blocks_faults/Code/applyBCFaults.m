@@ -37,7 +37,7 @@ for domID = 1:NL.mortar.nDom
          dof = bcDofs;
       elseif domID == NL.mortar.tagSlave
          bcDofs = bcDofs + 3*NL.mortar.totNodMaster;
-         if strcmp(type,'Dir')  % remove constraint on dofs belonging to the interface
+         if strcmp(type,'Dir') && ~strcmp(NL.multType,'P0') % remove constraint on dofs belonging to the interface
             dof = bcDofs(~ismember(bcDofs,NL.dofMap.intSlave));
          else
             dof = bcDofs;

@@ -18,18 +18,24 @@ classdef NonLinearSolverFaults < handle
       dofMap      % group DoF based on master/slave/state
       dirichNodes
       results
+      multType
    end
 
    methods
-      function obj = NonLinearSolverFaults(simParam,mG,c,phi)
+      function obj = NonLinearSolverFaults(simParam,mG,c,phi,type)
          obj.simParameters = simParam;
-         obj.mortar = mortarFaults(mG,c,phi);
+         if strcmp(type,'P0')
+            obj.mortar = mortarFaultsP0(mG,c,phi);
+         else
+            obj.mortar = mortarFaults(mG,c,phi);
+         end
+         obj.multType = type;
          obj.setNonLinearSolverFaults(mG);
-         obj.simulationLoop();
+         obj.simulationLoop(mG);
       end
 
-      function simulationLoop(obj)
-         % sorting nodes on fault symmetry axis
+      function simulationLoop(obj,mG)
+         % sorting nodes and surfaces on symmetry axis
          coordSlave1 = obj.models(2).Grid.topology.coordinates(obj.mortar.idSlave,:);
          coordSlave2 = obj.models(2).Grid.topology.coordinates;
          id1 = find(abs(coordSlave1(:,2)-5)<1e-2);
@@ -38,12 +44,17 @@ classdef NonLinearSolverFaults < handle
          [~,idSort2] = sort(coordSlave2(id2,3),'ascend');
          id1 = id1(idSort1);
          id2 = id2(idSort2);
+         if strcmp(obj.multType,'P0')
+            id1 = getSymSurf(mG);
+         end
            
          % provisional print utilities for faults
          if strcmp(obj.mortar.meshGlue.interfaces.multType,'dual')
             vtkFault = VTKOutput(obj.mortar.meshGlue.interfaces.mortar.intSlave,'Fault_dual');
          elseif strcmp(obj.mortar.meshGlue.interfaces.multType,'standard')
             vtkFault = VTKOutput(obj.mortar.meshGlue.interfaces.mortar.intSlave,'Fault_standard');
+         elseif strcmp(obj.mortar.meshGlue.interfaces.multType,'P0')
+            vtkFault = VTKOutput(obj.mortar.meshGlue.interfaces.mortar.intSlave,'Fault_P0');
          end
          tListFault = obj.models(1).OutState.timeList;
          printID = 1;
@@ -146,23 +157,23 @@ classdef NonLinearSolverFaults < handle
                   computeNodalGap(obj.mortar,obj.state,obj.dofMap);
 
                   % get information on slipping nodes
-                  if ~isempty(obj.activeSet.curr.slip)
-                     % get gap from extreme nodes of the fault
-                     nm = [6;7]; % boundary master nodes at top
-                     ns = [5;8]; % boundary slave nodes at top
-                     dum = du(obj.mortar.getContactDofs('master',nm));
-                     um = obj.state(1).dispCurr(get_dof(nm));
-                     dus = du(obj.mortar.getContactDofs('slave',ns));
-                     us = obj.state(2).dispCurr(get_dof(ns));
-                     fprintf('y = 0 \n')
-                     fprintf('master du = %.3e %.3e %.3e, slave du = %.3e %.3e %.3e \n',...
-                        dum(1:3)', dus(1:3)');
-                     fprintf('master disp = %.3e %.3e %.3e, slave disp = %.3e %.3e %.3e \n',um(1:3)',us(1:3)')
-                     fprintf('y = 10 \n')
-                     fprintf('master du = %.3e %.3e %.3e, slave du = %.3e %.3e %.3e \n',...
-                        dum(4:6)', dus(4:6)');
-                     fprintf('master disp = %.3e %.3e %.3e, slave disp = %.3e %.3e %.3e \n',um(4:6)',us(4:6)')
-                  end
+                  % if ~isempty(obj.activeSet.curr.slip)
+                  %    % get gap from extreme nodes of the fault
+                  %    nm = [6;7]; % boundary master nodes at top
+                  %    ns = [5;8]; % boundary slave nodes at top
+                  %    dum = du(obj.mortar.getContactDofs('master',nm));
+                  %    um = obj.state(1).dispCurr(get_dof(nm));
+                  %    dus = du(obj.mortar.getContactDofs('slave',ns));
+                  %    us = obj.state(2).dispCurr(get_dof(ns));
+                  %    fprintf('y = 0 \n')
+                  %    fprintf('master du = %.3e %.3e %.3e, slave du = %.3e %.3e %.3e \n',...
+                  %       dum(1:3)', dus(1:3)');
+                  %    fprintf('master disp = %.3e %.3e %.3e, slave disp = %.3e %.3e %.3e \n',um(1:3)',us(1:3)')
+                  %    fprintf('y = 10 \n')
+                  %    fprintf('master du = %.3e %.3e %.3e, slave du = %.3e %.3e %.3e \n',...
+                  %       dum(4:6)', dus(4:6)');
+                  %    fprintf('master disp = %.3e %.3e %.3e, slave disp = %.3e %.3e %.3e \n',um(4:6)',us(4:6)')
+                  % end
 
                   % compute mechanics matrices (linear)
                   for i = 1:obj.nDom
@@ -238,7 +249,7 @@ classdef NonLinearSolverFaults < handle
       function setNonLinearSolverFaults(obj,mG)
          obj.models = mG.model;
          % add lagrange multiplier field to state structure
-         obj.currMultipliers = zeros(3*obj.mortar.nS,1);
+         obj.currMultipliers = zeros(3*obj.mortar.nMult,1);
          obj.prevMultipliers = obj.currMultipliers;
          obj.mortar.gap = zeros(3*obj.mortar.nS,1);  % NO INITIAL GAP
          % state struct easier to access (we only work with a curr. state)
@@ -247,7 +258,7 @@ classdef NonLinearSolverFaults < handle
          setInitialStress(obj,'x',-1);         % initialize stress (not flexible at all)
          % initialize active set structure
          obj.activeSet = struct('prev',[],'curr',[]);
-         obj.activeSet.prev = struct('stick',(1:obj.mortar.nS)','slip',[],'open',[]);
+         obj.activeSet.prev = struct('stick',(1:obj.mortar.nMult)','slip',[],'open',[]);
          obj.activeSet.curr = obj.activeSet.prev;
          % define dirichlet nodes (always stick)
          obj.dirichNodes = find(obj.mortar.meshGlue.interfaces.mortar.intSlave.coordinates(:,3) == 0);
@@ -422,7 +433,7 @@ classdef NonLinearSolverFaults < handle
          % interface dofs are not separated by inner dofs numbering
          i = []; j = []; Jvec = [];
          J = sparse(obj.mortar.nDoF,obj.mortar.nDoF);
-         lagDof = getContactDofs(obj,'lag',1:obj.mortar.nS); % complete set of multipliers
+         lagDof = getContactDofs(obj,'lag',1:obj.mortar.nMult); % complete set of multipliers
          % mechanics block
          Km = getPoro(obj.models(obj.mortar.tagMaster).Discretizer).K;
          Ks = getPoro(obj.models(obj.mortar.tagSlave).Discretizer).K;
@@ -481,7 +492,7 @@ classdef NonLinearSolverFaults < handle
          % dof ordering: master - slave - lagrange
          % interface dofs are not separated by inner dofs numbering
          J = sparse(obj.mortar.nDoF,obj.mortar.nDoF);
-         lagDof = getContactDofs(obj,'lag',1:obj.mortar.nS); % complete set of multipliers
+         lagDof = getContactDofs(obj,'lag',1:obj.mortar.nMult); % complete set of multipliers
          % mechanics block
          Km = getPoro(obj.models(obj.mortar.tagMaster).Discretizer).K;
          Ks = getPoro(obj.models(obj.mortar.tagSlave).Discretizer).K;
@@ -497,6 +508,9 @@ classdef NonLinearSolverFaults < handle
          J(obj.dofMap.stick,obj.dofMap.intSlave) = J(obj.dofMap.stick,obj.dofMap.intSlave) + obj.mortar.Dn(stickDofs,:);
          J(obj.dofMap.stick,obj.dofMap.intMaster) = J(obj.dofMap.stick,obj.dofMap.intMaster) - obj.mortar.Mt(stickDofs,:);
          J(obj.dofMap.stick,obj.dofMap.intSlave) = J(obj.dofMap.stick,obj.dofMap.intSlave) + obj.mortar.Dt(stickDofs,:);
+         if strcmp(obj.multType,'P0')
+            J(obj.dofMap.stick,obj.dofMap.stick) = J(obj.dofMap.stick,obj.dofMap.stick) + obj.mortar.computeStabilizationMatrix();
+         end
          % slip blocks
          if any(obj.activeSet.curr.slip)
             slipDofs = get_dof(obj.activeSet.curr.slip);
@@ -628,7 +642,7 @@ classdef NonLinearSolverFaults < handle
          obj.state(1).iniStress(:,id2) = val;
          obj.state(2).iniStress(:,id2) = val;
          % refer stress to local nodal normal
-         v_loc = obj.mortar.R*repmat(v',obj.mortar.nS,1);
+         v_loc = obj.mortar.R*repmat(v',obj.mortar.nMult,1);
          % make sure contact traction is negative (compression)
          obj.currMultipliers(:) = -abs(v_loc);
          obj.iniMult = obj.currMultipliers;
@@ -644,13 +658,13 @@ classdef NonLinearSolverFaults < handle
          if nargin == 4
             time = obj.stateOld(1).t;
             outVar = obj.prevMultipliers;
-            pointData = repmat(struct('name',[],'data',[]),3,1);
+            data = repmat(struct('name',[],'data',[]),3,1);
             name = ["sigma_n","tau_1","tau_2"];
             for i = 1:size(outVar,2)
-               pointData(i).name = convertStringsToChars(name(i));
-               pointData(i).data = outVar(:,i);
+               data(i).name = convertStringsToChars(name(i));
+               data(i).data = outVar(:,i);
             end
-            vtk.writeVTKFile(time, [], [], pointData, []);
+            vtk.writeVTKFile(time, [], [], data, []);
          elseif nargin == 5
             while tID <= length(tList) &&(tList(tID)<= obj.state(1).t)
                % assert(tList(tID) > obj.stateOld(1).t, ...
@@ -661,7 +675,7 @@ classdef NonLinearSolverFaults < handle
                % Linear interpolation
                fac = (tList(tID) - obj.stateOld(1).t)/(obj.state(1).t - obj.stateOld(1).t);
                time = tList(tID);
-               outVar = zeros(obj.mortar.nS,6);
+               outVar = zeros(obj.mortar.nMult,6);
                interpMult= fac*obj.currMultipliers + (1-fac)*obj.prevMultipliers;
                outVar(:,1:3) = (reshape(interpMult,3,[]))';
                outVar(:,4) = sqrt(outVar(:,2).^2 + outVar(:,3).^2);
@@ -669,13 +683,17 @@ classdef NonLinearSolverFaults < handle
                outVar(:,5) = obj.mortar.g_N;
                gt = (reshape(obj.mortar.g_T,3,[]))';
                outVar(:,6) = sqrt(gt(:,2).^2+gt(:,3).^2);
-               pointData = repmat(struct('name',[],'data',[]),3,1);
+               data = repmat(struct('name',[],'data',[]),3,1);
                name = ["sigma_n","tau_1","tau_2","tau_norm","g_N","||g_T||"];
                for i = 1:size(outVar,2)
-                  pointData(i).name = convertStringsToChars(name(i));
-                  pointData(i).data = outVar(:,i);
+                  data(i).name = convertStringsToChars(name(i));
+                  data(i).data = outVar(:,i);
                end
-               vtk.writeVTKFile(time, [], [], pointData, []);
+               if strcmp(obj.multType,'P0')
+                  vtk.writeVTKFile(time, [], [], [], data);
+               else
+                  vtk.writeVTKFile(time, [], [], data, []);
+               end
                tID = tID + 1;
             end
          end

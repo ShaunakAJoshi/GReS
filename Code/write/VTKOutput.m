@@ -275,7 +275,7 @@ classdef VTKOutput < handle
             mxVTKWriter(fname, time, obj.mesh.coordinates, obj.mesh.cells, obj.mesh.cellVTKType, ...
                obj.mesh.cellNumVerts, pointData3D, cellData3D);
          end
-         if ~isempty(pointData2D)
+         if any([~isempty(pointData2D),~isempty(cellData2D)])
             mxVTKWriter(fname, time, obj.mesh.coordinates, obj.mesh.surfaces, obj.mesh.surfaceVTKType, ...
                obj.mesh.surfaceNumVerts, pointData2D, cellData2D);
          end

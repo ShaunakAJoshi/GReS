@@ -5,7 +5,7 @@ close all
 coes = 0;
 phi = 30; % degrees
 
-multType = 'dual';
+multType = 'P0';
 
 fprintf('\n ________________ \n')
 fprintf('%s multipliers \n',multType)
@@ -40,6 +40,8 @@ switch simulTag
             domainFile = 'Domains/domains_hexa_standard.dat';
          case 'dual'
             domainFile = 'Domains/domains_hexa_dual.dat';
+         case 'P0'
+            domainFile = 'Domains/domains_hexa_P0.dat';
       end
 end
 
@@ -76,7 +78,7 @@ mG = MeshGlue(model,interfFile);
 % e = fSInterp-fSAnal;
 % e = sqrt(sum(e.^2));
 
-solverDual = NonLinearSolverFaults(simParam,mG,coes,phi);
+solverDual = NonLinearSolverFaults(simParam,mG,coes,phi,multType);
 
 solverDual.models(1).OutState.finalize();
 solverDual.models(2).OutState.finalize();
@@ -91,6 +93,8 @@ if strcmp(multType,'dual')
    filePattern = fullfile(folderPath, '*dual*');
 elseif strcmp(multType,'standard')
    filePattern = fullfile(folderPath, '*standard*');
+elseif strcmp(multType,'P0')
+   filePattern = fullfile(folderPath, '*P0*');
 end
 
 % Get all entries matching the pattern

@@ -15,6 +15,7 @@ classdef Mortar3D < handle
         degree                % degree of interpolation of mortar 
         nodesMaster           % master side node subset
         nodesSlave            % slave side node subset
+        elemNormal
         %Dmat
         nSMat
         nMMat
@@ -29,6 +30,9 @@ classdef Mortar3D < handle
         wF                    % matrix of RBF weights
         w1                    % matrix of RBF weight for scaling
         ptsRBF                % RBF interpolation points
+        edge2nodes
+        edge2cells
+        nEdges
     end
 
     methods
@@ -132,6 +136,7 @@ classdef Mortar3D < handle
           % get list of nodes that actually belong to elements in contact
           obj.nodesMaster = unique(obj.masterTopol(idM,:));
           obj.nodesSlave = unique(obj.slaveTopol(idS,:));
+          setupEdgeTopology(obj)
           %
           %computeSlaveMatrix(obj);
        end
@@ -541,6 +546,7 @@ classdef Mortar3D < handle
            n_n = zeros(length(obj.intSlave.coordinates),3);
            area = elem.findAreaAndCentroid(1:obj.intSlave.nSurfaces); % area of each cell
            elem_normal = elem.computeNormal(1:obj.intSlave.nSurfaces);
+           obj.elemNormal = elem_normal;
            topol = obj.intSlave.surfaces;
            for i = 1:length(obj.intSlave.coordinates)
               % get elements sharing node i
@@ -851,6 +857,36 @@ classdef Mortar3D < handle
           connMat = sparse(mVec,sVec,true(s,1),nM,nS);
        end
 
+       function setupEdgeTopology(obj)
+          % reorder surface topology
+          % inspired by face topology for FV in MRST
+          bot = obj.intSlave.surfaces(:, [1, 2]);
+          top = obj.intSlave.surfaces(:, [3, 4]);
+          lft = obj.intSlave.surfaces(:, [4, 1]);
+          rgt = obj.intSlave.surfaces(:, [2, 3]);
+          % unique matrix containing all existing edges (with repetitions)
+          edgeMat = [bot;top;lft;rgt];
+          %
+          [edgeMat,i] = sort(edgeMat,2);
+          i = i(:,1);
+          %
+          %
+          %
+          % id is [cellnumber, half-face tag]
+          id       = [(1:obj.intSlave.nSurfaces)', repmat(1, [obj.intSlave.nSurfaces, 1]);...
+                      (1:obj.intSlave.nSurfaces)', repmat(2, [obj.intSlave.nSurfaces, 1]);...
+                      (1:obj.intSlave.nSurfaces)', repmat(3, [obj.intSlave.nSurfaces, 1]);...
+                      (1:obj.intSlave.nSurfaces)', repmat(4, [obj.intSlave.nSurfaces, 1])];
+          % Sort rows to find pairs of cells sharing a face
+          [edgeMat, j] = sortrows(edgeMat);
+          
+          % encode edge matrix
+          [obj.edge2nodes,n] = obj.rle(edgeMat);
+          obj.nEdges = numel(n);
+          N = repelem(1:obj.nEdges,n);
+          obj.edge2cells = accumarray([N',i(j)],id(j,1),[obj.nEdges,2]);
+       end
+
     end
 
 
@@ -859,6 +895,17 @@ classdef Mortar3D < handle
 
 
     methods(Static)
+       function [outMat,count] = rle(inMat)
+          % the input matrix has already been sorted by rows
+          % Find unique rows and their first occurrences
+          [outMat, firstIdx, ~] = unique(inMat, 'rows', 'stable');
+
+          % Compute counts of each unique row
+          count = diff([firstIdx; size(inMat,1) + 1]);
+
+          % Restore original order of indices
+          %indices = sortIdx(firstIdx);
+       end
        
         function Nslave_dual = computeDualBasisF(Nslave,gpW)
             % compute dual basis function on slave GPs

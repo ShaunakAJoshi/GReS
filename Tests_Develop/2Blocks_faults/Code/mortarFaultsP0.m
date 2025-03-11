@@ -1,4 +1,6 @@
-classdef mortarFaults < handle
+classdef mortarFaultsP0 < handle
+   % implementing faults with mortar method.
+   % P0 (piecewise constant) multipliers with pressure-jump stabilization
    properties
       nDom = 2
       nInterf = 1
@@ -12,10 +14,10 @@ classdef mortarFaults < handle
       Mt          % mortar cross matrix for tangential gaps
       L           % lagrange multiplier mass matrix (local coordinates)
       nNslave     % number of nodes per slave elements
-      nNmaster    % number
+      nNmaster    % numberof nodes per master elements
       indN        % index of basis functions in displacement basis matrix
-      nS          % number of interface slave nodes
-      nM          % number of interface master nodes
+      nS          % number of interface master nodes
+      nM          % number of interface slave nodes
       nMult       % number of multipliers
       coes        % coesion
       phi         % friction angle
@@ -31,15 +33,15 @@ classdef mortarFaults < handle
       gapOld     % gap of previous time step
       g_T         % \Delta_n g_T
       g_N         % n \cdot g
-      E           % mortar operator
       R           % global rotation matrix
       tolGap = 1e-8; % tolerance on normal and tangential gaps
       tolNormal = 1e-3 % tolerance on normal traction
       tolTang = 1e-2 % relative tolerance w.r.t tau_lim
+      E
    end
 
    methods
-      function obj = mortarFaults(meshGlue,coes,phi)
+      function obj = mortarFaultsP0(meshGlue,coes,phi)
          obj.coes = coes;
          obj.phi = phi;
          obj.setParams(meshGlue);
@@ -59,7 +61,7 @@ classdef mortarFaults < handle
          obj.totNodSlave = obj.meshGlue.model(obj.tagSlave).Grid.topology.nNodes;
          obj.nS = length(mG.interfaces.mortar.nodesSlave);
          obj.nM = length(mG.interfaces.mortar.nodesMaster);
-         obj.nMult = obj.nS;
+         obj.nMult = mG.interfaces.mortar.nElSlave;
          obj.idMaster = obj.meshGlue.interfaces(1).masterSet;
          obj.idSlave = obj.meshGlue.interfaces(1).slaveSet;
          % compute global rotation matrix
@@ -67,83 +69,58 @@ classdef mortarFaults < handle
          % initialize stress (not flexible at all)
          % build dof map with initial active set status
          %
-         obj.nDoF = 3*obj.totNodMaster+3*obj.totNodSlave+3*obj.nS;
+         obj.nDoF = 3*obj.totNodMaster+3*obj.totNodSlave+3*obj.nMult;
          obj.E = obj.meshGlue.interfaces.mortar.getMortarOperator(3); % mortar operator
       end
 
 
       function computeContactMatrices(obj)
          % get and normalize nodal normals
+         n_elems = obj.meshGlue.interfaces(1).elemNormal;
          area_nod = sqrt(sum(obj.meshGlue.interfaces(1).nodeNormal.^2,2)); % nodal area
-         n = obj.meshGlue.interfaces(1).nodeNormal./area_nod;
+         n_nodes = obj.meshGlue.interfaces(1).nodeNormal./area_nod;
          % compute mortar matrices within one simulation loop use radial
          % basis functions to evaluate matrix M
          mortar = obj.meshGlue.interfaces(1).mortar; % only one interface defined
-         % detect elements lying in the boundary of the interface
-         tol = 1e-3;
-         boundElem = zeros(mortar.nElSlave,1);
-         s =0;
-         for i = 1:mortar.nElSlave
-            nList = mortar.intSlave.surfaces(i,:);
-            yMin = 0; yMax = 10; zMin = 0; zMax = 15;
-            idY = any([abs(mortar.intSlave.coordinates(nList,2)-yMin)<tol,abs(mortar.intSlave.coordinates(nList,2)-yMax)<tol],2);
-            idZ = any([abs(mortar.intSlave.coordinates(nList,3)-zMin)<tol,abs(mortar.intSlave.coordinates(nList,3)-zMax)<tol],2);
-            if any(any([idY,idZ],2))
-               boundElem(s+1) = i;
-               s = s+1;
-            end
-         end
-         boundElem = boundElem(boundElem~=0);
          %
          nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration
-         mult_type = obj.meshGlue.interfaces(1).multType;
          c_ns = 0;  % counter for GP not projected
-         %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          % set Gauss class
-         gM = Gauss(mortar.masterCellType,3,2); % gauss class for Master element interpolation
          gS = Gauss(mortar.slaveCellType,nGP,2); % gauss class for slave integration
          elemSlave = getElem(mortar,gS,'slave');
          [imVec,jmVec,Mgvec,Mtvec,Mnvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
-         [isVec,jsVec,Dgvec,Dtvec,Dnvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
+         [idVec,jsVec,Dgvec,Dtvec,Dnvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
          % Perform interpolation on the master side (computing weights
          % and interpolation coordinates)
          % Loop trough slave elements
          cs = 0; % slave matrix entry counter
          cm = 0; % master matrix entry counter
-         for j = 1:mortar.nElSlave
+         cl = 0; % multiplier matrix entry counter
+         nEl = mortar.nElSlave;
+         for is = 1:nEl
             %Compute Slave quantities
-            dJWeighed = elemSlave.getDerBasisFAndDet(j,3); % Weighted Jacobian
+            dJWeighed = elemSlave.getDerBasisFAndDet(is,3); % Weighted Jacobian
             %get Gauss Points position in the real space
-            ptsGauss = getGPointsLocation(elemSlave,j);
-            nSlave = mortar.intSlave.surfaces(j,:);
-            n_el = (n(nSlave,:))';
-            n_el = n_el(:); % local nodal normal vector
+            ptsGauss = getGPointsLocation(elemSlave,is);
+            nSlave = mortar.intSlave.surfaces(is,:);
+            n_el = n_elems(is,:);
+            n_nod = (n_nodes(nSlave,:));
+            n_nod = n_nod(:);
             Rloc = getRotationMatrix(obj,n_el);
             %Rloc = eye(3*obj.nNslave);
             %A = diag(repelem(area_nod(nSlave),3));
             NSlave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-            switch mult_type
-               case 'standard'
-                  NSlaveMult = NSlave; % Slave basis functions
-               case 'dual'
-                  NSlaveMult = mortar.computeDualBasisF(NSlave,dJWeighed);
-            end
-            % modify multiplier basis for elements containing boundary
-            % nodes 
-            % if ismember(j,boundElem)
-            %    NSlaveMult = ones(size(NSlaveMult))/size(NSlaveMult,2); 
-            %    % constant unit function
-            % end
-            master_elems = find(mortar.elemConnectivity(:,j));
-            for jm = master_elems'
-               nMaster = mortar.intMaster.surfaces(jm,:);
-               [NMaster,id] = mortar.getMasterBasis(jm,ptsGauss); % compute interpolated master basis function \Pi(Nm)
+            master_elems = find(mortar.elemConnectivity(:,is));
+            for im = master_elems'
+               nMaster = mortar.intMaster.surfaces(im,:);
+               [NMaster,id] = mortar.getMasterBasis(im,ptsGauss); % compute interpolated master basis function \Pi(Nm)
                if any(id)
                   % element-based integration
                   % prepare provisional 3D matrices
                   Nm = obj.dispSP(NMaster(id,:));
                   Ns = obj.dispSP(NSlave(id,:));
-                  Nmult = obj.dispSP(NSlaveMult(id,:));
+                  Nmult = ones(size(NSlave(id,:),1),1);
+                  Nmult = obj.dispSP(Nmult);
                   % global mortar matrices (global frame)
                   Dgtmp = pagemtimes(Nmult,'transpose',Ns,'none');
                   Dgtmp = Dgtmp.*reshape(dJWeighed(id),1,1,[]);
@@ -152,7 +129,7 @@ classdef mortarFaults < handle
                   Mgtmp = Mgtmp.*reshape(dJWeighed(id),1,1,[]);
                   Mgloc = Rloc'*sum(Mgtmp,3);
                   % normal mortar matrices (global frame)
-                  Nn = pagemtimes(Ns,n_el);
+                  Nn = pagemtimes(Ns,n_nod);
                   Dntmp = pagemtimes(Nmult(1,:,:),'transpose',pagemtimes(Nn,'transpose',Ns,'none'),'none');
                   Dntmp = Dntmp.*reshape(dJWeighed(id),1,1,[]);
                   Dnloc = Rloc'*sum(Dntmp,3);
@@ -174,45 +151,49 @@ classdef mortarFaults < handle
                   % local assembly
                   dof_master = get_dof(nMaster);
                   dof_slave = get_dof(nSlave);
-                  [jjM,iiM] = meshgrid(dof_master,dof_slave);
-                  [jjS,iiS] = meshgrid(dof_slave,dof_slave);
+                  dof_mult = get_dof(is);
+                  [jjM,iiM] = meshgrid(dof_master,dof_mult);
+                  [jjD,iiD] = meshgrid(dof_slave,dof_mult);
+                  [jjL,iiL] = meshgrid(dof_mult,dof_mult);
                   nm = numel(Mgloc);
                   ns = numel(Dgloc);
+                  nl = numel(Lloc);
                   imVec(cm+1:cm+nm) = iiM(:); jmVec(cm+1:cm+nm) = jjM(:);
-                  isVec(cs+1:cs+ns) = iiS(:); jsVec(cs+1:cs+ns) = jjS(:);
+                  idVec(cs+1:cs+ns) = iiD(:); jsVec(cs+1:cs+ns) = jjD(:);
+                  ilVec(cl+1:cl+nl) = iiL(:); jlVec(cl+1:cl+nl) = jjL(:);
                   Mgvec(cm+1:cm+nm) = Mgloc(:);
                   Dgvec(cs+1:cs+ns) = Dgloc(:);
                   Mnvec(cm+1:cm+nm) = Mnloc(:);
                   Dnvec(cs+1:cs+ns) = Dnloc(:);
                   Mtvec(cm+1:cm+nm) = Mtloc(:);
                   Dtvec(cs+1:cs+ns) = Dtloc(:);
-                  Lvec(cs+1:cs+ns)  = Lloc(:);
+                  Lvec(cl+1:cl+nl)  = Lloc(:);
                   % sort out Points already projected
                   dJWeighed = dJWeighed(~id);
                   ptsGauss = ptsGauss(~id,:);
                   NSlave = NSlave(~id,:);
-                  NSlaveMult = NSlaveMult(~id,:);
                   cs = cs+ns;
                   cm = cm+nm;
+                  cl = cl+nl;
                end
             end
             if ~all(id)
-               fprintf('GP not sorted for slave elem %i \n',j);
+               fprintf('GP not sorted for slave elem %i \n',is);
                c_ns = c_ns + 1;
             end
          end
          imVec = imVec(1:cm); jmVec = jmVec(1:cm);
-         isVec = isVec(1:cs); jsVec = jsVec(1:cs);
+         idVec = idVec(1:cs); jsVec = jsVec(1:cs);
          Mgvec = Mgvec(1:cm); Mnvec = Mnvec(1:cm); Mtvec = Mtvec(1:cm);
          Dgvec = Dgvec(1:cm); Dnvec = Dnvec(1:cm); Dtvec = Dtvec(1:cm);
-         Lvec = Lvec(1:cs);
-         obj.Mg = sparse(imVec,jmVec,Mgvec,3*obj.nS,3*obj.nM);
-         obj.Mn = sparse(imVec,jmVec,Mnvec,3*obj.nS,3*obj.nM);
-         obj.Mt = sparse(imVec,jmVec,Mtvec,3*obj.nS,3*obj.nM);
-         obj.Dg = sparse(isVec,jsVec,Dgvec,3*obj.nS,3*obj.nS);
-         obj.Dn = sparse(isVec,jsVec,Dnvec,3*obj.nS,3*obj.nS);
-         obj.Dt = sparse(isVec,jsVec,Dtvec,3*obj.nS,3*obj.nS);
-         obj.L = sparse(isVec,jsVec,Lvec,3*obj.nS,3*obj.nS);
+         Lvec = Lvec(1:cl);
+         obj.Mg = sparse(imVec,jmVec,Mgvec,3*nEl,3*obj.nM);
+         obj.Mn = sparse(imVec,jmVec,Mnvec,3*nEl,3*obj.nM);
+         obj.Mt = sparse(imVec,jmVec,Mtvec,3*nEl,3*obj.nM);
+         obj.Dg = sparse(idVec,jsVec,Dgvec,3*nEl,3*obj.nS);
+         obj.Dn = sparse(idVec,jsVec,Dnvec,3*nEl,3*obj.nS);
+         obj.Dt = sparse(idVec,jsVec,Dtvec,3*nEl,3*obj.nS);
+         obj.L = sparse(ilVec,jlVec,Lvec,3*nEl,3*obj.nS);
          % eliminate small numerical quantities in obj.Dg
          %obj.Dg(abs(obj.Dg)<1e-12) = 0;
       end
@@ -223,8 +204,8 @@ classdef mortarFaults < handle
          R = zeros(3*nNode,3*nNode);
          for i = 0:nNode-1
             n = n_el(3*i+1:3*i+3);
-            [Rn,~] = qr(n);
-            v = Rn'*n;
+            [Rn,~] = qr(n');
+            v = Rn'*n';
             if v(1)>0
                Rn(:,1) = -Rn(:,1);
             end
@@ -245,15 +226,14 @@ classdef mortarFaults < handle
       
 
       function Rloc = getGlobalRotationMatrix(obj)
-         area_nod = sqrt(sum(obj.meshGlue.interfaces(1).nodeNormal.^2,2));
-         n_el = obj.meshGlue.interfaces(1).nodeNormal./area_nod; % normalized nodal area
+         n_el = obj.meshGlue.interfaces(1).elemNormal;
          % n_el: local nodal normal array
          nEntry = 9;
-         Rvec = zeros(nEntry*obj.nS,1);
-         iivec = zeros(nEntry*obj.nS,1);
-         jjvec = zeros(nEntry*obj.nS,1);
+         Rvec = zeros(nEntry*obj.nMult,1);
+         iivec = zeros(nEntry*obj.nMult,1);
+         jjvec = zeros(nEntry*obj.nMult,1);
          l1 = 0;
-         for i = 0:obj.nS-1
+         for i = 0:obj.nMult-1
             n = (n_el(i+1,:))';
             [Rloc,~] = qr(n);
             v = Rloc'*n;
@@ -266,7 +246,7 @@ classdef mortarFaults < handle
             Rvec(l1+1:l1+nEntry) = Rloc(:);
             l1 = l1+nEntry;
          end
-         Rloc = sparse(iivec,jjvec,Rvec,3*obj.nS,3*obj.nS);
+         Rloc = sparse(iivec,jjvec,Rvec,3*obj.nMult,3*obj.nMult);
       end
 
       function Nout = dispSP(obj,Nin)
@@ -359,19 +339,17 @@ classdef mortarFaults < handle
          % Use mortar operator E to map master nodes to slave side
          usCurr = state(obj.tagSlave).dispCurr(dofMap.nodSlave);
          umCurr = state(obj.tagMaster).dispCurr(dofMap.nodMaster);
-         obj.gap = usCurr - obj.E*umCurr;
          % compute weighted nodal gap
-         gapW = obj.Dg*usCurr - obj.Mg*umCurr;
+         obj.gap = (obj.Dg*usCurr - obj.Mg*umCurr)./sum(obj.Dg,2);
          if isempty(obj.gapOld)
             obj.gapOld = obj.gap;
          end
          obj.g_T = obj.gap - obj.gapOld; % global nodal gap
-         area_nod = sqrt(sum(obj.meshGlue.interfaces.nodeNormal.^2,2)); % nodal area
-         n = obj.meshGlue.interfaces.nodeNormal./area_nod; % unit nodal normal
+         n = obj.meshGlue.interfaces.elemNormal;
          % compute tangential component
-         obj.g_N = zeros(obj.nS,1);
+         obj.g_N = zeros(obj.nMult,1);
          l1 = 0;
-         for i = 1:obj.nS
+         for i = 1:obj.nMult
             % get node normal
             n_i = n(i,:);
             T = eye(3) - n_i'*n_i; % tangential projection matrix
@@ -736,10 +714,69 @@ classdef mortarFaults < handle
          end
       end
 
+      function H = computeStabilizationMatrix(obj)
+         % pressure - jump stabilization matrix in 3D
+         % leverage edge topology of mortar 3D matrix
+         mortar = obj.meshGlue.interfaces.mortar;
+         elem = Elements(mortar.intSlave,Gauss(9,3,2));
+         % list of internal edges
+         inner_edges = find(all(mortar.edge2cell,2)); 
+         iVec = zeros(6*numel(inner_edges),1);
+         jVec = iVec; 
+         hVec = iVec;
+         nEdges = size(mortar.edge2cell,1);
+         c = 0;
+         for i = inner_edges'
+            es = mortar.edge2cell(i,:);
+            n = mortar.edge2node(i,:);
+            A = ones(2,1);
+            k = 0;
+            id = [ismember(mortar.intSlave.surfaces(es(1),:),n(1));
+               ismember(mortar.intSlave.surfaces(es(1),:),n(2))];
+            A1 = elem.quad.findNodeArea(es(1));
+            A11 = A1(id(1)); A12 = A1(id(2));
+            id = [ismember(mortar.intSlave.surfaces(es(2),:),n(1));
+               ismember(mortar.intSlave.surfaces(es(2),:),n(2))];
+            A = elem.quad.findNodeArea(es(2));
+            A2 = A2(id(1)); A22 = A(id(22));
+            A = A11*A21+A12*A22;
+            % get stiffness approximation from master and slave side
+            Kslave = getStiffSlave(obj,es);
+            em = unique(mortar.elemConnectivity(:,es));
+            Kmaster = getStiffMaster(obj,em);
+            S = A*(Kslave^(-1)+Kmaster^(-1));
+            Hloc = [S -S; -S S];
+            dof = get_dof(em);
+            [jjLoc,iiLoc] = meshgrid(dof,dof);
+            cc = numel(Hloc);
+            % get node area
+            iVec(c+1:c+cc) = iiLoc(:);
+            jVec(c+1:c+cc) = jjLoc(:);
+            hVec(c+1:c+cc) = Hloc(:);
+            c = c+cc;
+         end
+         H = sparse(iVec,jVec,hVec,3*mortar.nElSlave,3*mortar.nElSlave);
+      end
+
 
    end
 
    methods (Access=private)
+      function K = getStiffSlave(obj,elemIds)
+         % get approximation of stiffess contribution from slave side to
+         % the pressure-jump stabilization parameter
+         slaveTag = obj.meshGlue.interfaces.Slave;
+         mat = obj.meshGlue.model(slaveTag).Material;
+         for i = elemIds
+            E = mat.getMaterial(i).constLaw.E; % young modulus
+            % cell volume
+            
+
+         end
+
+
+      end
+
       function dtdgt = computeDerTracGap(obj,Nmult,nodeId,mult,gapGPs)
          % N: 3D slave side matrix
          % result 3D matrix of size (3*nN)x(3*nN)xnG
