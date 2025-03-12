@@ -35,8 +35,8 @@ classdef mortarFaultsP0 < handle
       g_N         % n \cdot g
       R           % global rotation matrix
       tolGap = 1e-8; % tolerance on normal and tangential gaps
-      tolNormal = 1e-3 % tolerance on normal traction
-      tolTang = 1e-2 % relative tolerance w.r.t tau_lim
+      tolNormal = 1e-6 % tolerance on normal traction
+      tolTang = 1e-9 % relative tolerance w.r.t tau_lim
       E
       areaMap
       stabMat
@@ -374,7 +374,7 @@ classdef mortarFaultsP0 < handle
             dofStick = varargin{1};
             l = 1:size(obj.stabMat,1);
             id = ~ismember(l,dofStick);
-            stabGap(id) = 0;
+            %stabGap(id) = 0;
          end
          obj.gap = (obj.Dg*usCurr - obj.Mg*umCurr - stabGap)./sum(obj.Dg,2);
          slip = (obj.Dg*(usCurr-usConv) - obj.Mg*(umCurr-umConv) - stabGap)./sum(obj.Dg,2);

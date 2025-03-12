@@ -3,7 +3,7 @@ close all
 
 % fault material parameters
 coes = 0;
-phi = 30; % degrees
+phi = 25; % degrees
 
 multType = 'dual';
 

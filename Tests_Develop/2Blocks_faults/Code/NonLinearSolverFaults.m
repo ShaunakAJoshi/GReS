@@ -416,8 +416,9 @@ classdef NonLinearSolverFaults < handle
          rshStick = computeRhsStick(obj);
          rhs(obj.dofMap.stick) = rhs(obj.dofMap.stick) + rshStick;
          if strcmp(obj.multType,'P0')
+            dof = [obj.dofMap.stick; obj.dofMap.slip(1:3:end)];
             rhsStab = computeRhsStabilization(obj);
-            rhs(obj.dofMap.stick) = rhs(obj.dofMap.stick) + rhsStab;
+            rhs(dof) = rhs(dof) + rhsStab;
          end
          % Slip nodes rhs
          rhsSlip = computeRhsSlip(obj);
@@ -514,11 +515,23 @@ classdef NonLinearSolverFaults < handle
          J(obj.dofMap.stick,obj.dofMap.intMaster) = J(obj.dofMap.stick,obj.dofMap.intMaster) - obj.mortar.Mt(stickDofs,:);
          J(obj.dofMap.stick,obj.dofMap.intSlave) = J(obj.dofMap.stick,obj.dofMap.intSlave) + obj.mortar.Dt(stickDofs,:);
          if strcmp(obj.multType,'P0')
-            J(obj.dofMap.stick,lagDof) = J(obj.dofMap.stick,lagDof) - obj.mortar.stabMat(stickDofs,:);
+            % stabilization contribution to stick dofs
+            J(obj.dofMap.stick,obj.dofMap.stick) = J(obj.dofMap.stick,obj.dofMap.stick) - obj.mortar.stabMat(stickDofs,stickDofs);
          end
          % slip blocks
          if any(obj.activeSet.curr.slip)
+            % split normal and tangential components
             slipDofs = get_dof(obj.activeSet.curr.slip);
+            if strcmp(obj.multType,'P0')
+               slipH = slipDofs(1:3:end);
+               slipJ = obj.dofMap.slip;
+               slipJ = slipJ(1:3:end);
+               % stabilization contribution to slip normal components and
+               % adjacent components
+               J(obj.dofMap.stick,slipJ) = J(obj.dofMap.stick,slipJ) - obj.mortar.stabMat(stickDofs,slipH);
+               J(slipJ,obj.dofMap.stick) = J(slipJ,obj.dofMap.stick) - obj.mortar.stabMat(slipH,stickDofs);
+               J(slipJ,slipJ) = J(slipJ,slipJ) - obj.mortar.stabMat(slipH,slipH);
+            end
             % contribution to normal component
             J(obj.dofMap.slip,obj.dofMap.intMaster) = -obj.mortar.Mn(slipDofs,:);
             J(obj.dofMap.slip,obj.dofMap.intSlave) = obj.mortar.Dn(slipDofs,:);
@@ -636,8 +649,16 @@ classdef NonLinearSolverFaults < handle
       end
 
       function rhsStab = computeRhsStabilization(obj)
-         dof = get_dof(obj.activeSet.curr.stick);
-         rhsStab = -obj.mortar.stabMat(dof,:)*(obj.currMultipliers-obj.iniMult);
+         % compute the stabilization contribution to the rhs
+         if ~strcmp(obj.multType,'P0')
+            dof = get_dof(obj.activeSet.curr.stick);
+         else
+            dofS = get_dof(obj.activeSet.curr.stick);
+            dofN = get_dof(obj.activeSet.curr.slip);
+            dofN = dofN(1:3:end);
+            dof = [dofS;dofN];
+         end
+         rhsStab = -obj.mortar.stabMat(dof,dof)*(obj.currMultipliers(dof)-obj.iniMult(dof));
       end
 
       function setInitialStress(obj,dir,val)
