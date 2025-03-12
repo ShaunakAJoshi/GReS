@@ -2,7 +2,6 @@ classdef Mesh < handle
   % MESH General mesh class, can be subclassed for specialized types
 
   properties (SetAccess = public, GetAccess = public)
-    
     % GENERAL INFO:
     % Mesh dimension
     nDim = 0
@@ -27,6 +26,9 @@ classdef Mesh < handle
     cellNumVerts
     % Centroid coordinates of each cell
     cellCentroid
+    surfCentroid
+    cellVolume
+    surfArea
     % Surface to node mapping:
     % 2D elements' nodes sequences
     surfaces

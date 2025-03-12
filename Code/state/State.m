@@ -105,10 +105,10 @@ classdef State < matlab.mixin.Copyable
                         B(obj.elements.indB(:,2)) = N(obj.elements.indB(:,1));
                         %             vol = getVolume(obj.elements,el); % Volumetric average
                         avStress(el,:) = sum(diag(dJWeighed)* ...
-                            obj.curr.stress((l+1):(l+obj.GaussPts.nNode),:))/obj.elements.vol(el);
+                            obj.curr.stress((l+1):(l+obj.GaussPts.nNode),:))/obj.mesh.cellVolume(el);
                         dStrain = pagemtimes(B,obj.dispCurr(dof));
                         dStrain = dStrain.*reshape(dJWeighed,1,1,[]);
-                        avStrain(el,:) = sum(dStrain,3)/obj.elements.vol(el);
+                        avStrain(el,:) = sum(dStrain,3)/obj.mesh.cellVolume(el);
                         l = l + obj.GaussPts.nNode;
                 end
             end

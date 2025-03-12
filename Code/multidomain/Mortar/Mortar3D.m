@@ -33,6 +33,9 @@ classdef Mortar3D < handle
         edge2nodes
         edge2cells
         nEdges
+        f2cMaster
+        f2cSlave
+        areaMap
     end
 
     methods
@@ -56,6 +59,8 @@ classdef Mortar3D < handle
                 obj.intMaster = varargin{1}.getSurfaceMesh(varargin{2});
                 obj.intSlave = varargin{3}.getSurfaceMesh(varargin{4});
                 getMatricesSize(obj,varargin{1},varargin{3});
+                obj.mshMaster = varargin{1};
+                obj.mshSlave = varargin{3};
              case 3 % cartgrid input
                 assert(varargin{1}.cartGrid && varargin{1}.nDim == 2,['Wrong number' ...
                    'of input for 2D Cartesian mesh']);
@@ -136,7 +141,8 @@ classdef Mortar3D < handle
           % get list of nodes that actually belong to elements in contact
           obj.nodesMaster = unique(obj.masterTopol(idM,:));
           obj.nodesSlave = unique(obj.slaveTopol(idS,:));
-          setupEdgeTopology(obj)
+          setupEdgeTopology(obj);
+          [obj.f2cMaster,obj.f2cSlave] = obj.buildFace2CellMap();
           %
           %computeSlaveMatrix(obj);
        end
@@ -887,6 +893,29 @@ classdef Mortar3D < handle
           obj.edge2cells = accumarray([N',i(j)],id(j,1),[obj.nEdges,2]);
        end
 
+       function [mf2c,sf2c] = buildFace2CellMap(obj)
+          % get cell ID containing a face
+          mf2c = zeros(obj.nElMaster,1);
+          sf2c = zeros(obj.nElSlave,1);
+          listCell = (1:obj.mshSlave.nCells)';
+          for i = 1:obj.nElSlave
+             idMat = ismember(obj.mshSlave.cells(listCell,:),obj.slaveTopol(i,:));
+             idMat = sum(idMat,2);
+             id = find(idMat==4);
+             assert(isscalar(id),'Invalid connectivity between face and cells');
+             sf2c(i) = listCell(id);
+             listCell(id) = [];
+          end
+          listCell = (1:obj.mshMaster.nCells)';
+          for i = 1:obj.nElMaster
+             idMat = ismember(obj.mshMaster.cells(listCell,:),obj.masterTopol(i,:));
+             idMat = sum(idMat,2);
+             id = find(idMat==4);
+             assert(isscalar(id),'Invalid connectivity between face and cells');
+             mf2c(i) = listCell(id);
+             listCell(id) = [];
+          end
+       end
     end
 
 

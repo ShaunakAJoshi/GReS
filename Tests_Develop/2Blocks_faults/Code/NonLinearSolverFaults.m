@@ -70,9 +70,9 @@ classdef NonLinearSolverFaults < handle
 
          % Compute contact matrices (only at initialization step)
          computeContactMatrices(obj.mortar);
-
+         
          % Initialize nodal gap
-         computeNodalGap(obj.mortar,obj.state,obj.dofMap);
+         computeNodalGap(obj.mortar,obj.state,obj.dofMap,obj.currMultipliers);
 
          % TIME LOOP
          while obj.t < obj.simParameters.tMax
@@ -154,7 +154,8 @@ classdef NonLinearSolverFaults < handle
                   updateStateFaults(obj,du);
 
                   % update nodal gaps
-                  computeNodalGap(obj.mortar,obj.state,obj.dofMap);
+                  dofStick = get_dof(obj.activeSet.curr.stick);
+                  computeNodalGap(obj.mortar,obj.state,obj.dofMap,obj.currMultipliers,dofStick);
 
                   % get information on slipping nodes
                   % if ~isempty(obj.activeSet.curr.slip)
@@ -414,6 +415,10 @@ classdef NonLinearSolverFaults < handle
          % Stick nodes rhs
          rshStick = computeRhsStick(obj);
          rhs(obj.dofMap.stick) = rhs(obj.dofMap.stick) + rshStick;
+         if strcmp(obj.multType,'P0')
+            rhsStab = computeRhsStabilization(obj);
+            rhs(obj.dofMap.stick) = rhs(obj.dofMap.stick) + rhsStab;
+         end
          % Slip nodes rhs
          rhsSlip = computeRhsSlip(obj);
          rhs(obj.dofMap.slip) = rhs(obj.dofMap.slip) + rhsSlip;
@@ -509,7 +514,7 @@ classdef NonLinearSolverFaults < handle
          J(obj.dofMap.stick,obj.dofMap.intMaster) = J(obj.dofMap.stick,obj.dofMap.intMaster) - obj.mortar.Mt(stickDofs,:);
          J(obj.dofMap.stick,obj.dofMap.intSlave) = J(obj.dofMap.stick,obj.dofMap.intSlave) + obj.mortar.Dt(stickDofs,:);
          if strcmp(obj.multType,'P0')
-            J(obj.dofMap.stick,obj.dofMap.stick) = J(obj.dofMap.stick,obj.dofMap.stick) + obj.mortar.computeStabilizationMatrix();
+            J(obj.dofMap.stick,lagDof) = J(obj.dofMap.stick,lagDof) - obj.mortar.stabMat(stickDofs,:);
          end
          % slip blocks
          if any(obj.activeSet.curr.slip)
@@ -545,7 +550,7 @@ classdef NonLinearSolverFaults < handle
          % update and compare active set
          % dirichlet nodes are not subject to contact check and remain
          % stick
-         idDir = ismember(obj.activeSet.curr.stick,obj.dirichNodes);
+         %idDir = ismember(obj.activeSet.curr.stick,obj.dirichNodes);
          % return true if some changes are made
          % return false if the active set stays the same
          multMat = (reshape(obj.currMultipliers,3,[]))';
@@ -554,12 +559,11 @@ classdef NonLinearSolverFaults < handle
          tauNorm = sqrt(multMat(:,2).^2+multMat(:,3).^2);
          % stick mode to slip mode
          stick2slip = tauNorm(obj.activeSet.curr.stick) > (1+obj.mortar.tolTang)*tLim(obj.activeSet.curr.stick);
-         stick2slip(idDir) = false;
          obj.activeSet.curr.slip = unique([obj.activeSet.curr.slip; ...
              obj.activeSet.curr.stick(stick2slip)]);
          % stick mode to open mode 
          stick2open = multMat(obj.activeSet.curr.stick,1) > obj.mortar.tolNormal;
-         stick2open(idDir) = false;
+         % stick2open(idDir) = false;
          obj.activeSet.curr.open = unique([obj.activeSet.curr.open; ...
              obj.activeSet.curr.stick(stick2open)]);
          % open mode to stick node
@@ -597,7 +601,7 @@ classdef NonLinearSolverFaults < handle
          umConv = obj.state(obj.mortar.tagMaster).dispConv(obj.dofMap.nodMaster);
          rhsStick = obj.mortar.Dn*usCurr - obj.mortar.Mn*umCurr + ...
             obj.mortar.Dt*(usCurr-usConv) - obj.mortar.Mt*(umCurr-umConv);
-         % rhsStick = obj.mortar.Dg*usCurr - obj.mortar.Mg*umCurr;
+         %rhsStick = obj.mortar.Dg*usCurr - obj.mortar.Mg*umCurr;
          rhsStick = rhsStick(get_dof(obj.activeSet.curr.stick));
          %rhsStick = 0;
       end
@@ -629,6 +633,11 @@ classdef NonLinearSolverFaults < handle
          else
             rhsOpen = [];
          end
+      end
+
+      function rhsStab = computeRhsStabilization(obj)
+         dof = get_dof(obj.activeSet.curr.stick);
+         rhsStab = -obj.mortar.stabMat(dof,:)*(obj.currMultipliers-obj.iniMult);
       end
 
       function setInitialStress(obj,dir,val)

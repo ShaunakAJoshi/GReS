@@ -38,6 +38,8 @@ classdef mortarFaultsP0 < handle
       tolNormal = 1e-3 % tolerance on normal traction
       tolTang = 1e-2 % relative tolerance w.r.t tau_lim
       E
+      areaMap
+      stabMat
    end
 
    methods
@@ -90,12 +92,15 @@ classdef mortarFaultsP0 < handle
          elemSlave = getElem(mortar,gS,'slave');
          [imVec,jmVec,Mgvec,Mtvec,Mnvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
          [idVec,jsVec,Dgvec,Dtvec,Dnvec] = deal(zeros(nnz(mortar.elemConnectivity)*mortar.nNmaster^2,1));
+         [iMapVec,jMapVec,aMapVec] = deal(zeros(nnz(mortar.elemConnectivity),1));
+
          % Perform interpolation on the master side (computing weights
          % and interpolation coordinates)
          % Loop trough slave elements
          cs = 0; % slave matrix entry counter
          cm = 0; % master matrix entry counter
          cl = 0; % multiplier matrix entry counter
+         cmap = 0; % shared are map matrix entry counter
          nEl = mortar.nElSlave;
          for is = 1:nEl
             %Compute Slave quantities
@@ -104,7 +109,7 @@ classdef mortarFaultsP0 < handle
             ptsGauss = getGPointsLocation(elemSlave,is);
             nSlave = mortar.intSlave.surfaces(is,:);
             n_el = n_elems(is,:);
-            n_nod = (n_nodes(nSlave,:));
+            n_nod = (n_nodes(nSlave,:))';
             n_nod = n_nod(:);
             Rloc = getRotationMatrix(obj,n_el);
             %Rloc = eye(3*obj.nNslave);
@@ -132,10 +137,10 @@ classdef mortarFaultsP0 < handle
                   Nn = pagemtimes(Ns,n_nod);
                   Dntmp = pagemtimes(Nmult(1,:,:),'transpose',pagemtimes(Nn,'transpose',Ns,'none'),'none');
                   Dntmp = Dntmp.*reshape(dJWeighed(id),1,1,[]);
-                  Dnloc = Rloc'*sum(Dntmp,3);
+                  Dnloc = -Rloc'*sum(Dntmp,3);
                   Mntmp = pagemtimes(Nmult(1,:,:),'transpose',pagemtimes(Nn,'transpose',Nm,'none'),'none');
                   Mntmp = Mntmp.*reshape(dJWeighed(id),1,1,[]);
-                  Mnloc = Rloc'*sum(Mntmp,3);
+                  Mnloc = -Rloc'*sum(Mntmp,3);
                   % tangential mortar matrices (global frame)
                   Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
                   Dttmp = pagemtimes(Nmult,'transpose',pagemtimes(Nt,Ns),'none');
@@ -169,12 +174,16 @@ classdef mortarFaultsP0 < handle
                   Dtvec(cs+1:cs+ns) = Dtloc(:);
                   Lvec(cl+1:cl+nl)  = Lloc(:);
                   % sort out Points already projected
+                  iMapVec(cmap+1) = im;
+                  jMapVec(cmap+1) = is;
+                  aMapVec(cmap+1) = sum(dJWeighed(id));
                   dJWeighed = dJWeighed(~id);
                   ptsGauss = ptsGauss(~id,:);
                   NSlave = NSlave(~id,:);
                   cs = cs+ns;
                   cm = cm+nm;
                   cl = cl+nl;
+                  cmap = cmap+1;
                end
             end
             if ~all(id)
@@ -186,6 +195,8 @@ classdef mortarFaultsP0 < handle
          idVec = idVec(1:cs); jsVec = jsVec(1:cs);
          Mgvec = Mgvec(1:cm); Mnvec = Mnvec(1:cm); Mtvec = Mtvec(1:cm);
          Dgvec = Dgvec(1:cm); Dnvec = Dnvec(1:cm); Dtvec = Dtvec(1:cm);
+         iMapVec = iMapVec(1:cmap); jMapVec = jMapVec(1:cmap);
+         aMapVec = aMapVec(1:cmap);
          Lvec = Lvec(1:cl);
          obj.Mg = sparse(imVec,jmVec,Mgvec,3*nEl,3*obj.nM);
          obj.Mn = sparse(imVec,jmVec,Mnvec,3*nEl,3*obj.nM);
@@ -193,17 +204,21 @@ classdef mortarFaultsP0 < handle
          obj.Dg = sparse(idVec,jsVec,Dgvec,3*nEl,3*obj.nS);
          obj.Dn = sparse(idVec,jsVec,Dnvec,3*nEl,3*obj.nS);
          obj.Dt = sparse(idVec,jsVec,Dtvec,3*nEl,3*obj.nS);
-         obj.L = sparse(ilVec,jlVec,Lvec,3*nEl,3*obj.nS);
+         obj.L = sparse(ilVec,jlVec,Lvec,3*nEl,3*nEl);
+         obj.areaMap = sparse(iMapVec,jMapVec,aMapVec,...
+            mortar.nElMaster,mortar.nElSlave);
+         obj.areaMap = obj.areaMap./sum(obj.areaMap,2);
+         computeStabilizationMatrix(obj);
          % eliminate small numerical quantities in obj.Dg
          %obj.Dg(abs(obj.Dg)<1e-12) = 0;
       end
 
-      function R = getRotationMatrix(obj,n_el)
+      function R = getRotationMatrix(obj,nloc)
          % n_el: local nodal normal array
-         nNode = round(numel(n_el)/3); 
+         nNode = round(numel(nloc)/3); 
          R = zeros(3*nNode,3*nNode);
          for i = 0:nNode-1
-            n = n_el(3*i+1:3*i+3);
+            n = nloc(3*i+1:3*i+3);
             [Rn,~] = qr(n');
             v = Rn'*n';
             if v(1)>0
@@ -216,6 +231,17 @@ classdef mortarFaultsP0 < handle
       function R = getNodeRotationMatrix(obj,k)
          % n_el: local nodal normal array
          n = obj.meshGlue.interfaces.nodeNormal(k,:);
+         n = (n/norm(n,2))';
+         [R,~] = qr(n);
+         v = R'*n;
+         if v(1)>0
+            R(:,1) = -R(:,1);
+         end
+      end
+
+      function R = getElemRotationMatrix(obj,k)
+         % n_el: local nodal normal array
+         n = obj.meshGlue.interfaces.elemNormal(k,:);
          n = (n/norm(n,2))';
          [R,~] = qr(n);
          v = R'*n;
@@ -332,19 +358,30 @@ classdef mortarFaultsP0 < handle
          tau = obj.coes - tan(deg2rad(obj.phi))*s_n;
       end
 
-      function computeNodalGap(obj,state,dofMap)
+      function computeNodalGap(obj,state,dofMap,mult,varargin)
          % compute gap in global coordinates
          % compute time difference of the tangential component of nodal gap
          % \Delta_n g_T (in global coordinates)
          % Use mortar operator E to map master nodes to slave side
          usCurr = state(obj.tagSlave).dispCurr(dofMap.nodSlave);
+         usConv = state(obj.tagSlave).dispConv(dofMap.nodSlave);
          umCurr = state(obj.tagMaster).dispCurr(dofMap.nodMaster);
+         umConv = state(obj.tagMaster).dispConv(dofMap.nodMaster);
          % compute weighted nodal gap
-         obj.gap = (obj.Dg*usCurr - obj.Mg*umCurr)./sum(obj.Dg,2);
+         % stabilization contribution to the gap
+         stabGap = obj.stabMat*mult;
+         if ~isempty(varargin)
+            dofStick = varargin{1};
+            l = 1:size(obj.stabMat,1);
+            id = ~ismember(l,dofStick);
+            stabGap(id) = 0;
+         end
+         obj.gap = (obj.Dg*usCurr - obj.Mg*umCurr - stabGap)./sum(obj.Dg,2);
+         slip = (obj.Dg*(usCurr-usConv) - obj.Mg*(umCurr-umConv) - stabGap)./sum(obj.Dg,2);
          if isempty(obj.gapOld)
             obj.gapOld = obj.gap;
          end
-         obj.g_T = obj.gap - obj.gapOld; % global nodal gap
+         obj.g_T = slip; % global nodal gap
          n = obj.meshGlue.interfaces.elemNormal;
          % compute tangential component
          obj.g_N = zeros(obj.nMult,1);
@@ -354,7 +391,7 @@ classdef mortarFaultsP0 < handle
             n_i = n(i,:);
             T = eye(3) - n_i'*n_i; % tangential projection matrix
             obj.g_T(l1+1:l1+3) = T*obj.g_T(l1+1:l1+3);
-            obj.g_N(i) = n_i*obj.gap(l1+1:l1+3);
+            obj.g_N(i) = -n_i*obj.gap(l1+1:l1+3);
             l1 = l1+3;
          end
       end
@@ -398,12 +435,11 @@ classdef mortarFaultsP0 < handle
          % the gap at the gauss points of the slave side
          usDiff = state(obj.tagSlave).dispCurr(dofMap.nodSlave)-stateOld(obj.tagSlave).dispCurr(dofMap.nodSlave);
          umDiff = state(obj.tagMaster).dispCurr(dofMap.nodMaster)-stateOld(obj.tagMaster).dispCurr(dofMap.nodMaster);
+         n_elems = obj.meshGlue.interfaces(1).elemNormal;
          area_nod = sqrt(sum(obj.meshGlue.interfaces(1).nodeNormal.^2,2)); % nodal area
-         nvec = obj.meshGlue.interfaces(1).nodeNormal./area_nod;
+         n_nodes = obj.meshGlue.interfaces(1).nodeNormal./area_nod;
          mortar = obj.meshGlue.interfaces(1).mortar; % only one interface defined
-         nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration (use this for all matrices)
-         mult_type = obj.meshGlue.interfaces(1).multType;
-         c_ns = 0;  % counter for GP not projected
+         %nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration (use this for all matrices)
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          % set Gauss class
          gS = Gauss(mortar.slaveCellType,4,2); % gauss class for slave integration
@@ -414,46 +450,37 @@ classdef mortarFaultsP0 < handle
          cn = 0; % counter for normal matrix
          cm = 0;
          cs = 0;
-         for j = 1:mortar.nElSlave
+         for is = activeSet.curr.slip'
             %Compute Slave quantities
-            nSlave = mortar.intSlave.surfaces(j,:); % slave node id
-            activeNodes = ismember(nSlave,activeSet.curr.slip);
-            if ~any(activeNodes)
-               continue
-            end
-            if norm(obj.g_T(get_dof(nSlave))) < obj.tolGap
+            if norm(obj.g_T(get_dof(is))) < obj.tolGap
                % gap too small to compute consistency matrices
                continue
             end
-            dJWeighed = elemSlave.getDerBasisFAndDet(j,3); % Weighted Jacobian
+            dJWeighed = elemSlave.getDerBasisFAndDet(is,3); % Weighted Jacobian
             %get Gauss Points position in the real space
-            ptsGauss = getGPointsLocation(elemSlave,j);
-            n_el = (nvec(nSlave,:))';
-            n_el = n_el(:); % local nodal normal vector
+            ptsGauss = getGPointsLocation(elemSlave,is);
+            nSlave = mortar.intSlave.surfaces(is,:);
+            n_el = n_elems(is,:);
+            n_nod = (n_nodes(nSlave,:))';
+            n_nod = n_nod(:);
             Rloc = getRotationMatrix(obj,n_el);
-            Rloc = Rloc(get_dof(find(activeNodes)),get_dof(find(activeNodes)));
             NSlave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-            switch mult_type
-               case 'standard'
-                  NSlaveMult = NSlave; % Slave basis functions
-               case 'dual'
-                  NSlaveMult = mortar.computeDualBasisF(NSlave,dJWeighed);
-            end
+            NSlaveMult = ones(size(NSlave,1),1);
             % compute slave only matrices
             Ns = obj.dispSP(NSlave);
-            Nmult = obj.dispSP(NSlaveMult(:,activeNodes));
-            gapGP = computeGapInGP(obj,mortar,Ns,usDiff,umDiff,j,ptsGauss);
-            Nn = pagemtimes(Ns,n_el);
+            Nmult = obj.dispSP(NSlaveMult);
+            gapGP = computeGapInGP(obj,mortar,Ns,usDiff,umDiff,is,ptsGauss);
+            Nn = pagemtimes(Ns,n_nod);
             % tangential mortar matrices (global frame)
             Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
             gtGP = pagemtimes(Nt,gapGP);
-            dtdgt = computeDerTracGap(obj,Nmult,nSlave(activeNodes),mult,gtGP); % 3D matrix with NL derivatives of tractions
+            dtdgt = computeDerTracGap(obj,is,mult,gtGP); % 3D matrix with NL derivatives of tractions
             dtdtn = computeDerTracTn(obj,gtGP); % 3D matrix with NL derivatives of tractions
             Ntmp = pagemtimes(Nmult,'transpose',pagemtimes(dtdtn,Nmult(1,:,:)),'none'); % in global coords
             Ntmp =  Ntmp.*reshape(dJWeighed,1,1,[]);
             Nloc = Rloc'*sum(Ntmp,3);
             dof_slave = get_dof(nSlave);
-            dof_mult = get_dof(nSlave(activeNodes));
+            dof_mult = get_dof(is);
             [jjS,iiS] = meshgrid(dof_slave,dof_mult);
             [jjMult,iiMult] = meshgrid(dof_mult,dof_mult);
             nN = numel(Nloc);
@@ -461,19 +488,19 @@ classdef mortarFaultsP0 < handle
             jnVec(cn+1:cn+nN) = jjMult(:); inVec(cn+1:cn+nN) = iiMult(:);
             cn = cn + nN;
             % compute cross-grid matrices
-            master_elems = find(mortar.elemConnectivity(:,j)); 
-            for jm = master_elems'
-               nMaster = mortar.intMaster.surfaces(jm,:);
-               [NMaster,id] = mortar.getMasterBasis(jm,ptsGauss); % compute interpolated master basis function \Pi(Nm)
+            master_elems = find(mortar.elemConnectivity(:,is)); 
+            for im = master_elems'
+               nMaster = mortar.intMaster.surfaces(im,:);
+               [NMaster,id] = mortar.getMasterBasis(im,ptsGauss); % compute interpolated master basis function \Pi(Nm)
                if any(id)
                   % element-based integration
                   % prepare provisional 3D matrices
                   Nm = obj.dispSP(NMaster(id,:));
                   Ns = obj.dispSP(NSlave(id,:));
-                  Nmult = obj.dispSP(NSlaveMult(id,activeNodes));
+                  Nmult = obj.dispSP(NSlaveMult(id,:));
                   dtdgtTmp = dtdgt(:,:,id);
                   % normal mortar matrices (global frame)
-                  Nn = pagemtimes(Ns,n_el);
+                  Nn = pagemtimes(Ns,n_nod);
                   % tangential mortar matrices (global frame)
                   Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
                   tangNs = pagemtimes(Nt,Ns);
@@ -504,7 +531,7 @@ classdef mortarFaultsP0 < handle
                end
             end
             if ~all(id)
-               fprintf('GP not sorted for slave elem %i \n',j);
+               fprintf('GP not sorted for slave elem %i \n',is);
                c_ns = c_ns + 1;
             end
          end
@@ -629,78 +656,49 @@ classdef mortarFaultsP0 < handle
          usDiff = state(obj.tagSlave).dispCurr(dofMap.nodSlave)-stateOld(obj.tagSlave).dispCurr(dofMap.nodSlave);
          umDiff = state(obj.tagMaster).dispCurr(dofMap.nodMaster)-stateOld(obj.tagMaster).dispCurr(dofMap.nodMaster);
          mortar = obj.meshGlue.interfaces(1).mortar; % only one interface defined
-         nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration (use this for all matrices)
-         mult_type = obj.meshGlue.interfaces(1).multType;
+         %nGP = obj.meshGlue.interfaces(1).nG; % numb. of gauss points for element based integration (use this for all matrices)
          %Mdetect = zeros(mortar.nElMaster,mortar.nElSlave);
          area_nod = sqrt(sum(obj.meshGlue.interfaces(1).nodeNormal.^2,2)); % nodal area
-         nvec = obj.meshGlue.interfaces(1).nodeNormal./area_nod; % normalized nodal normals
+         n_nodes = obj.meshGlue.interfaces(1).nodeNormal./area_nod; % normalized nodal normals
+         n_elems = obj.meshGlue.interfaces(1).elemNormal;
          % set Gauss class
          gS = Gauss(mortar.slaveCellType,4,2); % gauss class for slave integration
          elemSlave = getElem(mortar,gS,'slave');
          rhs = zeros(length(mult),1);
          tLim = obj.computeLimitTraction(activeSet,mult);
-         for j = 1:mortar.nElSlave
-            %Compute Slave quantities
-            nSlave = mortar.intSlave.surfaces(j,:); % slave node id
-            activeNodes = ismember(nSlave,activeSet.curr.slip);
-            if ~any(activeNodes)
-               continue
-            end
-            dofSlave = get_dof(nSlave(activeNodes));
-            [id,pos] = ismember(activeSet.curr.slip,nSlave(activeNodes));
-            [~,p] = sort(pos(id));
-            idN = find(id);
-            idN = idN(p);
-            t = tLim(get_dof(idN));
+         k = 0;
+         for j = activeSet.curr.slip'
+            % Compute Slave quantities
+            % if norm(obj.g_T(get_dof(j))) < obj.tolGap
+            %    % gap too small to compute consistency matrices
+            %    continue
+            % end
+            nSlave = mortar.intSlave.surfaces(j,:);
+            n_el = n_elems(j,:);
+            dofSlave = get_dof(j);
+            t = tLim(get_dof(k+1));
             %sn = mult(dofSlave(1:3:end));
-            tauLimit = tau_max(obj,nSlave(activeNodes),mult);
+            tauLimit = tau_max(obj,j,mult);
             dJWeighed = elemSlave.getDerBasisFAndDet(j,3); % Weighted Jacobian
             %get Gauss Points position in the real space
             ptsGauss = getGPointsLocation(elemSlave,j);
             NSlave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-            switch mult_type
-               case 'standard'
-                  NSlaveMult = NSlave; % Slave basis functions
-               case 'dual'
-                  NSlaveMult = mortar.computeDualBasisF(NSlave,dJWeighed);
-            end
-            n_active = (nvec(nSlave(activeNodes),:))';
-            n_active = n_active(:); % local nodal normal vector
-            Rloc = getRotationMatrix(obj,n_active);
+            NSlaveMult = ones(size(NSlave,1),1);
+            Rloc = getRotationMatrix(obj,n_el);
             % prepare 3D matrices for Gauss integration    
-            if norm(obj.g_T(get_dof(nSlave))) < obj.tolGap
-               Nmult = obj.dispSP(NSlaveMult(:,activeNodes));
+            if norm(obj.g_T(get_dof(j))) < obj.tolGap
+               Nmult = obj.dispSP(NSlaveMult);
                tSlip = pagemtimes(Nmult,t);
             else
                Ns = obj.dispSP(NSlave);
-               Nmult = obj.dispSP(NSlaveMult(:,activeNodes));
-               n_el = (nvec(nSlave,:))';
-               n_el = n_el(:); % local nodal normal vector
+               Nmult = obj.dispSP(NSlaveMult);
+               n_nod = (n_nodes(nSlave,:))';
+               n_nod = n_nod(:); % local nodal normal vector
                tauLim = pagemtimes(Nmult(1,1:3:end,:),tauLimit);
-               % interpolated slave displacement on each gp
-               % us = pagemtimes(Ns,usCurr(get_dof(nSlave)));
-               % % compute the tangential gap in each gauss point using
-               % % mortar projection
-               % master_elems = find(mortar.elemConnectivity(:,j));
-               % um = zeros(3,1,size(us,3));
-               % idM = (1:size(us,3))';
-               % for jm = master_elems'
-               %    nMaster = mortar.intMaster.surfaces(jm,:);
-               %    [NMaster,id] = mortar.getMasterBasis(jm,ptsGauss);
-               %    if any(id)
-               %       Nm = obj.dispSP(NMaster(id,:));
-               %       um(:,:,idM(id)) = pagemtimes(Nm,umCurr(get_dof(nMaster)));
-               %    end
-               %    ptsGauss = ptsGauss(~id,:);
-               %    % index of non projected gp from previous projection
-               %    idM = idM(~id);
-               % end
-               % gapGP = us - um;
-               % ptsGauss = getGPointsLocation(elemSlave,j);
                gapGP = computeGapInGP(obj,mortar,Ns,usDiff,umDiff,j,ptsGauss);
                % project gap onto tangential direction
                % normal mortar matrices (global frame)
-               Nn = pagemtimes(Ns,n_el);
+               Nn = pagemtimes(Ns,n_nod);
                % tangential mortar matrices (global frame)
                Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
                gtGP = pagemtimes(Nt,gapGP);
@@ -711,42 +709,46 @@ classdef mortarFaultsP0 < handle
             rhsTmp = rhsTmp.*reshape(dJWeighed,1,1,[]);
             rhsLoc = sum(rhsTmp,3);
             rhs(dofSlave) = rhs(dofSlave)+Rloc'*rhsLoc;
+            k = k+1;
          end
       end
 
-      function H = computeStabilizationMatrix(obj)
+      function computeStabilizationMatrix(obj)
          % pressure - jump stabilization matrix in 3D
          % leverage edge topology of mortar 3D matrix
          mortar = obj.meshGlue.interfaces.mortar;
-         elem = Elements(mortar.intSlave,Gauss(9,3,2));
+         elem = Elements(mortar.intSlave,Gauss(12,3,2));
          % list of internal edges
-         inner_edges = find(all(mortar.edge2cell,2)); 
+         inner_edges = find(all(mortar.edge2cells,2)); 
          iVec = zeros(6*numel(inner_edges),1);
          jVec = iVec; 
          hVec = iVec;
-         nEdges = size(mortar.edge2cell,1);
          c = 0;
          for i = inner_edges'
-            es = mortar.edge2cell(i,:);
-            n = mortar.edge2node(i,:);
-            A = ones(2,1);
-            k = 0;
+            es = mortar.edge2cells(i,:);
+            n = mortar.edge2nodes(i,:);
+            Kslave = zeros(3);
+            Kmaster = zeros(3);
             id = [ismember(mortar.intSlave.surfaces(es(1),:),n(1));
                ismember(mortar.intSlave.surfaces(es(1),:),n(2))];
             A1 = elem.quad.findNodeArea(es(1));
-            A11 = A1(id(1)); A12 = A1(id(2));
+            A11 = A1(id(1,:)); A12 = A1(id(2,:));
             id = [ismember(mortar.intSlave.surfaces(es(2),:),n(1));
                ismember(mortar.intSlave.surfaces(es(2),:),n(2))];
-            A = elem.quad.findNodeArea(es(2));
-            A2 = A2(id(1)); A22 = A(id(22));
+            A2 = elem.quad.findNodeArea(es(2));
+            A21 = A2(id(1,:)); A22 = A2(id(2,:));
             A = A11*A21+A12*A22;
             % get stiffness approximation from master and slave side
-            Kslave = getStiffSlave(obj,es);
-            em = unique(mortar.elemConnectivity(:,es));
-            Kmaster = getStiffMaster(obj,em);
-            S = A*(Kslave^(-1)+Kmaster^(-1));
+            for e = es
+               Kslave = Kslave + getStiffSlave(obj,e);
+            end
+            em = unique([find(obj.areaMap(:,es(1))); find(obj.areaMap(:,es(2)))]);
+            for e = em'
+               Kmaster = Kmaster + getStiffMaster(obj,e,es);
+            end
+            S = A*(inv(Kslave) + inv(Kmaster));
             Hloc = [S -S; -S S];
-            dof = get_dof(em);
+            dof = get_dof(es);
             [jjLoc,iiLoc] = meshgrid(dof,dof);
             cc = numel(Hloc);
             % get node area
@@ -755,40 +757,65 @@ classdef mortarFaultsP0 < handle
             hVec(c+1:c+cc) = Hloc(:);
             c = c+cc;
          end
-         H = sparse(iVec,jVec,hVec,3*mortar.nElSlave,3*mortar.nElSlave);
+         obj.stabMat = sparse(iVec,jVec,hVec,3*mortar.nElSlave,3*mortar.nElSlave);
       end
 
 
    end
 
    methods (Access=private)
-      function K = getStiffSlave(obj,elemIds)
+      function K = getStiffSlave(obj,el)
          % get approximation of stiffess contribution from slave side to
          % the pressure-jump stabilization parameter
          slaveTag = obj.meshGlue.interfaces.Slave;
          mat = obj.meshGlue.model(slaveTag).Material;
-         for i = elemIds
-            E = mat.getMaterial(i).constLaw.E; % young modulus
-            % cell volume
-            
-
-         end
-
-
+         mortar = obj.meshGlue.interfaces.mortar;
+         c = mortar.f2cSlave(el);
+         cTag = mortar.mshSlave.cellTag(c);
+         youngMod = mat.getMaterial(cTag).ConstLaw.E; % young modulus
+         vol = mortar.mshSlave.cellVolume(c);
+         % size of the bounding box
+         x = mortar.mshSlave.coordinates(mortar.mshSlave.cells(c,:),1);
+         y = mortar.mshSlave.coordinates(mortar.mshSlave.cells(c,:),2);
+         z = mortar.mshSlave.coordinates(mortar.mshSlave.cells(c,:),3);
+         lx = abs(max(x) - min(x));
+         ly = abs(max(y) - min(y));
+         lz = abs(max(z) - min(z));
+         K = diag((youngMod*vol)./([lx;ly;lz]));
       end
 
-      function dtdgt = computeDerTracGap(obj,Nmult,nodeId,mult,gapGPs)
+      function K = getStiffMaster(obj,el,elSlave)
+         % get approximation of stiffess contribution from slave side to
+         % the pressure-jump stabilization parameter
+         r = sum(obj.areaMap(el,elSlave),"all"); % effective area of master element
+         masterTag = obj.meshGlue.interfaces.Master;
+         mat = obj.meshGlue.model(masterTag).Material;
+         mortar = obj.meshGlue.interfaces.mortar;
+         c = mortar.f2cMaster(el);
+         cTag = mortar.mshSlave.cellTag(c);
+         youngMod = mat.getMaterial(cTag).ConstLaw.E; % young modulus
+         vol = mortar.mshMaster.cellVolume(c);
+         % size of the bounding box
+         x = mortar.mshMaster.coordinates(mortar.mshMaster.cells(c,:),1);
+         y = mortar.mshMaster.coordinates(mortar.mshMaster.cells(c,:),2);
+         z = mortar.mshMaster.coordinates(mortar.mshMaster.cells(c,:),3);
+         lx = abs(max(x) - min(x));
+         ly = abs(max(y) - min(y));
+         lz = abs(max(z) - min(z));
+         K = diag((r*youngMod*vol)./([lx;ly;lz]));
+      end
+
+      function dtdgt = computeDerTracGap(obj,elemId,mult,gapGPs)
          % N: 3D slave side matrix
          % result 3D matrix of size (3*nN)x(3*nN)xnG
          % nodeId: node list of input element
          nG = size(gapGPs,3);
          % gt = obj.g_T(get_dof(nodeId));
-         sn = mult(3*nodeId-2);
+         sigma_n = mult(3*elemId-2);
          dtdgt = repmat(zeros(3,3),1,1,nG);
          for i = 1:nG
             % get limit tau at gauss point
             g = gapGPs(:,:,i);
-            sigma_n = Nmult(1,1:3:end,i)*sn;
             tauLim = obj.coes - tan(deg2rad(obj.phi))*sigma_n;
             dtdgt(:,:,i) = tauLim*((eye(3)*norm(g)^2 - g*g')/(norm(g))^3);
          end

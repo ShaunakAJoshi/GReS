@@ -155,10 +155,10 @@ classdef mortarFaults < handle
                   Nn = pagemtimes(Ns,n_el);
                   Dntmp = pagemtimes(Nmult(1,:,:),'transpose',pagemtimes(Nn,'transpose',Ns,'none'),'none');
                   Dntmp = Dntmp.*reshape(dJWeighed(id),1,1,[]);
-                  Dnloc = Rloc'*sum(Dntmp,3);
+                  Dnloc = -Rloc'*sum(Dntmp,3);
                   Mntmp = pagemtimes(Nmult(1,:,:),'transpose',pagemtimes(Nn,'transpose',Nm,'none'),'none');
                   Mntmp = Mntmp.*reshape(dJWeighed(id),1,1,[]);
-                  Mnloc = Rloc'*sum(Mntmp,3);
+                  Mnloc = -Rloc'*sum(Mntmp,3);
                   % tangential mortar matrices (global frame)
                   Nt = eye(3) - pagemtimes(Nn,'none',Nn,'transpose');
                   Dttmp = pagemtimes(Nmult,'transpose',pagemtimes(Nt,Ns),'none');
@@ -352,7 +352,7 @@ classdef mortarFaults < handle
          tau = obj.coes - tan(deg2rad(obj.phi))*s_n;
       end
 
-      function computeNodalGap(obj,state,dofMap)
+      function computeNodalGap(obj,state,dofMap,mult,varargin)
          % compute gap in global coordinates
          % compute time difference of the tangential component of nodal gap
          % \Delta_n g_T (in global coordinates)

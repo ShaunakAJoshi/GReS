@@ -5,7 +5,7 @@ close all
 coes = 0;
 phi = 30; % degrees
 
-multType = 'P0';
+multType = 'dual';
 
 fprintf('\n ________________ \n')
 fprintf('%s multipliers \n',multType)
@@ -86,36 +86,36 @@ solverDual.models(2).OutState.finalize();
 % errMult = sqrt(sum((abs(solver.currMultipliers(1:3:end))-2).^2));
 %% POST PROCESSING
 
-% Define the folder path
-folderPath = 'OUT';
-if strcmp(multType,'dual')
-   % List all files in the folder with the specified pattern
-   filePattern = fullfile(folderPath, '*dual*');
-elseif strcmp(multType,'standard')
-   filePattern = fullfile(folderPath, '*standard*');
-elseif strcmp(multType,'P0')
-   filePattern = fullfile(folderPath, '*P0*');
-end
-
-% Get all entries matching the pattern
-entriesToDelete = dir(filePattern);
-
-% Loop through and delete each entry
-for k = 1:length(entriesToDelete)
-    entryName = entriesToDelete(k).name;
-    entryPath = fullfile(folderPath, entryName);
-    % Check if it's a file or directory
-    if isfile(entryPath)
-        delete(entryPath); % Delete the file
-    elseif isfolder(entryPath)
-        rmdir(entryPath, 's'); % Delete the directory and its contents
-    end
-end
-
-
-movefile Left* OUT
-movefile Right* OUT
-movefile Fault* OUT 
+% % Define the folder path
+% folderPath = 'OUT';
+% if strcmp(multType,'dual')
+%    % List all files in the folder with the specified pattern
+%    filePattern = fullfile(folderPath, '*dual*');
+% elseif strcmp(multType,'standard')
+%    filePattern = fullfile(folderPath, '*standard*');
+% elseif strcmp(multType,'P0')
+%    filePattern = fullfile(folderPath, '*P0*');
+% end
+% 
+% % Get all entries matching the pattern
+% entriesToDelete = dir(filePattern);
+% 
+% % Loop through and delete each entry
+% for k = 1:length(entriesToDelete)
+%     entryName = entriesToDelete(k).name;
+%     entryPath = fullfile(folderPath, entryName);
+%     % Check if it's a file or directory
+%     if isfile(entryPath)
+%         delete(entryPath); % Delete the file
+%     elseif isfolder(entryPath)
+%         rmdir(entryPath, 's'); % Delete the directory and its contents
+%     end
+% end
+% 
+% 
+% movefile Left* OUT
+% movefile Right* OUT
+% movefile Fault* OUT 
 
 
 %%
@@ -197,37 +197,38 @@ movefile Fault* OUT
 % errMult = sqrt(sum((abs(solver.currMultipliers(1:3:end))-2).^2));
 %% POST PROCESSING
 
-% Define the folder path
-% folderPath = 'OUT';
-% if strcmp(multType,'dual')
-%    % List all files in the folder with the specified pattern
-%    filePattern = fullfile(folderPath, '*dual*');
-% elseif strcmp(multType,'standard')
-%    filePattern = fullfile(folderPath, '*standard*');
-% end
-% 
-% % Get all entries matching the pattern
-% entriesToDelete = dir(filePattern);
-% 
-% % Loop through and delete each entry
-% for k = 1:length(entriesToDelete)
-%     entryName = entriesToDelete(k).name;
-%     entryPath = fullfile(folderPath, entryName);
-% 
-%     % Check if it's a file or directory
-%     if isfile(entryPath)
-%         delete(entryPath); % Delete the file
-%     elseif isfolder(entryPath)
-%         rmdir(entryPath, 's'); % Delete the directory and its contents
-%     end
-%end
+%Define the folder path
+folderPath = 'OUT';
+if strcmp(multType,'dual')
+   %List all files in the folder with the specified pattern
+   filePattern = fullfile(folderPath, '*dual*');
+elseif strcmp(multType,'standard')
+   filePattern = fullfile(folderPath, '*standard*');
+   elseif strcmp(multType,'P0')
+   filePattern = fullfile(folderPath, '*P0*');
+end
 
-% movefile Left* OUT
-% movefile Right* OUT
-% movefile Fault* OUT 
+% Get all entries matching the pattern
+entriesToDelete = dir(filePattern);
+
+% Loop through and delete each entry
+for k = 1:length(entriesToDelete)
+    entryName = entriesToDelete(k).name;
+    entryPath = fullfile(folderPath, entryName);
+    % Check if it's a file or directory
+    if isfile(entryPath)
+        delete(entryPath); % Delete the file
+    elseif isfolder(entryPath)
+        rmdir(entryPath, 's'); % Delete the directory and its contents
+    end
+end
+
+movefile Left* OUT
+movefile Right* OUT
+movefile Fault* OUT 
 
 %% plot profiles of multipliers along vertical axis (avoid opening paraview)
-%plotStep(solverDual.results,15);
+plotStep(solverDual.results,6);
 
 
 
