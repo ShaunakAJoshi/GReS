@@ -2,7 +2,7 @@ classdef SimulationParameters < handle
   %UNTITLED2 Summary of this class goes here
   %   Detailed explanation goes here
   
-  properties (SetAccess = private, GetAccess = public)
+  properties (SetAccess = public, GetAccess = public)
     itMaxNR = 10
     relTol = 1.e-6
     absTol = 1.e-10

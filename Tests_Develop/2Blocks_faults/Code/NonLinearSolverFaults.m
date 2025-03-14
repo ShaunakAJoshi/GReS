@@ -10,7 +10,7 @@ classdef NonLinearSolverFaults < handle
       dt
       state
       stateOld
-      maxActiveSetIters = 3 % maximum number of active set iterations
+      maxActiveSetIters = 4 % maximum number of active set iterations
       activeSet
       iniMult; % initial multiplier vector
       currMultipliers % store current and previous contact tractions
@@ -19,6 +19,7 @@ classdef NonLinearSolverFaults < handle
       dirichNodes
       results
       multType
+      convActiveSet
    end
 
    methods
@@ -71,22 +72,25 @@ classdef NonLinearSolverFaults < handle
          % Compute contact matrices (only at initialization step)
          computeContactMatrices(obj.mortar);
          
-         % Initialize nodal gap
-         computeNodalGap(obj.mortar,obj.state,obj.dofMap,obj.currMultipliers);
-
          % TIME LOOP
          while obj.t < obj.simParameters.tMax
             % Update the simulation time and time step ID
             absTol = obj.simParameters.absTol;
-
+            % Initialize nodal gap
+            computeNodalGap(obj.mortar,obj.state,obj.dofMap,obj.currMultipliers,get_dof(obj.activeSet.curr.stick));
             itAS = 0;
-            obj.initActiveSet();
+            %obj.initActiveSet();
             flagActiveSet = false;
 
             obj.mortar.gapOld = obj.mortar.gap; % previous gap vector
 
             obj.tStep = obj.tStep + 1;
-            obj.t = obj.t + obj.dt;
+            % if obj.t < 11 && obj.t + obj.dt> 11.01
+            %    obj.t = 11;
+            %    obj.simParameters.dtMax = 0.25;
+            % else
+               obj.t = obj.t + obj.dt;
+            %end
             
             % update structure for results printing
             initVecConv = zeros(obj.maxActiveSetIters*obj.simParameters.itMaxNR,1);
@@ -215,6 +219,7 @@ classdef NonLinearSolverFaults < handle
                   flagActiveSet = updateActiveSet(obj);
                   itAS = itAS+1;
                   if itAS > obj.maxActiveSetIters
+                     fprintf('ACTIVE SET ITERATION NOT SUFFICIENT \n')
                      flagActiveSet = false;
                   end
                end
@@ -283,6 +288,10 @@ classdef NonLinearSolverFaults < handle
             elseif obj.simParameters.verbosity > 0
                fprintf('\n %s \n','BACKSTEP');
             end
+            % go back to previous active-set
+            obj.activeSet = obj.convActiveSet;
+            % recompute the nodal gap
+            computeNodalGap(obj.mortar,obj.state,obj.dofMap,obj.currMultipliers,get_dof(obj.activeSet.curr.stick));
             return
          elseif flConv && ~flAS
             % update time step
@@ -292,6 +301,8 @@ classdef NonLinearSolverFaults < handle
                transferState(obj.state(i),obj.stateOld(i));
             end
             obj.prevMultipliers = obj.currMultipliers;
+            % save active set for possible backstep
+            obj.convActiveSet = obj.activeSet;
             %
             if ((obj.t + obj.dt) > obj.simParameters.tMax)
                obj.dt = obj.simParameters.tMax - obj.t;
@@ -625,14 +636,27 @@ classdef NonLinearSolverFaults < handle
             tracLim = computeLimitTraction(obj.mortar,obj.activeSet,obj.currMultipliers); % limit traction in active nodes
             usCurr = obj.state(obj.mortar.tagSlave).dispCurr(obj.dofMap.nodSlave);
             umCurr = obj.state(obj.mortar.tagMaster).dispCurr(obj.dofMap.nodMaster);
+            % if I have an available non-zero slip, correct the current
+            % traction direction according to the direction of the slip
+            % get sign of the slip
+            %slipDir = obj.mortar.g_T(dofSlip)./abs(obj.mortar.g_T(dofSlip));
+            %slipDir(isnan(slipDir)) = 0; % normal direction does not count
+            %slipCorr = abs(obj.mortar.g_T(dofSlip)) > 1e-10;  
             rhsSlip1 = obj.mortar.Dn*usCurr - obj.mortar.Mn*umCurr; % normal components
             t_T = repmat([false;true;true],numel(obj.activeSet.curr.slip),1).*(obj.currMultipliers(dofSlip));
+            %t_T(slipCorr) = slipDir(slipCorr).*abs(t_T(slipCorr));
             %tracError = norm(t_T - tracLim);
             rhsSlip2 = obj.mortar.L(dofSlip,dofSlip)*t_T; % tangential components
             %rhsTest =  obj.mortar.L(dofSlip,dofSlip)*tracLim;
             %rhsSlip3 = computeRhsLimitTraction(obj.mortar,obj.currMultipliers,obj.activeSet);
             rhsSlip4 = computeRhsLimitTraction2(obj.mortar,...
                obj.currMultipliers,obj.state,obj.stateOld,obj.activeSet,obj.dofMap);
+            % if obj.t>5.5
+            %    rhsSlip2 = -rhsSlip2;
+            %    if ~any(usCurr)
+            %       rhsSlip4 = -rhsSlip4;
+            %    end
+            % end
             rhsSlip = rhsSlip1(dofSlip) + rhsSlip2 - rhsSlip4(dofSlip);
          else
             rhsSlip = [];

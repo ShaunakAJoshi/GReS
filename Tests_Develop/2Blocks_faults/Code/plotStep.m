@@ -37,7 +37,7 @@ xlabel('$\sigma_n (kPa)$', 'Interpreter', 'latex')
 ylabel('z (m)', 'Interpreter', 'latex')
 xlim([-7 0])
 xticks([-6 -4 -2 0])
-ylim([1 15])
+ylim([0 15])
 set(gca, 'FontName', 'Times', 'FontSize', 12, 'TickLabelInterpreter', 'latex');
 %
 nexttile
@@ -47,7 +47,7 @@ xlabel('$\tau_{norm}$', 'Interpreter', 'latex')
 ylabel('z (m)', 'Interpreter', 'latex')
 xlim([0 5])
 xticks([0 2.5 5])
-ylim([1 15])
+ylim([0 15])
 set(gca, 'FontName', 'Times', 'FontSize', 12, 'TickLabelInterpreter', 'latex');
 %
 nexttile
@@ -57,7 +57,7 @@ xlabel('$\Delta u_z (m)$', 'Interpreter', 'latex')
 ylabel('z (m)','Interpreter', 'latex')
 xlim([0 0.15])
 xticks([0 0.05 0.1 0.15])
-ylim([1 15])
+ylim([0 15])
 
 set(gca, 'FontName', 'Times', 'FontSize', 12, 'TickLabelInterpreter', 'latex');
 

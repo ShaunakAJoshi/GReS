@@ -3,9 +3,9 @@ close all
 
 % fault material parameters
 coes = 0;
-phi = 25; % degrees
+phi = 30; % degrees
 
-multType = 'dual';
+multType = 'P0';
 
 fprintf('\n ________________ \n')
 fprintf('%s multipliers \n',multType)
