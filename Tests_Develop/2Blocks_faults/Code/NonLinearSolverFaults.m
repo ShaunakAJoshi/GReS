@@ -81,7 +81,11 @@ classdef NonLinearSolverFaults < handle
             % Initialize nodal gap
             computeNodalGap(obj.mortar,obj.state,obj.dofMap,obj.currMultipliers,get_dof(obj.activeSet.curr.stick));
             itAS = 0;
-            %obj.initActiveSet();
+
+            % initialize active set if using nodal multipliers
+            obj.initActiveSet();
+
+            %
             flagActiveSet = false;
 
             obj.mortar.gapOld = obj.mortar.gap; % previous gap vector
