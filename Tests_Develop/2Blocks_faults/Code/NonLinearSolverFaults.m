@@ -74,6 +74,8 @@ classdef NonLinearSolverFaults < handle
          
          % TIME LOOP
          while obj.t < obj.simParameters.tMax
+            % handle issue of crack fully sliding
+
             % Update the simulation time and time step ID
             absTol = obj.simParameters.absTol;
             % Initialize nodal gap
@@ -91,7 +93,9 @@ classdef NonLinearSolverFaults < handle
             % else
                obj.t = obj.t + obj.dt;
             %end
-            
+            if obj.t>13.9
+               obj.maxActiveSetIters = 3;
+            end
             % update structure for results printing
             initVecConv = zeros(obj.maxActiveSetIters*obj.simParameters.itMaxNR,1);
             initVecTraction = zeros(numel(id1),1);
