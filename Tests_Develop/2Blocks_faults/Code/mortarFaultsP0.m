@@ -749,6 +749,54 @@ classdef mortarFaultsP0 < handle
                Kmaster = Kmaster + getStiffMaster(obj,e,es);
             end
             S = A*(inv(Kslave) + inv(Kmaster));
+            Hloc = 10*[S -S; -S S];
+            dof = get_dof(es);
+            [jjLoc,iiLoc] = meshgrid(dof,dof);
+            cc = numel(Hloc);
+            % get node area
+            iVec(c+1:c+cc) = iiLoc(:);
+            jVec(c+1:c+cc) = jjLoc(:);
+            hVec(c+1:c+cc) = Hloc(:);
+            c = c+cc;
+         end
+         obj.stabMat = sparse(iVec,jVec,hVec,3*mortar.nElSlave,3*mortar.nElSlave);
+      end
+
+
+      function computeStabilizationMatrixNew(obj)
+         % pressure - jump stabilization matrix in 3D
+         % leverage edge topology of mortar 3D matrix
+         mortar = obj.meshGlue.interfaces.mortar;
+         elem = Elements(mortar.intSlave,Gauss(12,3,2));
+         % list of internal edges
+         inner_edges = find(all(mortar.edge2cells,2));
+         iVec = zeros(6*numel(inner_edges),1);
+         jVec = iVec;
+         hVec = iVec;
+         c = 0;
+         for i = inner_edges'
+            es = mortar.edge2cells(i,:);
+            n = mortar.edge2nodes(i,:);
+            Kslave = zeros(3);
+            Kmaster = zeros(3);
+            id = [ismember(mortar.intSlave.surfaces(es(1),:),n(1));
+               ismember(mortar.intSlave.surfaces(es(1),:),n(2))];
+            A1 = elem.quad.findNodeArea(es(1));
+            A11 = A1(id(1,:)); A12 = A1(id(2,:));
+            id = [ismember(mortar.intSlave.surfaces(es(2),:),n(1));
+               ismember(mortar.intSlave.surfaces(es(2),:),n(2))];
+            A2 = elem.quad.findNodeArea(es(2));
+            A21 = A2(id(1,:)); A22 = A2(id(2,:));
+            A = A11*A21+A12*A22;
+            % get stiffness approximation from master and slave side
+            for e = es
+               Kslave = Kslave + getStiffSlave(obj,e);
+            end
+            em = unique([find(obj.areaMap(:,es(1))); find(obj.areaMap(:,es(2)))]);
+            for e = em'
+               Kmaster = Kmaster + getStiffMaster(obj,e,es);
+            end
+            S = A*(inv(Kslave) + inv(Kmaster));
             Hloc = [S -S; -S S];
             dof = get_dof(es);
             [jjLoc,iiLoc] = meshgrid(dof,dof);

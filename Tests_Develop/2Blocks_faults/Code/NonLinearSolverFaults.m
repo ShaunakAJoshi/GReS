@@ -137,12 +137,13 @@ classdef NonLinearSolverFaults < handle
                % compute base rhs norm for relative convergence
                % Norm of unbalanced forces
                rhsNorm = norm(rhs,2);
+               rhsNorm0 = rhsNorm;
                itNR = 0;
                k = k+1;
                % update results structure
                obj.results(obj.tStep).itNR(k) = itNR;
                obj.results(obj.tStep).itAS(k) = itAS;
-               obj.results(obj.tStep).rhsNorm(k) = rhsNorm;
+               obj.results(obj.tStep).rhsNorm(k) = 1;
                % NR printing
                if obj.simParameters.verbosity > 1
                   fprintf('Iter     ||rhs||\n');
@@ -211,7 +212,7 @@ classdef NonLinearSolverFaults < handle
                   % update results structure
                   obj.results(obj.tStep).itNR(k) = itNR;
                   obj.results(obj.tStep).itAS(k) = itAS;
-                  obj.results(obj.tStep).rhsNorm(k) = rhsNorm; 
+                  obj.results(obj.tStep).rhsNorm(k) = rhsNorm/rhsNorm0; 
 
                end % end newton
                %
