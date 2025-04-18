@@ -5,7 +5,7 @@ close all
 coes = 0;
 phi = 30; % degrees
 
-multType = 'standard';
+multType = 'P0';
 
 fprintf('\n ________________ \n')
 fprintf('%s multipliers \n',multType)
