@@ -102,6 +102,7 @@ classdef DoFManager < handle
 
 
       function addField(obj,mesh,subIDs,field)
+         checkAvailPhysics(obj.model,field);
          % prepare fields structure from input file informations
          isField = false;
          if isscalar(obj.fields)
@@ -128,10 +129,10 @@ classdef DoFManager < handle
             k = nFields+1;
             obj.fields(k).field = field;
             obj.fields(k).subID = subIDs;
-            if isFEMBased(obj.model,translatePhysic(field))
+            if isFEMBased(obj.model,field)
                nEnts = mesh.nNodes;
                obj.fields(k).scheme = 'FEM';
-            elseif isFVTPFABased(obj.model,translatePhysic(field))
+            elseif isFVTPFABased(obj.model,field)
                nEnts = mesh.nCells;
                obj.fields(k).scheme = 'FV';
             end
@@ -250,6 +251,7 @@ classdef DoFManager < handle
 
       function fldId = getFieldId(obj,flds)
          % get field id associated to input fields
+         checkAvailPhysics(obj.model,flds);
          fldId = find(strcmp(obj.fieldList,flds));
       end
 

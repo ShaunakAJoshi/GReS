@@ -15,7 +15,7 @@ classdef SPFlow < SinglePhysics
    methods (Access = public)
       function obj = SPFlow(symmod,params,dofManager,grid,mat,data,varargin)
          if isempty(varargin)
-            fieldName = 'SPFlow';
+            fieldName = 'SinglePhaseFlow';
          else
             fieldName = varargin{1};
          end

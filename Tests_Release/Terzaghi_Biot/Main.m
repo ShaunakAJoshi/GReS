@@ -63,7 +63,7 @@ F = -10; % vertical force
 setTerzaghiBC('BCs',F,topology);
 
 % Collect BC input file in a list
-fileName = ["BCs/dirFlowTop.dat","BCs/newPorotop.dat",...
+fileName = ["BCs/dirFlowTop.dat","BCs/neuPorotop.dat",...
    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
 %
 % Create an object of the "Boundaries" class 

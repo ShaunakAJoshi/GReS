@@ -79,12 +79,25 @@ classdef ModelType < handle
        % using cellfun to vectorize the checks on active physical modules
        physicsList = {
           "Poromechanics", @isPoromechanics
-          "SPFlow", @isSinglePhaseFlow;
-          "VSFlow", @isVariabSatFlow;
+          "SinglePhaseFlow", @isSinglePhaseFlow;
+          "VariablySaturatedFlow", @isVariabSatFlow;
           };
        physics = physicsList(cellfun(@(f) f(obj), physicsList(:, 2)), 1);
     end
+
+  function checkAvailPhysics(obj,physic)
+    % check if input physic is available in the model or correctly typed
+    phList = string(getAvailPhysics(obj));
+    check = ismember(physic,phList);
+    if check
+      return
+    else
+      error(['Input physic %s is not available in the model.\n' ...
+        'Available physics are:' ...
+        ' %s'],physic,strjoin(phList,','));
+    end
   end
+end
   
   methods (Access = private)
     function setModelType(obj,str)
@@ -139,9 +152,9 @@ classdef ModelType < handle
   methods (Static = true)
     function r = findIDPhysics(str)
       switch str
-        case 'Poro'
+        case 'Poromechanics'
           r = 1;
-        case 'Flow'
+        case {'Flow','SinglePhaseFlow','VariablySaturatedFlow'}
           r = 2;
         case 'Thermal'
           r = 3;

@@ -20,7 +20,7 @@ end
 % Physic
 physic = string(physic);
 if numel(physic)>1
-   assert(strcmp(physic(1),'Poro'),['Direction specification is allowed' ...
+   assert(strcmp(physic(1),'Poromechanics'),['Direction specification is allowed' ...
       'only for Poromechanics']);
    ph = physic(1);
 else
@@ -30,7 +30,7 @@ end
 fprintf(fID,'%s            %% Physics \n',physic(1));
 
 % Direction
-if strcmp(physic(1),'Poro')
+if strcmp(physic(1),'Poromechanics')
    dir = physic(2:end);
    if strcmp(type,'Neu')
       assert(numel(physic)==2,['Only one direction at time is allowed for' ...
@@ -73,7 +73,7 @@ else
    end
 end
 
-if strcmp(ph,'Flow')
+if strcmp(ph,'SinglePhaseFlow') || strcmp(ph,'VariablySaturatedFlow') 
    fprintf(fList,'%i         %% Number of fixed entities \n',length(list));
    fprintf(fList,'%i \n',list);
 else

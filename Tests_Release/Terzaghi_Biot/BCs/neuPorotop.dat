@@ -1,6 +1,6 @@
 SurfBC            % BC item 
 Neu            % BC type 
-Poro            % Physics 
+Poromechanics            % Physics 
 z 
 TopLoad            % BC name 
 BCs/neuPorotop/list 

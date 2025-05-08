@@ -26,7 +26,7 @@ classdef Discretizer < handle
          bcList = bound.db.keys;
          % get entities and values of boundary condition
          for bc = string(bcList)
-            field = translatePhysic(bound.getPhysics(bc),obj.mod);
+            field = bound.getPhysics(bc);
             % get id of constrained entities and corresponding BC values
             [bcEnts,bcVals] = getBC(getSolver(obj,field),bound,bc,t,state);
             % apply Boundary conditions to each Jacobian/rhs block
@@ -55,7 +55,7 @@ classdef Discretizer < handle
             if ~strcmp(bound.getType(bc),'Dir')
                continue
             end
-            field = translatePhysic(bound.getPhysics(bc),obj.mod);
+            field = bound.getPhysics(bc);
             state = getSolver(obj,field).applyDirVal(bound,bc,t,state);
          end
       end
@@ -205,15 +205,15 @@ classdef Discretizer < handle
          f = sort({char(f1),char(f2)});
          f = join(f,'_');
          switch f{:}
-            case 'SPFlow_SPFlow'
+           case 'SinglePhaseFlow_SinglePhaseFlow'
                obj.solver(id) = SPFlow(mod,parm,dof,grid,mat,data);
             case 'Poromechanics_Poromechanics'
                obj.solver(id) = Poromechanics(mod,parm,dof,grid,mat,data);
-            case 'Poromechanics_SPFlow'
+           case 'Poromechanics_SinglePhaseFlow'
                assert(isSinglePhaseFlow(mod),['Coupling between' ...
                   'poromechanics and unsaturated flow is not yet implemented']);
                obj.solver(id) = Biot(mod,parm,dof,grid,mat,data);
-            case 'VSFlow_VSFlow'
+           case 'VariablySaturatedFlow_VaraiablySaturatedFlow'
                obj.solver(id) = VSFlow(mod,parm,dof,grid,mat,data);
             otherwise
                error('A physical module coupling %s with %s is not available!',f1,f2)

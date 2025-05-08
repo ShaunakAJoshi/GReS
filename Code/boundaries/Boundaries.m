@@ -260,7 +260,7 @@ classdef Boundaries < handle
       end
       physics = Boundaries.readToken(fid);
       
-      if strcmp(physics,'Poro') && strcmp(token,'SurfBC') && strcmp(type,'Neu') 
+      if strcmp(physics,'Poromechanics') && strcmp(token,'SurfBC') && strcmp(type,'Neu') 
         direction = Boundaries.readToken(fid);
         if ~ismember(direction,['x','y','z'])
           error(['%s is an invalid direction of the distributed load\n', ...
@@ -280,10 +280,10 @@ classdef Boundaries < handle
             'cond',token,'type', type, 'physics', physics);
         case 'SurfBC'
           switch physics
-            case 'Flow'
+            case {'SinglePhaseFlow','VariablySaturatedFlow'}
               obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
                 'cond',token,'type', type, 'physics', physics);
-            case 'Poro'
+            case 'Poromechanics'
                 switch type
                     case 'Neu'
                       obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...

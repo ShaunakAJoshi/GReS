@@ -11,11 +11,11 @@ classdef Biot < CouplingPhysics
 
     methods (Access = public)
         function obj = Biot(symmod,params,dofManager,grid,mat,data)
-            obj@CouplingPhysics('Poromechanics','SPFlow',symmod,params,dofManager,grid,mat,data);
+            obj@CouplingPhysics('Poromechanics','SinglePhaseFlow',symmod,params,dofManager,grid,mat,data);
             if isSinglePhaseFlow(obj.model)
-                obj.flowScheme = 'SPFlow';
+                obj.flowScheme = 'SinglePhaseFlow';
             elseif isVariabSatFlow(obj.model)
-                obj.flowScheme = 'VSFlow';
+                obj.flowScheme = 'VaraiblySsaturatedFlow';
             end
             %
         end
