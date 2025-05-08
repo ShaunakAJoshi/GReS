@@ -1,7 +1,0 @@
-SurfBC            % BC item 
-Dir            % BC type 
-Poro            % Physics 
-left_bottom_fix            % BC name 
-BCs/LatBound/list 
-0.000000 BCs/LatBound/time0.dat 
-End

@@ -6,6 +6,8 @@ classdef Elements < handle
         nCellsByType   % nCellsByType = [#tetra, #hexa, #wed, #pyr]
         nSurfByType    % nCellsByType = [#tetra, #hexa, #wed, #pyr]
         nNodesElem = [4, 8, 6, 5]
+        cellCentroid
+        vol
         tetra
         hexa
         tri
@@ -35,29 +37,18 @@ classdef Elements < handle
         end
 
         function computeCellProperties(obj)
-           % compute volume/area and centroids of cell/surfaces in the mesh
-           idCell = 1:obj.mesh.nCells;
-           idSurf = 1:obj.mesh.nSurfaces;
-           idTetra = idCell(obj.mesh.cellVTKType == 10);
-           idHexa = idCell(obj.mesh.cellVTKType == 12);
-           idTri = idSurf(obj.mesh.surfaceVTKType == 5);
-           idQuad = idSurf(obj.mesh.surfaceVTKType == 9);
-           if ~isempty(idTetra)
-              [obj.mesh.cellVolume(idTetra), obj.mesh.cellCentroid(idTetra,:)]  = ...
-                 obj.tetra.findVolumeAndCentroid(idTetra);
-           end
-           if ~isempty(idHexa)
-              [obj.mesh.cellVolume(idHexa), obj.mesh.cellCentroid(idHexa,:)]  = ...
-                 obj.hexa.findVolumeAndCentroid(idHexa);
-           end
-           if ~isempty(idTri)
-              [obj.mesh.surfArea(idTri), obj.mesh.surfCentroid(idTri,:)]  = ...
-                 obj.tri.findAreaAndCentroid(idTri);
-           end
-           if ~isempty(idQuad)
-              [obj.mesh.surfArea(idQuad), obj.mesh.surfCentroid(idQuad,:)]  = ...
-                 obj.quad.findAreaAndCentroid(idQuad);
-           end
+            idCell = 1:obj.mesh.nCells;
+            idTetra = idCell(obj.mesh.cellVTKType == 10);
+            idHexa = idCell(obj.mesh.cellVTKType == 12);
+            if ~isempty(idTetra)
+                obj.vol(idTetra) = obj.tetra.findVolume(idTetra);
+                obj.cellCentroid(idTetra,:) = computeCentroidGeneral(obj,idTetra);
+            end
+            if ~isempty(idHexa)
+                [obj.vol(idHexa),obj.cellCentroid(idHexa,:)]= obj.hexa.findVolumeAndCentroid(idHexa);
+                %          obj.vol(idHexa) = tmpVol;
+                %          obj.cellCentroid(idHexa,:) = tmpCentroid;
+            end
         end
     end
 
@@ -81,6 +72,8 @@ classdef Elements < handle
             if obj.nCellsByType(2) > 0
                 obj.hexa = Hexahedron(obj.mesh,obj.GaussPts);
             end
+            obj.vol = zeros(obj.mesh.nCells,1);
+            obj.cellCentroid = zeros(obj.mesh.nCells,3);
             %
             if obj.nCellsByType(2) == 0
                 l1 = 4;

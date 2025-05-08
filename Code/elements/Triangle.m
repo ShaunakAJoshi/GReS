@@ -58,13 +58,9 @@ classdef Triangle < handle
             c(2,2)-c(1,2) c(3,2)-c(1,2);
             c(2,3)-c(1,3) c(3,3)-c(1,3);];
          obj.detJ = norm(cross(J(:,1),J(:,2)),2);
-         tmpDir = true(1,3);
-         for i=1:3
-            tmpDir(i) = ~(numel(unique(c(:,i)))==1);
-         end
-         inv_A = inv([1 obj.mesh.coordinates(obj.mesh.surfaces(el,1),tmpDir);
-            1 obj.mesh.coordinates(obj.mesh.surfaces(el,2),tmpDir);
-            1 obj.mesh.coordinates(obj.mesh.surfaces(el,3),tmpDir)]);
+         inv_A = inv([1 obj.mesh.coordinates(obj.mesh.surfaces(el,1),1:2);
+            1 obj.mesh.coordinates(obj.mesh.surfaces(el,2),1:2);
+            1 obj.mesh.coordinates(obj.mesh.surfaces(el,3),1:2)]);
          mat = inv_A(2:3,:);
          switch flOut
             case 1

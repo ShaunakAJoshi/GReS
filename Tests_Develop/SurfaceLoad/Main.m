@@ -38,7 +38,7 @@ faces = Faces(model, topology);
 % Wrap Mesh, Elements and Faces objects in a structure
 grid = struct('topology',topology,'cells',elems,'faces',faces);
 %
-dofmanager = DoFManager(topology,model);
+dofmanager = DoFManager_new(topology,model,'dof.dat');
 %
 %------------------------ BOUNDARY CONDITIONS ------------------------
 %
@@ -51,7 +51,7 @@ bound = Boundaries(fileName,model,grid,dofmanager);
 %
 resState = State(model,grid,mat,GaussPts);
 % Create and set the print utility
-printUtils = OutState(model,mat,grid,'outTime.dat','printOff');
+printUtils = OutState(model,mat,grid,'outTime.dat');
 %
 % Print the reservoir initial state
 printUtils.printState(resState);
