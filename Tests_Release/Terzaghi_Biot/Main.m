@@ -81,7 +81,7 @@ printUtils.printState(linSyst,state);
 % The modular structure of the discretizer class allow the user to easily
 % customize the solution scheme. 
 % Here, a built-in fully implict solution scheme is adopted with class
-% FCSolver. This could be simply be replaced by a function
+% FCSolver. This could be simply be replaced by a user defined function
 Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,state,linSyst,GaussPts);
 %
 % Solve the problem

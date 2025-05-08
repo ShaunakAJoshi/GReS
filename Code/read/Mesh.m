@@ -119,7 +119,6 @@ classdef Mesh < handle
       end
 
       % 2D ELEMENT DATA
-      % cellsID = 2D surface tag for readGMSHmesh.cpp
       cellsID = [2, 3];
       ID = ismember(elems(:,1), cellsID);
       obj.surfaceNumVerts = elems(ID,3);
@@ -229,6 +228,10 @@ classdef Mesh < handle
       % 2D ELEMENT DATA
       % cellsID = 2D surface tag for readGMSHmesh.cpp
       cellsID = [5,9];
+      if strcmp(extension,'msh')
+        ID = ismember(elems(:,1), [2,3]);
+        elems(ID,1) = obj.typeMapping(elems(ID,1));
+      end
       ID = ismember(elems(:,1), cellsID);
       obj.surfaceNumVerts = elems(ID,3);
       nVerts = max(obj.surfaceNumVerts);

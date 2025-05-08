@@ -84,10 +84,10 @@ while ~feof(fID)
       if isempty(bcList)
          warning('Undefined Boundary conditions for Domain %i in file %s',c,fName);
       else
-         bc = Boundaries(bcList,model,grid,dof);
+         bc = Boundaries(bcList,model,grid);
       end
-      state = State(model,grid,mat,gauss);
-      printUtils = OutState(model,mat,grid,outFile,'printOff',name,gauss);
+%       state = State(model,grid,mat,gauss);
+      printUtils = OutState(model,grid,outFile,'folderName',name);
       linSyst = Discretizer(model,simParam,dof,grid,mat,gauss);
       modStruct = [modStruct;struct('id',c,'DomainName',name,'ModelType',model,...
          'Grid',grid,'Material',mat,'DoFManager',dof,...
