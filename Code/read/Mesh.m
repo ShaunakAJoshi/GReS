@@ -422,9 +422,10 @@ classdef Mesh < handle
     function surfMesh = getSurfaceMesh(obj, surfTag)
         % Function to build a 2D mesh object based on the surfaceTag of a 3D
         % mesh
+        % Needed for contact search algorithm
         % initialize Mesh object
         surfMesh = Mesh();
-        surfTopol = obj.surfaces(obj.surfaceTag == surfTag,:);
+        surfTopol = obj.surfaces(ismember(obj.surfaceTag,surfTag),:);
         switch obj.surfaceVTKType(1)
            case 5
               nN = 3;

@@ -18,6 +18,7 @@ classdef DoFManager < handle
       fields
       ordering
       nComp
+      totDoF
    end
    
    methods
@@ -166,6 +167,7 @@ classdef DoFManager < handle
                obj.fieldList = string({obj.fields.field});
             end
          end
+         obj.totDoF = obj.nComp*obj.numEntsField';
       end
 
       function dofs = getDoF(obj,field,varargin)

@@ -219,6 +219,19 @@ classdef Discretizer < handle
                error('A physical module coupling %s with %s is not available!',f1,f2)
          end
       end
+   end
 
+   methods (Static)
+     function [row,col,val,c] = computeLocalMatrix(mat,row,col,val,c,w,dofRow,dofCol)
+      % shortcut for assemblying local matrix contributions in sparse format
+      mat = mat.*reshape(w,1,1,[]);
+      mat = sum(mat,3);
+      n = numel(mat);
+      [J, I] = meshgrid(1:size(mat,2), 1:size(mat,1));
+      row(c+1:c+n) = dofRow(I); 
+      col(c+1:c+n) = dofCol(J);
+      val(c+1:c+n) = mat(:);
+      c = c+n;
+    end
    end
 end

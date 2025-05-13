@@ -1,7 +1,6 @@
 classdef ContactSearching < handle
-    %CONTACTSEARCHING Summary of this class goes here
-    %   Detailed explanation goes here
-    
+    % Contact search algorithm using polytopal bounding boxes
+
     properties
         msh1
         msh2
@@ -12,9 +11,9 @@ classdef ContactSearching < handle
         treeNodes2     % For each node of the tree, store primitives along k/2 axis
         leaf2elem1
         leaf2elem2
-        elemConnectivity
+        elemConnectivity % master- slave connectivity
         dim
-        scale = 0.5;   % bounding box expansion (ratio w.r.t elem max dim)
+        scale = 0.1;   % bounding box expansion (ratio w.r.t elem max dim)
     end
     
     methods

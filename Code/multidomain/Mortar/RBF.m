@@ -1,0 +1,129 @@
+classdef RBF < handle
+  % Radial Basis Function class
+  % Used to interpolate master basis functions into the slave side
+
+  properties
+    mortar    % instance of mortar object (store mesh info)
+    nInt      % number of interpolation points per master element
+    wF        % weight of RBF
+    w1        % weight of rescaling RBF
+    ptsRBF    % position of interpolation points
+  end
+
+  methods
+    function obj = RBF(mortar,nInt)
+      %
+      obj.mortar = mortar;
+      obj.nInt = nInt;
+      getWeights(obj); % interpolation weights for master basis function
+    end
+
+  end
+  
+  methods (Access = public)
+    function [Nm,id] = getMasterBasisF(obj,idMaster,posGP)
+      % return interpolated master basis function into slave domain
+      tol = 1e-4;
+      ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
+      [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
+      Nm = (fiNM*obj.wF(:,repNum(obj.mortar.nNmaster,idMaster)))./(fiNM*obj.w1(:,idMaster));
+      Nsupp = Nm(:,[1 2 3]);
+      % automatically detect supports computing interpolant
+      id = all([Nsupp >= 0-tol id1],2);
+    end
+  end
+
+  methods (Access = private)
+    %
+    function getWeights(obj)
+      switch obj.mortar.masterCellType
+        case 10
+          numPts = sum(1:obj.nInt);
+        case 12
+          numPts = (obj.nInt)^2;
+      end
+      weighF = zeros(numPts,obj.mortar.nElMaster*obj.mortar.nNmaster);
+      weigh1 = zeros(numPts,obj.mortar.nElMaster);
+      pts = zeros(numPts,obj.mortar.nElMaster*3);
+      for i = 1:obj.mortar.nElMaster
+        [f, ptsInt] = computeMortarBasisF(obj,i);
+        fiMM = obj.computeRBFfiMM(ptsInt);
+        % solve local system to get weight of interpolant
+        weighF(:,repNum(obj.mortar.nNmaster,i)) = fiMM\f;
+        weigh1(:,i) = fiMM\ones(size(ptsInt,1),1);
+        pts(:,repNum(3,i)) = ptsInt;
+      end
+      obj.wF = weighF;
+      obj.w1 = weigh1;
+      obj.ptsRBF = pts;
+      % loop trough master elements and interpolate Basis function
+    end
+
+    function fiMM = computeRBFfiMM(obj,ptsInt)
+      r = obj.computeRBFradius(ptsInt);
+      d = sqrt((ptsInt(:,1) - ptsInt(:,1)').^2 + (ptsInt(:,2) - ptsInt(:,2)').^2 + (ptsInt(:,3) - ptsInt(:,3)').^2);
+      fiMM = obj.rbfInterp(d,r);
+    end
+
+    function [fiNM,id] = computeRBFfiNM(obj,ptsInt,ptsGauss)
+      % id: id of points that has a distance < r with at least one
+      % master points
+      d = sqrt((ptsGauss(:,1) - ptsInt(:,1)').^2 + (ptsGauss(:,2) - ptsInt(:,2)').^2 + (ptsGauss(:,3) - ptsInt(:,3)').^2);
+      r = sqrt((max(ptsInt(:,1)) - min(ptsInt(:,1)))^2 + (max(ptsInt(:,2)) - min(ptsInt(:,2)))^2 + (max(ptsInt(:,3)) - min(ptsInt(:,3)))^2);
+      id = ~all(d>=r,2);
+      fiNM = obj.rbfInterp(d,r);
+    end
+
+    function [bf,pos] = computeMortarBasisF(obj,id)
+      % evaluate shape function in the real space and return position of
+      % integration points in the real space
+      surfNodes = obj.mortar.mshMaster.surfaces(id,:);
+      coord = obj.mortar.mshMaster.coordinates(surfNodes,:);
+      elem = obj.mortar.getElem('master');
+      % place interpolation points in a regular grid
+      intPts = getInterpolationPoints(obj);
+      bf = computeBasisF(elem,intPts);
+      % get coords of interpolation points in the real space
+      pos = bf*coord;
+    end
+
+    function intPts = getInterpolationPoints(obj)
+      switch obj.mortar.masterCellType
+        case 10
+          % uniform grid in triangle
+          intPts = zeros(sum(1:obj.nInt),2);
+          p = linspace(0,1,obj.nInt);
+          k = obj.nInt;
+          c = 0;
+          for i = 1:obj.nInt
+            intPts(c+1:c+k,1) = p(1:k)';
+            c = c + k;
+            k = k-1;
+          end
+          intPts(:,2) = repelem(p,obj.nInt:-1:1);
+        case 12
+          intPts = linspace(-1,1, obj.nInt);
+          [y, x] = meshgrid(intPts, intPts);
+          intPts = [x(:), y(:)];
+      end
+    end
+  end
+
+  methods (Static)
+
+    function rbf = rbfInterp(d,r)
+      % compute row of rbf interpolation matrix
+      rbf = exp(-d.^2/r^2);
+    end
+
+    function r = computeRBFradius(ptsInt)
+      % compute the radius of the RBF interpolation based on
+      % coordinates of interpolation points
+      r = sqrt((max(ptsInt(:,1)) - min(ptsInt(:,1)))^2 + ...
+        (max(ptsInt(:,2)) - min(ptsInt(:,2)))^2 + ...
+        (max(ptsInt(:,3)) - min(ptsInt(:,3)))^2);
+    end
+  end
+
+end
+
