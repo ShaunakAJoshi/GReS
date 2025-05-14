@@ -13,7 +13,7 @@ classdef Poromechanics < SinglePhysics
 
       function state = computeMat(obj,state,~,dt)
          if ~isLinear(obj) || isempty(obj.J)
-            % recompu
+            % recompute matrix if the model is non linear
             state = obj.computeStiffMat(state,dt);
          end
          if obj.simParams.isTimeDependent

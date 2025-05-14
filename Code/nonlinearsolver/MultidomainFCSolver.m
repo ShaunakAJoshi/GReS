@@ -1,40 +1,42 @@
-classdef MortarFCSolver < handle
-   % Multi domain version of standard non linear solver class
+classdef MultidomainFCSolver < handle
+   % Class for solving non linear problem involving multiple non conforming
+   % domains using the mortar method
 
    properties (Access = private)
       %
       simParameters
       nDom
-      nInt
+      nInterf
       %
       t = 0
       tStep = 0
       iter
       dt
+      statek
+      stateTmp
    end
 
    properties (Access = public)
       state
-      models
-      meshGlue
+      domains
+      interfaces
    end
 
    methods (Access = public)
-      function obj = MortarFCSolver(simParam,models,interfaces)
+      function obj = MultidomainFCSolver(simParam,models,interfaces)
          obj.setNonLinearSolver(simParam,models,interfaces);
       end
 
       function NonLinearLoop(obj)
+
          % Initialize the time step increment
          obj.dt = obj.simParameters.dtIni;
          delta_t = obj.dt; % dynamic time step
-         % Compute matrices of Linear models (once for the entire simulation)
-         for i = 1:obj.nDom
-            computeLinearMatrices(obj.meshGlue.model(i).Discretizer,obj.state(i).curr,obj.state(i).prev,obj.dt)
-         end
+
          %
          flConv = true; %convergence flag
          %
+
          % Loop over time
          while obj.t < obj.simParameters.tMax
             % Update the simulation time and time step ID
@@ -43,20 +45,28 @@ classdef MortarFCSolver < handle
             %new time update to fit the outTime list
 
             [obj.t, delta_t] = obj.updateTime(flConv, delta_t);
+
+            if obj.simParameters.verbosity > 0
+              fprintf('\nTSTEP %d   ---  TIME %f  --- DT = %e\n',obj.tStep,obj.t,delta_t);
+              fprintf('-----------------------------------------------------------\n');
+            end
+            if obj.simParameters.verbosity > 1
+              fprintf('Iter     ||rhs||\n');
+            end
+            
             for i = 1:obj.nDom
-               obj.meshGlue.model(i).Discretizer.resetJacobianAndRhs(); 
-               % Apply the Dirichlet condition value to the solution vector
-               if ~isempty(obj.meshGlue.model(i).BoundaryConditions)
-                  applyDirVal(obj.meshGlue.model(i).ModelType,obj.meshGlue.model(i).BoundaryConditions,...
-                     obj.t, obj.state(i).curr);
-               end
-               %
-               % Compute Rhs and matrices of NonLinear models
-               computeNLMatricesAndRhs(obj.meshGlue.model(i).Discretizer,...
-                  obj.state(i).curr,obj.state(i).prev,obj.dt);
-               
-               % compute block Jacobian and block Rhs
-               obj.meshGlue.model(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
+
+              % Check if boundary conditions are defined for the i-th domain
+              if ~isempty(obj.domains(i).BoundaryConditions)
+                discretizer = obj.domains(i).Discretizer;
+                bc = obj.domains(i).BoundaryConditions;
+                currState = obj.state(i).curr;
+
+                % Apply Dirichlet boundary values to i-th domain
+                obj.state(i).curr = applyDirVal(discretizer, bc, obj.t, currState);
+              end
+
+      
             end
             % Get unique multidomain solution system
             [J,rhs] = obj.meshGlue.getMDlinSyst();
@@ -294,16 +304,17 @@ classdef MortarFCSolver < handle
    end
 
    methods (Access = private)
-       function setNonLinearSolver(obj,simParam,models,mG)
+     function setNonLinearSolver(obj,simParam,dom,interf)
            obj.simParameters = simParam;
-           obj.models = models;
-           obj.meshGlue = mG;
-           obj.nDom = numel(obj.models);
-           obj.nInt = numel(obj.meshGlue.interfaces);
+           obj.domains = dom;
+           obj.nDom = numel(dom);
+           obj.interfaces = interf;
+           obj.nInterf = numel(interf);
            obj.state = repmat(struct('prev',{},'curr',{}),obj.nDom,1);
+           % initialize a state structure for each domains
            for i = 1:obj.nDom
-               obj.state(i).prev = obj.meshGlue.model(i).State;
-               obj.state(i).curr = copy(obj.state(i).prev);
+               obj.state(i).prev = obj.domains(i).State;
+               obj.state(i).curr =  obj.domains(i).State;
            end
        end
 
@@ -347,7 +358,7 @@ classdef MortarFCSolver < handle
            for i = 1:numel(obj.meshGlue.MD_struct)
                domID = obj.meshGlue.MD_struct(i).dom;
                ph = obj.meshGlue.MD_struct(i).physic;
-               ent_dof = obj.models(domID).DoFManager.ent2field(ph, ...
+               ent_dof = obj.domains(domID).DoFManager.ent2field(ph, ...
                    obj.meshGlue.MD_struct(i).entities);
                if any(strcmp(obj.meshGlue.MD_struct(i).type,["inner","master"]))
                    switch ph

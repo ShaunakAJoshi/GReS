@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interfaces>
+    <!-- Input file for multidomain interfaces (aquifer as slave sides) -->
+    <Interface>
+        <Master id="1" surfaceTag="2" />
+        <Slave id="2" surfaceTag="1" />
+        <Type>MeshTying</Type>
+        <nGP>6</nGP>
+        <Quadrature type = "RBF" nInt = "4"/>
+      <Physics> Poromechanics </Physics>
+    </Interface>
+</Interfaces>

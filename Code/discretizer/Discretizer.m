@@ -232,6 +232,18 @@ classdef Discretizer < handle
       col(c+1:c+n) = dofCol(J);
       val(c+1:c+n) = mat(:);
       c = c+n;
-    end
+     end
+
+     function Nout = reshapeBasisF(basis,nc)
+       % reshape basis functions to obtain displacement shape function
+       % input: nG x nN matrix
+       % output: 3 x nN x nG
+       [ng,nn] = size(basis);
+       % index pattern for matrix reshaping
+       ind = repmat(linspace(1,nc^2,nc),1,nn)+(nc^2)*repelem(0:nn-1,1,nc);
+       N = zeros(nc*nn,ng); % initialize single page
+       N(ind(1:nc*nn),:) = repelem(basis',nc,1);
+       Nout = reshape(N,[nc,nn*nc,ng]); % reshaped 3D matrix
+     end
    end
 end

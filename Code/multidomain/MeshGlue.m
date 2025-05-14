@@ -2,10 +2,10 @@ classdef MeshGlue < handle
   %
   properties (Access = private)
     mortar
-    domains % 1->master master 2->slave
   end
 
   properties (Access = public)
+    domains % 1->master master 2->slave
     idDomains
     meshMaster
     meshSlave
@@ -18,6 +18,7 @@ classdef MeshGlue < handle
     %
     function setMeshGlue(obj,inputStruct,domains)
       % domains(1): master domains(2): slave
+      obj.domains = domains;
       obj.idDomains = [inputStruct.Master.idAttribute;
         inputStruct.Slave.idAttribute];
       obj.surfId = {inputStruct.Master.surfaceTagAttribute;
@@ -27,76 +28,85 @@ classdef MeshGlue < handle
       obj.physic = inputStruct.Physics;
       obj.nComp = domains(1).DoFManager.getDoFperEnt(obj.physic);
       setMortar(obj,inputStruct);
-      [D,M] = computeMortarMatrices(obj);
+      %[D,M] = computeMortarMatrices(obj);
     end
   end
 
   methods (Access=public)
     %
     function [D,M] = computeMortarMatrices(obj)
-         nElemSlave = obj.nComp*numel(obj.mortar.slaveIdGlob);
-         elemSlave = getElem(obj.mortar,'slave');
-         [imVec,jmVec,MVec] = allocateMatrix(obj.mortar,'master',obj.nComp);
-         [idVec,jdVec,DVec] = allocateMatrix(obj.mortar,'slave',obj.nComp);
-         % Ns: basis function matrix on slave side
-         % Nm: basis function matrix on master side
-         % Nmult: basis function matrix for multipliers
-         % and interpolation coordinates)
-         for is = 1:obj.mortar.nElSlave
-            %Compute Slave quantities
-            isLoc = obj.mortar.slaveIdLoc(is);
-            isGlob = obj.mortar.slaveIdGlob(is);
-            dJWeighed = elemSlave.getDerBasisFAndDet(isLoc,3);
-            posGP = getGPointsLocation(elemSlave,isLoc);
-            nSlave = obj.meshSlave.surfaces(isGlob,:);
-            Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-            masterElems = find(obj.mortar.elemConnectivity(:,isLoc));
-            for im = masterElems'
-               nMaster = obj.meshMaster.surfaces(im,:);
-               [Nm,id] = obj.mortar.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
-               if any(id)
-                  % get basis function matrix 
-                  Nm = Nm(id,:);
-                  Ns = Nslave(id,:);
-                  Nmult = ones(size(Ns(id,:),1),1);
+      elc = 0;
+      nDofSlave = obj.nComp*numel(obj.mortar.slaveIdGlob);
+      elemSlave = getElem(obj.mortar,'slave');
+      [imVec,jmVec,MVec] = allocateMatrix(obj.mortar,'master',obj.nComp);
+      [idVec,jdVec,DVec] = allocateMatrix(obj.mortar,'slave',obj.nComp);
+      % Ns: basis function matrix on slave side
+      % Nm: basis function matrix on master side
+      % Nmult: basis function matrix for multipliers
+      cs = 0; % slave matrix entry counter
+      cm = 0; % master matrix entry counter
 
-                  % get degrees of freedom of local matrix
-                  dofMaster = getDof(obj,nMaster,'master');
-                  dofSlave = getDoF(obj,nSlave,'master');
-                  dofMult = dofId(is,obj.nComp);
+      % and interpolation coordinates)
+      for is = 1:obj.mortar.nElSlave
+        %Compute Slave quantities
+        isLoc = obj.mortar.slaveIdLoc(is);
+        isGlob = obj.mortar.slaveIdGlob(is);
+        dJWeighed = elemSlave.getDerBasisFAndDet(isLoc,3);
+        posGP = getGPointsLocation(elemSlave,isLoc);
+        nSlave = obj.meshSlave.surfaces(isGlob,:);
+        Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
+        masterElems = find(obj.mortar.elemConnectivity(:,isLoc));
+        for im = masterElems'
+          nMaster = obj.meshMaster.surfaces(im,:);
+          [Nm,id] = obj.mortar.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
+          if any(id)
+            % get basis function matrix
+            Nm = Nm(id,:);
+            Ns = Nslave(id,:);
+            Nmult = ones(size(Ns,1),1);
+            Nm = Discretizer.reshapeBasisF(Nm,obj.nComp);
+            Ns = Discretizer.reshapeBasisF(Ns,obj.nComp);
+            Nmult = Discretizer.reshapeBasisF(Nmult,obj.nComp);
 
-                  % compute slave mortar matrix
-                  Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
-                  [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
-                    Dloc,idVec,jdVec,Dvec,cs,dJWeighed(id),dofMult,dofSlave);
+            % get degrees of freedom of local matrix
+            dofMaster = getDof(obj,nMaster,'master');
+            dofSlave = getDof(obj,nSlave,'slave');
+            dofMult = dofId(is,obj.nComp);
 
-                  % compute master mortar matrix
-                  Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
-                  [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
-                    Mloc,imVec,jmVec,Mvec,cm,dJWeighed(id),dofMult,dofMaster);
+            % compute slave mortar matrix
+            Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
+            [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
+              Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),dofMult,dofSlave);
 
-                  % sort out gauss points already ised
-                  dJWeighed = dJWeighed(~id);
-                  posGP = posGP(~id,:);
-                  Nslave = Nslave(~id,:);
-               end
-            end
-            if ~all(id)
-              % track element not fully projected
-               fprintf('GP not sorted for slave elem numb %i \n',is);
-               c_ns = c_ns + 1;
-            end
-         end
+            % compute master mortar matrix
+            Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
+            [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
+              Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),dofMult,dofMaster);
 
-         % cut vectors for sparse matrix assembly
-         imVec = imVec(1:cm); jmVec = jmVec(1:cm); MVec = MVec(1:cm);
-         idVec = idVec(1:cs); jdVec = jdVec(1:cs); DVec = DVec(1:cs);
+            % sort out gauss points already ised
+            dJWeighed = dJWeighed(~id);
+            posGP = posGP(~id,:);
+            Nslave = Nslave(~id,:);
+          else
+            elc = elc+1;
+          end
+        end
+        if ~all(id)
+          % track element not fully projected
+          fprintf('GP not sorted for slave elem numb %i \n',is);
+          c_ns = c_ns + 1;
+        end
+      end
 
-         % assemble mortar matrices in sparse format
-         M = sparse(imVec,jmVec,MVec,...
-           nElemSlave,obj.domains(1).DoFManager.totDoF);
-         D = sparse(idVec,jdVec,DVec,...
-           obj.mortar.nElSlave,obj.domains(2).DoFManager.totDoF);
+      % cut vectors for sparse matrix assembly
+      imVec = imVec(1:cm); jmVec = jmVec(1:cm); MVec = MVec(1:cm);
+      idVec = idVec(1:cs); jdVec = jdVec(1:cs); DVec = DVec(1:cs);
+
+      % assemble mortar matrices in sparse format
+      M = sparse(imVec,jmVec,MVec,...
+        nDofSlave,obj.domains(1).DoFManager.totDoF);
+      D = sparse(idVec,jdVec,DVec,...
+        nDofSlave,obj.domains(2).DoFManager.totDoF);
     end
 
     function setMortar(obj,input)

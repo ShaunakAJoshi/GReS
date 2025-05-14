@@ -5,7 +5,9 @@ classdef Mortar < handle
     mshMaster
     mshSlave
     slaveIdLoc
+    masterIdLoc
     slaveIdGlob
+    masterIdGlob
     polytopSize = 18 % standard 3D polytop
     elemConnectivity
     nGP
@@ -53,10 +55,10 @@ classdef Mortar < handle
       switch side
         case 'master'
           nEntries = (nc^2)*nnz(obj.elemConnectivity)...
-            *obj.nNmaster^2;
+            *obj.nNmaster;
         case 'slave'
           nEntries = (nc^2)*nnz(obj.elemConnectivity)*...
-            obj.nNslave^2;
+            obj.nNslave;
       end
       [r,c,v] = deal(zeros(nEntries,1));
     end

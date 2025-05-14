@@ -86,7 +86,6 @@ classdef FCSolver < handle
             
             du = J\-rhs;
 
-
             % Update current model state
             obj.stateTmp = updateState(obj.linSyst,obj.stateTmp,du);
 
