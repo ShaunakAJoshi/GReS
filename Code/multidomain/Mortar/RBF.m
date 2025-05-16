@@ -77,8 +77,8 @@ classdef RBF < handle
     function [bf,pos] = computeMortarBasisF(obj,id)
       % evaluate shape function in the real space and return position of
       % integration points in the real space
-      surfNodes = obj.mortar.mshMaster.surfaces(id,:);
-      coord = obj.mortar.mshMaster.coordinates(surfNodes,:);
+      surfNodes = obj.mortar.mshIntMaster.surfaces(id,:);
+      coord = obj.mortar.mshIntMaster.coordinates(surfNodes,:);
       elem = obj.mortar.getElem('master');
       % place interpolation points in a regular grid
       intPts = getInterpolationPoints(obj);

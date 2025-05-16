@@ -57,6 +57,12 @@ classdef SPFlow < SinglePhysics
          end
       end
 
+      function state = getState(stateIn)
+        % input: state structure
+        % output: current primary variable
+        state = stateIn.pressure;
+      end
+
       function [cellData,pointData] = printState(obj,sOld,sNew,t)
          % append state variable to output structure
          switch nargin

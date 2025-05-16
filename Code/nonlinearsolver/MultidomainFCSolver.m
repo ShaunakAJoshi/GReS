@@ -55,37 +55,44 @@ classdef MultidomainFCSolver < handle
             end
             
             for i = 1:obj.nDom
+              
+              discretizer = obj.domains(i).Discretizer;
+              bc = obj.domains(i).BoundaryConditions;
 
               % Check if boundary conditions are defined for the i-th domain
               if ~isempty(obj.domains(i).BoundaryConditions)
-                discretizer = obj.domains(i).Discretizer;
-                bc = obj.domains(i).BoundaryConditions;
-                currState = obj.state(i).curr;
-
                 % Apply Dirichlet boundary values to i-th domain
-                obj.state(i).curr = applyDirVal(discretizer, bc, obj.t, currState);
+                obj.state(i).curr = applyDirVal(...
+                  discretizer, bc, obj.t, obj.state(i).curr);
+              end
+            
+              % Compute matrices and residuals for individual models of
+              % the i-th domain
+              obj.state(i).curr = computeMatricesAndRhs(...
+                discretizer, obj.state(i).curr, obj.state(i).prev, obj.dt);
+
+              % Compute domain coupling matrices and rhs
+              for j = discretizer.interfaceList
+                computeMat(obj.interfaces(j),i);
+                computeRhs(obj.interfaces(j),i,obj.state(i).curr);
               end
 
+              % Apply BCs to the blocks of the linear system
+              applyBC(discretizer, bc, obj.t, obj.state(i).curr);
+
+              % Apply BC to coupling matrices
+              for j = discretizer.interfaceList
+                applyBC(obj.interfaces(j),i,bc, obj.t, obj.state(i).curr);
+              end
       
             end
-            % Get unique multidomain solution system
-            [J,rhs] = obj.meshGlue.getMDlinSyst();
-            for i = 1:obj.nDom
-               if ~isempty(obj.meshGlue.model(i).BoundaryConditions)
-                  [J,rhs] = applyBCAndForces_MD(i, obj.meshGlue, obj.t, obj.state(i).curr, J, rhs);
-               end
-            end
+
+            % Assemble multidomain solution system
+
+
+
             % compute Rhs norm
             rhsNorm = norm(rhs,2);
-
-            if obj.simParameters.verbosity > 0
-               fprintf('\nTSTEP %d   ---  TIME %f  --- DT = %e\n',obj.tStep,obj.t,delta_t);
-               fprintf('-----------------------------------------------------------\n');
-            end
-
-            if obj.simParameters.verbosity > 1
-               fprintf('Iter     ||rhs||\n');
-            end
 
             tolWeigh = obj.simParameters.relTol*rhsNorm;
             obj.iter = 0;
@@ -102,12 +109,12 @@ classdef MultidomainFCSolver < handle
                % update solution vector for each model
                obj.updateStateMD(du);
                for i = 1:obj.nDom
-                  obj.meshGlue.model(i).Discretizer.resetJacobianAndRhs();
+                  obj.domains(i).Discretizer.resetJacobianAndRhs();
                   % Update tmpState
-                  computeNLMatricesAndRhs(obj.meshGlue.model(i).Discretizer,...
+                  computeNLMatricesAndRhs(obj.domains(i).Discretizer,...
                      obj.state(i).curr,obj.state(i).prev,obj.dt);
                   % compute block Jacobian and block Rhs
-                  obj.meshGlue.model(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
+                  obj.domains(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
                end
 
 
@@ -116,7 +123,7 @@ classdef MultidomainFCSolver < handle
 
             % Apply BCs to global linear system
             for i = 1:obj.nDom
-               if ~isempty(obj.meshGlue.model(i).BoundaryConditions)
+               if ~isempty(obj.domains(i).BoundaryConditions)
                   [J,rhs] = applyBCAndForces_MD(i, obj.meshGlue, obj.t, obj.state(i).curr, J, rhs);
                end
             end
@@ -134,20 +141,20 @@ classdef MultidomainFCSolver < handle
                for i = 1:obj.nDom
                   obj.state(i).curr.t = obj.t;
                   % Print the solution, if needed
-                  if isPoromechanics(obj.meshGlue.model(i).ModelType)
+                  if isPoromechanics(obj.domains(i).ModelType)
                      obj.state(i).curr.advanceState();
                   end
-                  if isVariabSatFlow(obj.meshGlue.model(i).ModelType)
+                  if isVariabSatFlow(obj.domains(i).ModelType)
                      obj.state(i).curr.updateSaturation()
                   end
                end
                if obj.t > obj.simParameters.tMax   % For Steady State
                   for i = 1:obj.nDom
-                     printState(obj.meshGlue.model(i).OutState,obj.state(i).curr);
+                     printState(obj.domains(i).OutState,obj.state(i).curr);
                   end
                else
                   for i = 1:obj.nDom
-                     printState(obj.meshGlue.model(i).OutState,obj.state(i).prev,obj.state(i).curr);
+                     printState(obj.domains(i).OutState,obj.state(i).prev,obj.state(i).curr);
                   end
                end
             end
@@ -167,7 +174,7 @@ classdef MultidomainFCSolver < handle
           fprintf('Computing Linear matrices \n')
           % Compute matrices of Linear models (once for the entire simulation)
           for i = 1:obj.nDom
-              computeLinearMatrices(obj.meshGlue.model(i).Discretizer,obj.state(i).curr,obj.state(i).prev,obj.dt)
+              computeLinearMatrices(obj.domains(i).Discretizer,obj.state(i).curr,obj.state(i).prev,obj.dt)
           end
           fprintf('Done Linear matrices computation \n')
           %
@@ -183,18 +190,18 @@ classdef MultidomainFCSolver < handle
               fprintf('Applying Dirichlet Boundary Conditions \n')
               for i = 1:obj.nDom
                   % Apply the Dirichlet condition value to the solution vector
-                  %obj.meshGlue.model(i).Discretizer.resetJacobianAndRhs();
-                  if ~isempty(obj.meshGlue.model(i).BoundaryConditions)
-                      applyDirVal(obj.meshGlue.model(i).ModelType,obj.meshGlue.model(i).BoundaryConditions,...
+                  %obj.domains(i).Discretizer.resetJacobianAndRhs();
+                  if ~isempty(obj.domains(i).BoundaryConditions)
+                      applyDirVal(obj.domains(i).ModelType,obj.domains(i).BoundaryConditions,...
                           obj.t, obj.state(i).curr);
                   end
                   %
                   % Compute Rhs and matrices of NonLinear models
-                  computeNLMatricesAndRhs(obj.meshGlue.model(i).Discretizer,...
+                  computeNLMatricesAndRhs(obj.domains(i).Discretizer,...
                       obj.state(i).curr,obj.state(i).prev,obj.dt);
                   %
                   % compute block Jacobian and block Rhs
-                  obj.meshGlue.model(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
+                  obj.domains(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
               end
               fprintf('Done applying Boundary Conditions \n')
               %
@@ -207,7 +214,7 @@ classdef MultidomainFCSolver < handle
               fprintf('Applying BCs to full linear system \n')
               tic
               for i = 1:obj.nDom
-                  if ~isempty(obj.meshGlue.model(i).BoundaryConditions)
+                  if ~isempty(obj.domains(i).BoundaryConditions)
                       [J,rhs] = applyBCAndForces_MD(i, obj.meshGlue, obj.t, obj.state(i).curr, J, rhs);
                   end
               end
@@ -244,12 +251,12 @@ classdef MultidomainFCSolver < handle
                   % update solution vector for each model
                   obj.updateStateMD(du);
                   for i = 1:obj.nDom
-                      obj.meshGlue.model(i).Discretizer.resetJacobianAndRhs();
+                      obj.domains(i).Discretizer.resetJacobianAndRhs();
                       % Update tmpState
-                      computeNLMatricesAndRhs(obj.meshGlue.model(i).Discretizer,...
+                      computeNLMatricesAndRhs(obj.domains(i).Discretizer,...
                           obj.state(i).curr,obj.state(i).prev,obj.dt);
                       % compute block Jacobian and block Rhs
-                      obj.meshGlue.model(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
+                      obj.domains(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
                   end
 
 
@@ -258,7 +265,7 @@ classdef MultidomainFCSolver < handle
 
                   % Apply BCs to global linear system
                   for i = 1:obj.nDom
-                      if ~isempty(obj.meshGlue.model(i).BoundaryConditions)
+                      if ~isempty(obj.domains(i).BoundaryConditions)
                           [J,rhs] = applyBCAndForces_MD(i, obj.meshGlue, obj.t, obj.state(i).curr, J, rhs);
                       end
                   end
@@ -277,20 +284,20 @@ classdef MultidomainFCSolver < handle
                   for i = 1:obj.nDom
                       obj.state(i).curr.t = obj.t;
                       % Print the solution, if needed
-                      if isPoromechanics(obj.meshGlue.model(i).ModelType)
+                      if isPoromechanics(obj.domains(i).ModelType)
                           obj.state(i).curr.advanceState();
                       end
-                      if isVariabSatFlow(obj.meshGlue.model(i).ModelType)
+                      if isVariabSatFlow(obj.domains(i).ModelType)
                           obj.state(i).curr.updateSaturation()
                       end
                   end
                   if obj.t > obj.simParameters.tMax || obj.t == obj.simParameters.tMax % For Steady State
                       for i = 1:obj.nDom
-                          printState(obj.meshGlue.model(i).OutState,obj.state(i).curr);
+                          printState(obj.domains(i).OutState,obj.state(i).curr);
                       end
                   else
                       for i = 1:obj.nDom
-                          printState(obj.meshGlue.model(i).OutState,obj.state(i).prev,obj.state(i).curr);
+                          printState(obj.domains(i).OutState,obj.state(i).prev,obj.state(i).curr);
                       end
                   end
               end
@@ -322,12 +329,12 @@ classdef MultidomainFCSolver < handle
            t = obj.simParameters.tMax;
            told = t;
            for i = 1:obj.nDom
-               if obj.meshGlue.model(i).OutState.modTime
-                   tmp = find(obj.t<obj.meshGlue.model(i).outState.timeList(),1,'first');
+               if obj.domains(i).OutState.modTime
+                   tmp = find(obj.t<obj.domains(i).outState.timeList(),1,'first');
                    if ~conv
-                       t = min([obj.t + obj.dt, obj.t + dt, obj.meshGlue.model(i).OutState.timeList(tmp)]);
+                       t = min([obj.t + obj.dt, obj.t + dt, obj.domains(i).OutState.timeList(tmp)]);
                    else
-                       t = min([obj.t + obj.dt, obj.meshGlue.model(i).OutState.timeList(tmp)]);
+                       t = min([obj.t + obj.dt, obj.domains(i).OutState.timeList(tmp)]);
                    end
                else
                    t = obj.t + obj.dt;
@@ -343,10 +350,10 @@ classdef MultidomainFCSolver < handle
            %Return maximum norm of the entire domain
            rhsNorm = zeros(obj.nDom,1);
            for i = 1:obj.nDom
-               nRhs = length(obj.meshGlue.model(i).DoFManager.subList);
+               nRhs = length(obj.domains(i).DoFManager.subList);
                rhsNorm_loc = zeros(nRhs,1);
                for j = 1:nRhs
-                   rhsNorm_loc(j) = norm(obj.meshGlue.model(i).Discretizer.rhs{j}, obj.simParameters.pNorm);
+                   rhsNorm_loc(j) = norm(obj.domains(i).Discretizer.rhs{j}, obj.simParameters.pNorm);
                end
                rhsNorm(i) = sqrt(sum(rhsNorm_loc.^2));
            end
@@ -403,7 +410,7 @@ classdef MultidomainFCSolver < handle
            if flConv % Go on if converged
                tmpVec = obj.simParameters.multFac;
                for i =1:obj.nDom
-                   if isFlow(obj.meshGlue.model(i).ModelType)
+                   if isFlow(obj.domains(i).ModelType)
                        dpMax = max(abs(obj.state(i).curr.pressure - obj.state(i).prev.pressure));
                        tmpVec = [tmpVec, (1+obj.simParameters.relaxFac)* ...
                            obj.simParameters.pTarget/(dpMax + obj.simParameters.relaxFac* ...

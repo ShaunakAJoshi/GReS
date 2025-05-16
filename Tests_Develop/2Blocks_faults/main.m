@@ -23,6 +23,9 @@ meshRightFile = 'Mesh/RightBlock_hexa.msh';
 %domainFile = 'Domains/domains_hexa_P0.dat';
 
 
+mshTest = Mesh();
+mshTest.importMesh('Mesh/RightBlockHexa.vtk');
+
 leftMesh.importGMSHmesh(meshLeftFile);
 rightMesh.importGMSHmesh(meshRightFile);
 % 
@@ -37,7 +40,7 @@ interfFile = 'interface.xml';
 simParam = SimulationParameters('simParam.dat');
 domains = buildModelStruct_new(domainFile,simParam);
 %scale domain size to millimiters
-interfaces = MeshGlue.buildInterfaceStruct(interfFile,domains);
+[interfaces,domains] = Mortar.buildInterfaceStruct(interfFile,domains);
 
 
 % validate mortar operator construction
@@ -50,7 +53,8 @@ interfaces = MeshGlue.buildInterfaceStruct(interfFile,domains);
 % e = fSInterp-fSAnal;
 % e = sqrt(sum(e.^2));
 
-solverDual = MortarFCSolver(simParam,domains,interfaces);
+solverDual = MultidomainFCSolver(simParam,domains,interfaces);
+solverDual.NonLinearLoop();
 
 solverDual.models(1).OutState.finalize();
 solverDual.models(2).OutState.finalize();

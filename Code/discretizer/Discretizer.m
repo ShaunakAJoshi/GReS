@@ -1,11 +1,18 @@
 classdef Discretizer < handle
    % General discretizer class
    properties (GetAccess=public, SetAccess=private)
-      solver      % database for physics solvers in the model
-      dofm        % dofManager 
-      numSolvers  % number of solvers discretized
-      mod
-      fields
+     solver      % database for physics solvers in the model
+     dofm        % dofManager
+     numSolvers  % number of solvers discretized
+     mod
+     fields
+   end
+
+   properties (GetAccess=public, SetAccess=public)
+     interfaceList = []; 
+     % empty - single domain simulation
+     % not empty - call to mesh glue instances 
+
    end
 
    methods (Access = public)
@@ -124,6 +131,12 @@ classdef Discretizer < handle
             id = v(fldId(1))+fldId(2);
          end
          out = obj.solver(id);
+      end
+
+      function addInterface(obj,interfId)
+        if ~ismember(interfId,obj.interfaceList)
+          obj.interfaceList = sort([obj.interfaceList interfId]);
+        end
       end
 
 

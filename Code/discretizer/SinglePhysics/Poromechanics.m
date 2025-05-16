@@ -168,6 +168,12 @@ classdef Poromechanics < SinglePhysics
          end
       end
 
+      function state = getState(stateIn)
+        % input: state structure
+        % output: current primary variable
+        state = stateIn.dispCurr;
+      end
+
       function [dof,vals] = getBC(obj,bc,id,t,~)
          dof = obj.getBCdofs(bc,id);
          vals = obj.getBCVals(bc,id,t);

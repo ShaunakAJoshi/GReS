@@ -194,9 +194,9 @@ classdef DoFManager < handle
       end
       %
       function dofList = getLocalDoF(obj,entList,field)
+        % get local DoF numbering for entities within a field
          fldId = obj.getFieldId(field);
          nc = obj.nComp(fldId);
-         % get local DoF numbering for entities within a field
          ents = getLocalEnts(obj,entList,field);
          dofList = dofId(ents,nc);
       end
@@ -224,7 +224,7 @@ classdef DoFManager < handle
       end
 
       function fldDofs = getFieldDoF(obj,dofs,field)
-         % recover active entitity indices from local dof numbering
+         % get entity id from dof identifier within a field
          fldId = obj.getFieldId(field);
          actEnt = obj.fields(fldId).isEntActive;
          actDofs = find(actEnt);
