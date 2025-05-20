@@ -29,6 +29,14 @@ classdef Mortar < handle
     slaveCellType
     masterCellType
     nFld          
+    nEdgesMaster
+    nEdgesSlave
+    e2nMaster     % map edge to connected nodes
+    e2nSlave
+    e2fMaster     % map edge to connected faces 
+    e2fSlave
+    f2cMaster     % map face to connected cells
+    f2cSlave
   end
 
   methods
@@ -49,7 +57,9 @@ classdef Mortar < handle
       getConnectivityMatrix(obj);
       mapLocalNod2Glob(obj,'master',mshMaster,surfId{1});
       mapLocalNod2Glob(obj,'slave',mshSlave,surfId{2});
-
+      setupEdgeTopology(obj,'master');
+      setupEdgeTopology(obj,'slave');
+      obj.buildFace2CellMap(mshMaster,mshSlave);
       switch inputStruct.Quadrature.typeAttribute
         case 'RBF'
           obj.quadrature = RBF(obj,inputStruct.Quadrature.nIntAttribute);
@@ -64,7 +74,6 @@ classdef Mortar < handle
       obj.activeSlaveCells = find(any(obj.elemConnectivity,1));
       obj.nElSlave = numel(obj.activeSlaveCells);
       obj.nElMaster = sum(any(obj.elemConnectivity,2)); 
-
     end
 
     function [r,c,v] = allocateMatrix(obj,side)
@@ -127,6 +136,102 @@ classdef Mortar < handle
       end
     end
 
+    function mat = getMatrix(obj,side,field)
+      switch side
+        case 'master'
+          n = obj.dofmMaster.getDoFperEnt(field);
+          dofMult = dofId(1:obj.nElSlave,n);
+          dofMaster = obj.loc2globMaster(1:size(obj.masterMat,2));
+          dofMaster = obj.dofmMaster.getLocalDoF(dofMaster,field);
+          [j,i] = meshgrid(dofMaster,dofMult);
+          nr = n*obj.nElSlave;
+          nc = obj.dofmMaster.getNumDoF(field);
+          vals = Discretizer.expandMat(obj.masterMat,n);
+          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
+        case 'slave'
+          n = obj.dofmSlave.getDoFperEnt(field);
+          dofMult = dofId(1:obj.nElSlave,n);
+          dofSlave = obj.loc2globSlave(1:size(obj.slaveMat,2));
+          dofSlave = obj.dofmSlave.getLocalDoF(dofSlave,field);
+          [j,i] = meshgrid(dofSlave,dofMult);
+          nr = n*obj.nElSlave;
+          nc = obj.dofmSlave.getNumDoF(field);
+          vals = Discretizer.expandMat(obj.slaveMat,n);
+          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
+      end
+    end
+
+    function computeStabilizationMatrix(obj,fld)
+
+      % get number of components of input field
+      nc = obj.dofmMaster.getDoFperEnt(fld);
+
+      % initialize matrix
+      H = zeros(nc*obj.nElSlave);
+      
+      % get list of internal master edges
+      inEdgeMaster = find(all(obj.e2fMaster,2));
+
+      for ie = inEdgeMaster'
+        % get edges sharing node n
+        edgeID = any(ismember(obj.masterTopol,n),2);
+        if sum(edgeID)<2 
+          % boundary node
+          continue
+        else
+          eM = find(edgeID); % master cell ID in contact
+          % get slave elements in contact
+          eS = unique([find(obj.elemConnectivity(eM(1),:)),find(obj.elemConnectivity(eM(2),:))]);
+          % node list for these edges
+          nSfull = obj.slaveTopol(eS,:);
+          [nSglob, ~, ~] = unique(nSfull(:));
+          counts = histc(nSfull(:), nSglob);
+          % Elements that appear at least two times
+          nSglob = nSglob(counts >= 2);
+          nSdof = DofMap.getCompDoF(nSglob);
+          nS = ismember(obj.nodesSlave,nSglob); % local numbering of slave nodes
+          nMfull = obj.masterTopol(eM,:);
+          [nMglob, ~, ~] = unique(nMfull(:));
+          counts = histc(nMfull(:), nMglob);
+          % Elements that appear at least two times
+          nMglob = nMglob(counts >= 2);
+          nMdof = DofMap.getCompDoF(nMglob);
+          nM = ismember(obj.nodesMaster,nMglob); % local numbering of slave nodes
+          Km = Kmaster(nMdof,nMdof);
+          Ks = Kslave(nSdof,nSdof);
+          Dloc = D(eS,nS);
+          Mloc = M(eS,nM);
+          V = [Dloc'; -Mloc'];
+          %Vtilde = zeros(size(V));
+          % % swapping columns to get orthogonal matrix
+          % Vtilde(:,1:2:end) = -V(:,2:2:end);
+          % Vtilde(:,2:2:end) = V(:,1:2:end);
+          V = expandMat(V,2);
+          Kloc = diag([1./diag(Ks);1./diag(Km)]);
+          Hloc = V'*(Kloc*V);
+          Hlump = diag(Hloc);
+          lM1 = getLength(obj,eM(1),'master');
+          lM2 = getLength(obj,eM(2),'master');
+          lM = 0.5*(lM1+lM2);
+          % assemble stabilization matrix
+          for nsLoc = nSglob'
+            esLoc = find(any(ismember(obj.slaveTopol(eS,:),nsLoc),2));
+            K1 = diag(Hlump([2*esLoc(1)-1 2*esLoc(1)]));
+            K2 = diag(Hlump([2*esLoc(2)-1 2*esLoc(2)]));
+            K = 0.5*(K1+K2);
+            dof1 = [2*esLoc(1)-1 2*esLoc(1)];
+            dof2 = [2*esLoc(2)-1 2*esLoc(2)];
+            Knew = 0.5*(Hloc(dof1,dof1)+Hloc(dof2,dof2));
+            dof = DofMap.getCompDoF(eS(esLoc));
+            lS1 = getLength(obj,eS(esLoc(1)),'slave');
+            lS2 = getLength(obj,eS(esLoc(2)),'slave');
+            lS = 0.5*(lS1+lS2);
+            H(dof,dof) = H(dof,dof) + [K -K;-K K];
+          end
+        end
+      end
+    end
+
     function sideStr = getSide(obj,idDomain)
       % get side of the interface 'master' or 'slave' based on the
       % domain input id
@@ -144,6 +249,49 @@ classdef Mortar < handle
   end
 
   methods (Access = private)
+
+    function setupEdgeTopology(obj,side)
+      % reorder surface topology
+      % inspired by face topology for FV in MRST
+      switch side
+        case 'master'
+          msh = obj.mshIntMaster;
+        case 'slave'
+          msh = obj.mshIntSlave;
+      end
+      bot = msh.surfaces(:, [1, 2]);
+      top = msh.surfaces(:, [3, 4]);
+      lft = msh.surfaces(:, [4, 1]);
+      rgt = msh.surfaces(:, [2, 3]);
+      % unique matrix containing all existing edges (with repetitions)
+      edgeMat = [bot;top;lft;rgt];
+      %
+      [edgeMat,i] = sort(edgeMat,2);
+      i = i(:,1);
+      %
+      % id is [cellnumber, half-face tag]
+      id       = [(1:msh.nSurfaces)', repmat(1, [msh.nSurfaces, 1]);...
+        (1:msh.nSurfaces)', repmat(2, [msh.nSurfaces, 1]);...
+        (1:msh.nSurfaces)', repmat(3, [msh.nSurfaces, 1]);...
+        (1:msh.nSurfaces)', repmat(4, [msh.nSurfaces, 1])]; %#ok<REPMAT>
+      % Sort rows to find pairs of cells sharing a face
+      [edgeMat, j] = sortrows(edgeMat);
+
+      % encode edge matrix
+      [e2n,n] = obj.rle(edgeMat);
+      nEdges = numel(n);
+      N = repelem(1:nEdges,n);
+      switch side
+        case 'master'
+          obj.e2fMaster = accumarray([N',i(j)],id(j,1),[nEdges,2]);
+          obj.e2nMaster = e2n;
+          obj.nEdgesMaster = nEdges;
+        case 'slave'
+          obj.e2fSlave = accumarray([N',i(j)],id(j,1),[nEdges,2]);
+          obj.e2nSlave = e2n;
+          obj.nEdgesSlave = nEdges;
+      end
+    end
     %
     function getCellTypes(obj)
       switch obj.mshIntSlave.surfaceVTKType(1)
@@ -185,6 +333,33 @@ classdef Mortar < handle
           obj.loc2globSlave(locNodes) = globNodes;
       end
     end
+
+    function buildFace2CellMap(obj,mshM,mshS)
+      % for now, this method only work for hexahedral meshes
+      slaveTop = obj.loc2globSlave(obj.mshIntSlave.surfaces);
+      masterTop = obj.loc2globMaster(obj.mshIntMaster.surfaces);
+      % get cell ID containing a face
+      obj.f2cMaster = zeros(obj.nElMaster,1);
+      obj.f2cSlave = zeros(obj.nElSlave,1);
+      listCell = (1:mshS.nCells)';
+      for i = 1:obj.nElSlave
+        idMat = ismember(mshS.cells(listCell,:),slaveTop(i,:));
+        idMat = sum(idMat,2);
+        id = find(idMat==4);
+        assert(isscalar(id),'Invalid connectivity between face and cells');
+        obj.f2cSlave(i) = listCell(id);
+        listCell(id) = [];
+      end
+      listCell = (1:mshM.nCells)';
+      for i = 1:obj.nElMaster
+        idMat = ismember(mshM.cells(listCell,:),masterTop(i,:));
+        idMat = sum(idMat,2);
+        id = find(idMat==4);
+        assert(isscalar(id),'Invalid connectivity between face and cells');
+        obj.f2cMaster(i) = listCell(id);
+        listCell(id) = [];
+      end
+    end
   end
 
 
@@ -212,6 +387,18 @@ classdef Mortar < handle
         addInterface(modelStruct(idMaster).Discretizer,i);
         addInterface(modelStruct(idSlave).Discretizer,i);
       end
+    end
+
+    function [outMat,count] = rle(inMat)
+      % the input matrix has already been sorted by rows
+      % Find unique rows and their first occurrences
+      [outMat, firstIdx, ~] = unique(inMat, 'rows', 'stable');
+
+      % Compute counts of each unique row
+      count = diff([firstIdx; size(inMat,1) + 1]);
+
+      % Restore original order of indices
+      %indices = sortIdx(firstIdx);
     end
   end
 end

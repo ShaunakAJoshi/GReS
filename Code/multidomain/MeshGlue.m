@@ -90,6 +90,15 @@ classdef MeshGlue < Mortar
             obj.Jslave{i} = obj.getMatrix('slave',obj.physics{i});
         end
       end
+
+      % stabilization matrix
+      c = 0;
+      for ph = obj.physics'
+        c = 1;
+        computeStabilizationMatrix(obj,ph);
+        obj.Jmult{}
+      end
+
     end
 
     function computeRhs(obj,idDomain,state)
@@ -102,31 +111,6 @@ classdef MeshGlue < Mortar
           case 'slave'
             computeRhsSlave(obj,i,state);
         end
-      end
-    end
-
-    function mat = getMatrix(obj,side,field)
-      switch side
-        case 'master'
-          n = obj.dofmMaster.getDoFperEnt(field);
-          dofMult = dofId(1:obj.nElSlave,n);
-          dofMaster = obj.loc2globMaster(1:size(obj.masterMat,2));
-          dofMaster = obj.dofmMaster.getLocalDoF(dofMaster,field);
-          [j,i] = meshgrid(dofMaster,dofMult);
-          nr = n*obj.nElSlave;
-          nc = obj.dofmMaster.getNumDoF(field);
-          vals = Discretizer.expandMat(obj.masterMat,n);
-          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
-        case 'slave'
-          n = obj.dofmSlave.getDoFperEnt(field);
-          dofMult = dofId(1:obj.nElSlave,n);
-          dofSlave = obj.loc2globSlave(1:size(obj.slaveMat,2));
-          dofSlave = obj.dofmSlave.getLocalDoF(dofSlave,field);
-          [j,i] = meshgrid(dofSlave,dofMult);
-          nr = n*obj.nElSlave;
-          nc = obj.dofmSlave.getNumDoF(field);
-          vals = Discretizer.expandMat(obj.slaveMat,n);
-          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
       end
     end
 
