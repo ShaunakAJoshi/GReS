@@ -57,7 +57,7 @@ classdef SPFlow < SinglePhysics
          end
       end
 
-      function state = getState(stateIn)
+      function state = getState(obj,stateIn)
         % input: state structure
         % output: current primary variable
         state = stateIn.pressure;

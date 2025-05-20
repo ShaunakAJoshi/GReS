@@ -7,6 +7,6 @@
         <Type>MeshTying</Type>
         <nGP>6</nGP>
         <Quadrature type = "RBF" nInt = "4"/>
-      <Physics> Poromechanics SinglePhaseFlow </Physics>
+      <Physics> Poromechanics </Physics>
     </Interface>
 </Interfaces>

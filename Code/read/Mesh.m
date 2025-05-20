@@ -119,6 +119,7 @@ classdef Mesh < handle
       end
 
       % 2D ELEMENT DATA
+      % cellsID = 2D surface tag for readGMSHmesh.cpp
       cellsID = [2, 3];
       ID = ismember(elems(:,1), cellsID);
       obj.surfaceNumVerts = elems(ID,3);
@@ -170,12 +171,11 @@ classdef Mesh < handle
       extension = str{2};
       switch extension
          case 'vtk'
-            [obj.coordinates, elems] = importVTKmesh(fileName);
+            [obj.coordinates, elems] = mxImportVTKmesh(fileName);
          case 'msh'
             [obj.coordinates, elems, regions] = mxImportGMSHmesh(fileName);
       end
-
-      
+     
       elems = double(elems);
       
       % STORING DATA INSIDE OBJECT'S PROPERTIES
@@ -272,64 +272,6 @@ classdef Mesh < handle
      end
 
 
-    function importVTKmesh(obj, fileName)
-        % reading VTK file using VTK toolkit
-        vtkStruct = vtkRead(fileName);
-        % STORING DATA INSIDE OBJECT PROPERTIES
-        % 3D ELEMENT DATA
-        obj.coordinates = vtkStruct.points;
-        if any(obj.coordinates(:,3) ~= 0)
-           obj.nDim = 3;
-        else
-           obj.nDim = 2;
-        end
-        obj.nNodes = size(obj.coordinates,1);
-        cellsID = [10, 12];
-        ID = ismember(vtkStruct.cellTypes ,cellsID);
-        obj.cellNumVerts = nnz(ID);
-        obj.cells = double(vtkStruct.cells(ID,:));
-        obj.cellVTKType = double(vtkStruct.cellTypes(ID));
-        flds = fieldnames(vtkStruct.cellData);
-        if ~isempty(fieldnames(vtkStruct.cellData))
-           obj.cellTag = vtkStruct.cellData.(flds{1});
-           obj.cellTag = double(obj.cellTag(ID));
-        end
-        obj.nCells = length(obj.cells);
-        %
-        % Check for unsupported elements
-        if any(~ismember(obj.cellVTKType,[10 12]))
-            error(['There are unsupported elements in the mesh.\n', ...
-                'Supported elements are: - 4-node tetrahedra (VTKType = %d)\n', ...
-                '                        - 8-node hexahedra  (VTKType = %d)'],10,12);
-        end
-        %
-        % 2D ELEMENT DATA
-        cellsID = [5,9];
-        ID = ismember(vtkStruct.cellTypes, cellsID);
-        obj.surfaces = double(vtkStruct.cells(ID,:));
-        obj.surfaceVTKType = double(vtkStruct.cellTypes(ID));
-        if ~isempty(fieldnames(vtkStruct.cellData))
-           obj.surfaceTag = vtkStruct.cellData.(flds{1});
-           obj.surfaceTag = double(obj.surfaceTag(ID));
-        end
-        obj.nSurfaces = length(obj.surfaceTag);
-        % Check for unsupported elements
-        if any(~ismember(obj.surfaceVTKType,[5 9]))
-            error(['There are unsupported surfaces in the mesh.\n', ...
-                'Supported surfaces are: - 3-node triangles       (VTKType = %d)\n', ...
-                '                        - 4-node quadrilaterals  (VTKType = %d)'],5,9);
-        end
-        %
-        obj.nCellTag = max(obj.cellTag);
-        obj.nSurfaceTag = max(obj.surfaceTag);
-        % REGIONS NAME ARE NOT AVAILABLE IN THE VTK FORMAT
-        % but region are not used in the current version of the code
-
-    end
-
-
-
-
     
     % Function for call 3D elements' region based on their cellTag
     function ID = findCellsOfRegion(obj, region)
@@ -422,10 +364,9 @@ classdef Mesh < handle
     function surfMesh = getSurfaceMesh(obj, surfTag)
         % Function to build a 2D mesh object based on the surfaceTag of a 3D
         % mesh
-        % Needed for contact search algorithm
         % initialize Mesh object
         surfMesh = Mesh();
-        surfTopol = obj.surfaces(ismember(obj.surfaceTag,surfTag),:);
+        surfTopol = obj.surfaces(obj.surfaceTag == surfTag,:);
         switch obj.surfaceVTKType(1)
            case 5
               nN = 3;

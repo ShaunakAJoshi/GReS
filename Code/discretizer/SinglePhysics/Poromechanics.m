@@ -168,7 +168,7 @@ classdef Poromechanics < SinglePhysics
          end
       end
 
-      function state = getState(stateIn)
+      function state = getState(obj,stateIn)
         % input: state structure
         % output: current primary variable
         state = stateIn.dispCurr;
@@ -301,7 +301,7 @@ classdef Poromechanics < SinglePhysics
             case 'Neu'
                dir = bc.getDirection(id);
                c = find(strcmp(["x","y","z"],dir));
-               dof = c*dof;
+               dof = 3*dof - (3-c);
          end
       end
 

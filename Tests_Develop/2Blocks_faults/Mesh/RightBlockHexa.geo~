@@ -48,4 +48,4 @@ Physical Surface("Right_interf",1) = {25};
 
 
 Mesh 3;
-Save "RightBlock_hexa.vtk";
+// Save "RightBlock_hexa.vtk" ;

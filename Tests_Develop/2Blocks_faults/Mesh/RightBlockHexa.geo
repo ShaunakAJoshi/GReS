@@ -2,8 +2,8 @@ Mesh.Format = 1; // msh output format
 Mesh.MshFileVersion = 2.2; // Version of the MSH file format to use
 
 nX = 4;
-nY = 31; // DEVE ESSERE DISPARI PER AVERE IL NODE IN Y=5
-nZ = 32;
+nY = 11; // DEVE ESSERE DISPARI PER AVERE IL NODE IN Y=5
+nZ = 10;
 
 // This variable can then be used in the definition of Gmsh's simplest
 // `elementary entity', a `Point'. A Point is uniquely identified by a tag (a
@@ -48,4 +48,4 @@ Physical Surface("Right_interf",1) = {25};
 
 
 Mesh 3;
-// Save "RightBlock_hexa.vtk" ;
+Save "RightBlock_hexa.msh" ;

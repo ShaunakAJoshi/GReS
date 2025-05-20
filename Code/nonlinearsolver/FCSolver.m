@@ -68,7 +68,7 @@ classdef FCSolver < handle
          rhs = assembleRhs(obj.linSyst);
 
          % compute Rhs norm
-         rhsNorm = norm(rhs,2);
+         rhsNorm = norm(cell2mat(rhs),2);
          % consider output of local field rhs contribution
 
          tolWeigh = obj.simParameters.relTol*rhsNorm;
@@ -84,8 +84,7 @@ classdef FCSolver < handle
             % Solve system with increment
             J = assembleJacobian(obj.linSyst);
             
-            du = J\-rhs;
-
+            du = FCSolver.solve(J,rhs);
             % Update current model state
             obj.stateTmp = updateState(obj.linSyst,obj.stateTmp,du);
 
@@ -181,17 +180,53 @@ classdef FCSolver < handle
             if isFlow(obj.model)
                 dpMax = max(abs(obj.stateTmp.pressure - obj.statek.pressure));
                 tmpVec = [tmpVec, (1+obj.simParameters.relaxFac)* ...
-                    obj.simParameters.pTarget/(dpMax + obj.simParameters.relaxFac* ...
-                    obj.simParameters.pTarget)];
+                  obj.simParameters.pTarget/(dpMax + obj.simParameters.relaxFac* ...
+                  obj.simParameters.pTarget)];
             end
             obj.dt = min([obj.dt * min(tmpVec),obj.simParameters.dtMax]);
             obj.dt = max([obj.dt obj.simParameters.dtMin]);
             obj.statek = obj.stateTmp;
             %
             if ((obj.t + obj.dt) > obj.simParameters.tMax)
-                obj.dt = obj.simParameters.tMax - obj.t;
+              obj.dt = obj.simParameters.tMax - obj.t;
             end
         end
+    end
+  end
+
+  methods (Static)
+    function sol = solve(J,rhs)
+      J = FCSolver.cell2matJac(J);
+      rhs = cell2mat(rhs);
+      sol = J\-rhs;
+    end
+
+    function mat = cell2matJac(mat)
+      % get size of cell matrix
+      n = size(mat,1);
+      szr = zeros(n,1);
+      szc = zeros(n,1);
+      for i = 1:n
+        for j = 1:n
+          if isempty(mat{i,j})
+            continue
+          else
+            szr(i) = size(mat{i,j},1);
+            szc(j) = size(mat{i,j},2);
+          end
+        end
+      end
+
+      % populate empty blocks
+      for i = 1:n
+        for j = 1:n
+          if isempty(mat{i,j})
+            mat{i,j} = sparse(szr(i),szc(j));
+          end
+        end
+      end
+
+      mat = cell2mat(mat);
     end
   end
 end

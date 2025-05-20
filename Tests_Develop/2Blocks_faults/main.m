@@ -23,8 +23,8 @@ meshRightFile = 'Mesh/RightBlock_hexa.msh';
 %domainFile = 'Domains/domains_hexa_P0.dat';
 
 
-mshTest = Mesh();
-mshTest.importMesh('Mesh/RightBlockHexa.vtk');
+% mshTest = Mesh();
+% mshTest.importMesh('Mesh/RightBlockHexa.vtk');
 
 leftMesh.importGMSHmesh(meshLeftFile);
 rightMesh.importGMSHmesh(meshRightFile);
@@ -42,16 +42,10 @@ domains = buildModelStruct_new(domainFile,simParam);
 %scale domain size to millimiters
 [interfaces,domains] = Mortar.buildInterfaceStruct(interfFile,domains);
 
-
-% validate mortar operator construction
-% f = @(y,z) sin(0.5*y)+cos(0.5*z);
-% cs = mG.interfaces.mortar.intSlave.coordinates;
-% cm = mG.interfaces.mortar.intMaster.coordinates;
-% fSAnal = f(cs(:,2),cs(:,3));
-% fMaster = f(cm(:,2),cm(:,3));
-% fSInterp = mG.interfaces.InterpOperator*fMaster;
-% e = fSInterp-fSAnal;
-% e = sqrt(sum(e.^2));
+% setting initial multiplier value manually
+% compressive sigma_n = 1 kPa for entire interface
+interfaces{1}.iniMultipliers{1}(1:3:end) = -1; 
+interfaces{1}.multipliers = interfaces{1}.iniMultipliers; 
 
 solverDual = MultidomainFCSolver(simParam,domains,interfaces);
 solverDual.NonLinearLoop();

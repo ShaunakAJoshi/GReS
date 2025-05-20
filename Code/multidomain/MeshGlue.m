@@ -12,6 +12,7 @@ classdef MeshGlue < Mortar
     slaveMat
     masterMat
     multipliers
+    iniMultipliers
   end
 
   methods
@@ -21,9 +22,15 @@ classdef MeshGlue < Mortar
       assert(isfield(inputStruct,"Physics"), ...
         'Missing Physics field for interface %i',id);
       obj.physics = split(inputStruct.Physics);
-      nPh = numel(obj.physics);
-      [obj.Jmaster,obj.Jslave,obj.rhsMaster,obj.rhsSlave,obj.rhsMult] = ...
-        deal(cell(nPh,1));
+      obj.nFld = numel(obj.physics);
+      initializeJacobianAndRhs(obj);
+      isFldMaster = isField(obj.dofmMaster,obj.physics);
+      isFldSlave = isField(obj.dofmSlave,obj.physics);
+      assert(isFldMaster,['MeshGlue physic not available for ' ...
+        'master domain %i'],obj.idMaster);
+      assert(isFldSlave,['MeshGlue physic not available for ' ...
+        'slave domain %i'],obj.idSlave);
+      % initializing the multiplier cell array
       computeMortarMatrices(obj);
     end
     %
@@ -31,10 +38,50 @@ classdef MeshGlue < Mortar
 
   methods (Access=public)
     %
+    function varargout = getJacobian(obj,fldId,domId)
+      % get jacobian blocks associated to specific field and specific
+      % domain 
+      % if nargout = 2 -> get master/slave pair of jacobian blocks
+      % if nargout = 1 -> return multiplier jacobian
+      switch nargout
+        case 1
+          varargout{1} = obj.Jmult{fldId};
+        case 2
+          if domId == obj.idMaster
+            varargout{1} = (obj.Jmaster{fldId})';
+            varargout{2} = obj.Jmaster{fldId};
+          elseif domId == obj.idSlave
+            varargout{1} = (obj.Jslave{fldId})';
+            varargout{2} = obj.Jslave{fldId};
+          else
+            error('Input domain %i is not a valid master/slave',domId)
+          end
+      end
+    end
+
+    function rhs = getRhs(obj,fldId,varargin)
+      % return rhs block associated to master/slave/multiplier field
+      switch nargin
+        case 2
+          % multiplier rhs block
+          rhs = obj.rhsMult{fldId};
+        case 3
+          domId = varargin{1};
+          if domId == obj.idMaster
+            rhs = obj.rhsMaster{fldId};
+          elseif domId == obj.idSlave
+            rhs = obj.rhsSlave{fldId};
+          else
+            error('Input domain %i is not a valid master/slave',domId)
+          end
+      end
+    end
+
+
     function computeMat(obj,idDomain)
       % return matrices for master and slave side in appropriate field
       side = getSide(obj,idDomain);
-      for i = 1:numel(obj.physics)
+      for i = 1:obj.nFld
         % map local mortar matrices to global indices
         switch side
           case 'master'
@@ -48,12 +95,12 @@ classdef MeshGlue < Mortar
     function computeRhs(obj,idDomain,state)
       % compute rhs contributions for a specified input field
       side = getSide(obj,idDomain);
-      for i = 1:numel(obj.physics)
+      for i = 1:obj.nFld
         switch side
           case 'master'
-            computeRhsMaster(obj,state,i);
+            computeRhsMaster(obj,i,state);
           case 'slave'
-            computeRhsSlave(obj,state,i);
+            computeRhsSlave(obj,i,state);
         end
       end
     end
@@ -63,21 +110,23 @@ classdef MeshGlue < Mortar
         case 'master'
           n = obj.dofmMaster.getDoFperEnt(field);
           dofMult = dofId(1:obj.nElSlave,n);
-          dofMaster = obj.entitiyMapMaster(1:size(obj.masterMat,2));
+          dofMaster = obj.loc2globMaster(1:size(obj.masterMat,2));
           dofMaster = obj.dofmMaster.getLocalDoF(dofMaster,field);
-          [j,i] = meshgrid(dofMult,dofMaster);
+          [j,i] = meshgrid(dofMaster,dofMult);
           nr = n*obj.nElSlave;
           nc = obj.dofmMaster.getNumDoF(field);
-          mat = sparse(i(:),j(:), - obj.masterMat(:) ,nr,nc); % minus sign!
+          vals = Discretizer.expandMat(obj.masterMat,n);
+          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
         case 'slave'
           n = obj.dofmSlave.getDoFperEnt(field);
           dofMult = dofId(1:obj.nElSlave,n);
-          dofSlave = obj.entitiyMapMaster(1:size(obj.masterMat,2));
+          dofSlave = obj.loc2globSlave(1:size(obj.slaveMat,2));
           dofSlave = obj.dofmSlave.getLocalDoF(dofSlave,field);
-          [j,i] = meshgrid(dofMult,dofSlave);
+          [j,i] = meshgrid(dofSlave,dofMult);
           nr = n*obj.nElSlave;
           nc = obj.dofmSlave.getNumDoF(field);
-          mat = sparse(i(:),j(:),obj.slaveMat(:),nr,nc);
+          vals = Discretizer.expandMat(obj.slaveMat,n);
+          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
       end
     end
 
@@ -93,7 +142,8 @@ classdef MeshGlue < Mortar
       cm = 0; % master matrix entry counter
       
       % and interpolation coordinates)
-      for is = 1:obj.nElSlave
+      for i = 1:obj.nElSlave
+        is = obj.activeSlaveCells(i);
         masterElems = find(obj.elemConnectivity(:,is));
         if isempty(masterElems)
           continue
@@ -118,12 +168,12 @@ classdef MeshGlue < Mortar
             % compute slave mortar matrix
             Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
             [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
-              Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),is,nSlave);
+              Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),i,nSlave);
 
             % compute master mortar matrix
             Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
             [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
-              Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),is,nMaster);
+              Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),i,nMaster);
 
             % sort out gauss points already ised
             dJWeighed = dJWeighed(~id);
@@ -151,7 +201,7 @@ classdef MeshGlue < Mortar
 
     function applyBCmaster(obj,bound,bc,t,state)
       physic = bound.getPhysics(bc);
-      [bcEnts,~] = getBC(obj.solver(1).getSolver(physic),bound,bc,t,state);
+      [bcEnts,~] = getBC(obj.solvers(1).getSolver(physic),bound,bc,t,state);
       i = strcmp(obj.physics,physic);
       obj.rhsMaster{i}(bcEnts) = 0;
       obj.Jmaster{i}(:,bcEnts) = 0;
@@ -159,7 +209,7 @@ classdef MeshGlue < Mortar
 
     function applyBCslave(obj,bound,bc,t,state)
       physic = bound.getPhysics(bc);
-      [bcEnts,~] = getBC(obj.solver(2).getSolver(physic),bound,bc,t,state);
+      [bcEnts,~] = getBC(obj.solvers(2).getSolver(physic),bound,bc,t,state);
       i = strcmp(obj.physics,physic);
       obj.rhsSlave{i}(bcEnts) = 0;
       obj.Jslave{i}(:,bcEnts) = 0;
@@ -167,16 +217,34 @@ classdef MeshGlue < Mortar
   end
 
   methods (Access = private)
+
+    function initializeJacobianAndRhs(obj)
+      [obj.Jmaster,obj.Jslave] = deal(cell(obj.nFld,1));
+      [obj.rhsMaster,obj.rhsSlave,obj.multipliers] = deal(cell(obj.nFld,1));
+      for i = 1:obj.nFld
+        ncomp = obj.dofmMaster.getDoFperEnt(obj.physics(i));
+        nDofMaster = getNumDoF(obj.dofmMaster,obj.physics(i));
+        nDofSlave = getNumDoF(obj.dofmSlave,obj.physics(i));
+        nDofMult = ncomp*obj.nElSlave;
+        obj.rhsMaster{i} = zeros(nDofMaster,1);
+        obj.rhsSlave{i} = zeros(nDofSlave,1);
+        obj.rhsMult{i} = zeros(nDofMult,1);
+        obj.multipliers{i} = zeros(nDofMult,1);
+        obj.iniMultipliers = obj.multipliers;
+      end
+    end
     
     function computeRhsMaster(obj,i,state)     
-      obj.rhsMaster{i} = obj.Jmaster'*obj.multipliers{i};
+      obj.rhsMaster{i} = ...
+        obj.Jmaster{i}'*(obj.multipliers{i}-obj.iniMultipliers{i});
       var = getState(obj.solvers(1).getSolver(obj.physics(i)),state);
       ents = obj.dofmMaster.getActiveEnts(obj.physics(i));
       obj.rhsMult{i} = obj.rhsMult{i} + obj.Jmaster{i}*var(ents);
     end
 
     function computeRhsSlave(obj,i,state)
-      obj.rhsSlave{i} = obj.Jslave'*obj.multipliers{i};
+      obj.rhsSlave{i} = ...
+        obj.Jslave{i}'*(obj.multipliers{i}-obj.iniMultipliers{i});
       var = getState(obj.solvers(2).getSolver(obj.physics(i)),state);
       ents = obj.dofmSlave.getActiveEnts(obj.physics(i));
       obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents);

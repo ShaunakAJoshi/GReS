@@ -13,8 +13,8 @@ classdef Mortar < handle
     rhsMult
     mshIntMaster
     mshIntSlave
-    entityMapMaster
-    entityMapSlave
+    loc2globMaster
+    loc2globSlave
     elemConnectivity
     nGP
     quadrature % integration scheme used for the interface
@@ -23,10 +23,12 @@ classdef Mortar < handle
     nNmaster
     nElSlave
     nElMaster
+    activeSlaveCells
     dofmMaster
     dofmSlave
     slaveCellType
     masterCellType
+    nFld          
   end
 
   methods
@@ -45,8 +47,8 @@ classdef Mortar < handle
       obj.nGP = inputStruct.nGP;
       getCellTypes(obj);
       getConnectivityMatrix(obj);
-      obj.entityMapMaster = find(ismember(mshMaster.surfaceTag,surfId{1}));
-      obj.entityMapSlave = find(ismember(mshSlave.surfaceTag,surfId{2}));
+      mapLocalNod2Glob(obj,'master',mshMaster,surfId{1});
+      mapLocalNod2Glob(obj,'slave',mshSlave,surfId{2});
 
       switch inputStruct.Quadrature.typeAttribute
         case 'RBF'
@@ -59,7 +61,10 @@ classdef Mortar < handle
     function getConnectivityMatrix(obj)
       cs = ContactSearching(obj.mshIntMaster,obj.mshIntSlave);
       obj.elemConnectivity = cs.elemConnectivity;
-      [obj.nElMaster, obj.nElSlave] = size(obj.elemConnectivity);
+      obj.activeSlaveCells = find(any(obj.elemConnectivity,1));
+      obj.nElSlave = numel(obj.activeSlaveCells);
+      obj.nElMaster = sum(any(obj.elemConnectivity,2)); 
+
     end
 
     function [r,c,v] = allocateMatrix(obj,side)
@@ -157,6 +162,27 @@ classdef Mortar < handle
         case 9 % Quad mesh Master
           obj.nNmaster = 4;
           obj.masterCellType = 12;
+      end
+    end
+
+
+    function mapLocalNod2Glob(obj,side,msh,surf)
+      % return array where local node numbering map to node id in the full
+      % 3D grid
+      surfGlob2loc = find(ismember(msh.surfaceTag,surf));
+      globNodes = (msh.surfaces(surfGlob2loc,:))';
+      globNodes = globNodes(:);
+      switch side
+        case 'master'
+          obj.loc2globMaster = zeros(obj.mshIntMaster.nNodes,1);
+          locNodes = (obj.mshIntMaster.surfaces)';
+          locNodes = locNodes(:);
+          obj.loc2globMaster(locNodes) = globNodes;
+        case 'slave'
+          obj.loc2globSlave = zeros(obj.mshIntSlave.nNodes,1);
+          locNodes = (obj.mshIntSlave.surfaces)';
+          locNodes = locNodes(:);
+          obj.loc2globSlave(locNodes) = globNodes;
       end
     end
   end

@@ -251,6 +251,10 @@ classdef DoFManager < handle
          fldList = obj.fieldList;
       end
 
+      function out = isField(obj,fields)
+        out = all(ismember(fields,obj.fieldList));
+      end
+
       function fldId = getFieldId(obj,flds)
          % get field id associated to input fields
          checkAvailPhysics(obj.model,flds);

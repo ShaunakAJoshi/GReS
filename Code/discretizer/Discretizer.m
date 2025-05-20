@@ -83,8 +83,6 @@ classdef Discretizer < handle
             otherwise
                error('Invalid DoF manager ordering')
          end
-         % convert cell to matrix
-         J = cell2mat(J);
       end
 
       function rhs = assembleRhs(obj)
@@ -99,7 +97,6 @@ classdef Discretizer < handle
                   getRhs(getSolver(obj,{obj.fields(i),obj.fields(j)}),obj.fields(i));
             end  
          end
-         rhs = cell2mat(rhs);
       end
 
       % function dSol = solve(obj,J,rhs)
@@ -257,6 +254,32 @@ classdef Discretizer < handle
        N = zeros(nc*nn,ng); % initialize single page
        N(ind(1:nc*nn),:) = repelem(basis',nc,1);
        Nout = reshape(N,[nc,nn*nc,ng]); % reshaped 3D matrix
+     end
+
+
+     function mat_new = expandMat(mat,n)
+       % Get the size of the original matrix
+       [s1, s2] = size(mat);
+
+       % Initialize the sparse matrix: row indices, column indices, and values
+       rows = [];
+       cols = [];
+       values = [];
+
+       % Loop through the original matrix and populate the sparse matrix
+       for s = n-1:-1:0
+         % Get the row and column indices for the block
+         r1 = n*(1:s1) - s;
+         r2 = n*(1:s2) - s;
+         [colIdx,rowIdx]  = meshgrid(r2,r1);
+         % Add the values from the original matrix to the sparse matrix
+         rows = [rows; rowIdx(:)];
+         cols = [cols; colIdx(:)];
+         values = [values; mat(:)];
+       end
+
+       % Create the sparse matrix directly from the row, column indices, and values
+       mat_new = sparse(rows, cols, values, s1 * n, s2 * n);
      end
    end
 end
