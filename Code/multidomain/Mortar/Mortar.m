@@ -24,6 +24,7 @@ classdef Mortar < handle
     nElSlave
     nElMaster
     activeSlaveCells
+    activeMasterCells
     dofmMaster
     dofmSlave
     slaveCellType
@@ -36,7 +37,13 @@ classdef Mortar < handle
     e2fMaster     % map edge to connected faces 
     e2fSlave
     f2cMaster     % map face to connected cells
-    f2cSlave
+    f2cSlave      
+    f2eMaster     % map face to connected edges
+    f2eSlave
+    mshGlobMaster % entire mesh of master domain 
+    mshGlobSlave  % entire mesh of slave domain
+    masterMat
+    slaveMat
   end
 
   methods
@@ -60,6 +67,8 @@ classdef Mortar < handle
       setupEdgeTopology(obj,'master');
       setupEdgeTopology(obj,'slave');
       obj.buildFace2CellMap(mshMaster,mshSlave);
+      obj.mshGlobMaster = mshMaster;
+      obj.mshGlobSlave = mshSlave;
       switch inputStruct.Quadrature.typeAttribute
         case 'RBF'
           obj.quadrature = RBF(obj,inputStruct.Quadrature.nIntAttribute);
@@ -72,6 +81,7 @@ classdef Mortar < handle
       cs = ContactSearching(obj.mshIntMaster,obj.mshIntSlave);
       obj.elemConnectivity = cs.elemConnectivity;
       obj.activeSlaveCells = find(any(obj.elemConnectivity,1));
+      obj.activeMasterCells = find(any(obj.elemConnectivity,2));
       obj.nElSlave = numel(obj.activeSlaveCells);
       obj.nElMaster = sum(any(obj.elemConnectivity,2)); 
     end
@@ -123,7 +133,7 @@ classdef Mortar < handle
         end
 
         if ~strcmp(bound.getType(bc),'Dir')
-          continue 
+          continue
           % only dirichlet bc has to be enforced to mortar blocks
         else
           switch side
@@ -147,7 +157,7 @@ classdef Mortar < handle
           nr = n*obj.nElSlave;
           nc = obj.dofmMaster.getNumDoF(field);
           vals = Discretizer.expandMat(obj.masterMat,n);
-          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
+          mat = sparse(i(:),j(:),- vals(:),nr,nc); % minus sign!
         case 'slave'
           n = obj.dofmSlave.getDoFperEnt(field);
           dofMult = dofId(1:obj.nElSlave,n);
@@ -157,79 +167,165 @@ classdef Mortar < handle
           nr = n*obj.nElSlave;
           nc = obj.dofmSlave.getNumDoF(field);
           vals = Discretizer.expandMat(obj.slaveMat,n);
-          mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
+          mat = sparse(i(:),j(:),vals(:),nr,nc); 
       end
     end
 
-    function computeStabilizationMatrix(obj,fld)
+    function computeMortarMatrices(obj)
+      elemSlave = getElem(obj,'slave');
+      [imVec,jmVec,MVec] = allocateMatrix(obj,'master');
+      [idVec,jdVec,DVec] = allocateMatrix(obj,'slave');
+      % Ns: basis function matrix on slave side
+      % Nm: basis function matrix on master side
+      % Nmult: basis function matrix for multipliers
+      cs = 0; % slave matrix entry counter
+      cm = 0; % master matrix entry counter
+
+      for i = 1:obj.nElSlave
+        is = obj.activeSlaveCells(i);
+        masterElems = find(obj.elemConnectivity(:,is));
+        if isempty(masterElems)
+          continue
+        end
+        %Compute Slave quantities
+        dJWeighed = elemSlave.getDerBasisFAndDet(is,3);
+        posGP = getGPointsLocation(elemSlave,is);
+        nSlave = obj.mshIntSlave.surfaces(is,:);
+        Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
+        for im = masterElems'
+          nMaster = obj.mshIntMaster.surfaces(im,:);
+          [Nm,id] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
+          if any(id)
+            % get basis function matrices
+            Nm = Nm(id,:);
+            Ns = Nslave(id,:);
+            Nmult = ones(size(Ns,1),1);
+            Nm = Discretizer.reshapeBasisF(Nm,1);
+            Ns = Discretizer.reshapeBasisF(Ns,1);
+            Nmult = Discretizer.reshapeBasisF(Nmult,1);
+
+            % compute slave mortar matrix
+            Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
+            [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
+              Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),i,nSlave);
+
+            % compute master mortar matrix
+            Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
+            [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
+              Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),i,nMaster);
+
+            % sort out gauss points already ised
+            dJWeighed = dJWeighed(~id);
+            posGP = posGP(~id,:);
+            Nslave = Nslave(~id,:);
+          else
+            % pair of elements does not share support. update connectivity
+            % matrix
+            obj.elemConnectivity(im,is) = 0;
+          end
+        end
+        if ~all(id)
+          % track element not fully projected
+          fprintf('GP not sorted for slave elem numb %i \n',is);
+          c_ns = c_ns + 1;
+        end
+      end
+
+      % cut vectors for sparse matrix assembly
+      imVec = imVec(1:cm); jmVec = jmVec(1:cm); MVec = MVec(1:cm);
+      idVec = idVec(1:cs); jdVec = jdVec(1:cs); DVec = DVec(1:cs);
+
+      % assemble mortar matrices in sparse format
+      obj.masterMat = sparse(imVec,jmVec,MVec,...
+        obj.nElSlave,obj.mshIntMaster.nNodes);
+      obj.slaveMat = sparse(idVec,jdVec,DVec,...
+        obj.nElSlave,obj.mshIntSlave.nNodes);
+    end
+
+    function stabMat = computeStabilizationMatrix(obj,fld)
 
       % get number of components of input field
       nc = obj.dofmMaster.getDoFperEnt(fld);
 
-      % initialize matrix
-      H = zeros(nc*obj.nElSlave);
-      
+      % initialize matrix estimating number of entries
+      % number of internal slave elements
+      nes = sum(all(obj.e2fSlave,2));
+      nEntries = 2*nc*nes; % each cell should contribute at least two times
+      [id1,id2,vals] = deal(zeros(nEntries,1));
+
+      c = 0;
+
       % get list of internal master edges
       inEdgeMaster = find(all(obj.e2fMaster,2));
 
-      for ie = inEdgeMaster'
-        % get edges sharing node n
-        edgeID = any(ismember(obj.masterTopol,n),2);
-        if sum(edgeID)<2 
-          % boundary node
-          continue
-        else
-          eM = find(edgeID); % master cell ID in contact
-          % get slave elements in contact
-          eS = unique([find(obj.elemConnectivity(eM(1),:)),find(obj.elemConnectivity(eM(2),:))]);
-          % node list for these edges
-          nSfull = obj.slaveTopol(eS,:);
-          [nSglob, ~, ~] = unique(nSfull(:));
-          counts = histc(nSfull(:), nSglob);
-          % Elements that appear at least two times
-          nSglob = nSglob(counts >= 2);
-          nSdof = DofMap.getCompDoF(nSglob);
-          nS = ismember(obj.nodesSlave,nSglob); % local numbering of slave nodes
-          nMfull = obj.masterTopol(eM,:);
-          [nMglob, ~, ~] = unique(nMfull(:));
-          counts = histc(nMfull(:), nMglob);
-          % Elements that appear at least two times
-          nMglob = nMglob(counts >= 2);
-          nMdof = DofMap.getCompDoF(nMglob);
-          nM = ismember(obj.nodesMaster,nMglob); % local numbering of slave nodes
-          Km = Kmaster(nMdof,nMdof);
-          Ks = Kslave(nSdof,nSdof);
-          Dloc = D(eS,nS);
-          Mloc = M(eS,nM);
-          V = [Dloc'; -Mloc'];
-          %Vtilde = zeros(size(V));
-          % % swapping columns to get orthogonal matrix
-          % Vtilde(:,1:2:end) = -V(:,2:2:end);
-          % Vtilde(:,2:2:end) = V(:,1:2:end);
-          V = expandMat(V,2);
-          Kloc = diag([1./diag(Ks);1./diag(Km)]);
-          Hloc = V'*(Kloc*V);
-          Hlump = diag(Hloc);
-          lM1 = getLength(obj,eM(1),'master');
-          lM2 = getLength(obj,eM(2),'master');
-          lM = 0.5*(lM1+lM2);
-          % assemble stabilization matrix
-          for nsLoc = nSglob'
-            esLoc = find(any(ismember(obj.slaveTopol(eS,:),nsLoc),2));
-            K1 = diag(Hlump([2*esLoc(1)-1 2*esLoc(1)]));
-            K2 = diag(Hlump([2*esLoc(2)-1 2*esLoc(2)]));
-            K = 0.5*(K1+K2);
-            dof1 = [2*esLoc(1)-1 2*esLoc(1)];
-            dof2 = [2*esLoc(2)-1 2*esLoc(2)];
-            Knew = 0.5*(Hloc(dof1,dof1)+Hloc(dof2,dof2));
-            dof = DofMap.getCompDoF(eS(esLoc));
-            lS1 = getLength(obj,eS(esLoc(1)),'slave');
-            lS2 = getLength(obj,eS(esLoc(2)),'slave');
-            lS = 0.5*(lS1+lS2);
-            H(dof,dof) = H(dof,dof) + [K -K;-K K];
-          end
+      for ieM = inEdgeMaster'
+        % get master faces sharing internal edge ie
+        fM = obj.e2fMaster(ieM,:);
+        assert(numel(fM)==2,['Unexpected number of connected faces for' ...
+          'master edge %i. Expected 2.'], ieM);
+
+        % get slave faces sharing support with master faces
+        fS = unique([find(obj.elemConnectivity(fM(1),:)),...
+          find(obj.elemConnectivity(fM(2),:))]);
+
+        % get internal edges of slave faces
+        eS = unique(obj.f2eSlave(fS,:));
+        id = all(ismember(obj.e2fSlave(eS,:),fS),2);
+        ieS = eS(id);
+
+        % get active macroelement nodes
+        nM = obj.e2nMaster(ieM,:);
+        nS = unique(obj.e2nSlave(eS,:));
+
+        % compute local schur complement approximation
+        S = computeSchurLocal(obj,nM,nS,fS,fld);
+
+        % assemble stabilization matrix component
+        for iesLoc = ieS'
+           f = obj.e2fSlave(iesLoc,:);
+           fL = find(fS==f(1)); fR = find(fS==f(2));
+           Sdiag = diag(S);
+           K = 0.5*(Sdiag(dofId(fL,nc))+Sdiag(dofId(fR,nc)));
+           id1(c+1:c+nc) = dofId(f(1),nc);
+           id2(c+1:c+nc) = dofId(f(2),nc);
+           vals(c+1:c+nc) = K;
+           c = c+nc;
         end
       end
+      
+      id1 = id1(1:c); id2 = id2(1:c); vals = vals(1:c);
+      % assemble sparse matrix
+      nmult = nc*obj.nElSlave;
+      stabMat = sparse(id1,id1,vals,nmult,nmult)+...
+        sparse(id1,id2,-vals,nmult,nmult)+...
+        sparse(id2,id2,vals,nmult,nmult);
+      stabMat = stabMat + stabMat' - diag(diag(stabMat));
+    end
+
+    function S = computeSchurLocal(obj,nm,ns,fs,fld)
+      % compute approximate schur complement for local nonconforming
+      % patch of element
+      % input: nm/ns local master/slave node indices
+      % fs: local slave faces indices
+      
+      nc = obj.dofmMaster.getDoFperEnt(fld);
+
+      % get local mortar matrices
+      Dloc = obj.slaveMat(fs,ns);
+      Mloc = obj.masterMat(fs,nm);
+      V = [Dloc, -Mloc];              % minus sign!
+      V = Discretizer.expandMat(V,nc);
+
+      % get slave and master dof to access jacobian
+      dofS = obj.dofmSlave.getLocalDoF(obj.loc2globSlave(ns),fld);
+      dofM = obj.dofmMaster.getLocalDoF(obj.loc2globMaster(nm),fld);
+
+      % get local jacobian
+      Km = getSolver(obj.solvers(1),fld).J(dofM,dofM);
+      Ks = getSolver(obj.solvers(2),fld).J(dofS,dofS);
+      Kloc = diag([1./diag(Ks);1./diag(Km)]);
+
+      S = V*(Kloc*V');  % compute Schur complement
     end
 
     function sideStr = getSide(obj,idDomain)
@@ -245,7 +341,6 @@ classdef Mortar < handle
         error('Input domain not belonging to the interface');
       end
     end
-
   end
 
   methods (Access = private)
@@ -253,45 +348,66 @@ classdef Mortar < handle
     function setupEdgeTopology(obj,side)
       % reorder surface topology
       % inspired by face topology for FV in MRST
+
       switch side
         case 'master'
           msh = obj.mshIntMaster;
         case 'slave'
           msh = obj.mshIntSlave;
       end
-      bot = msh.surfaces(:, [1, 2]);
-      top = msh.surfaces(:, [3, 4]);
-      lft = msh.surfaces(:, [4, 1]);
-      rgt = msh.surfaces(:, [2, 3]);
-      % unique matrix containing all existing edges (with repetitions)
-      edgeMat = [bot;top;lft;rgt];
-      %
-      [edgeMat,i] = sort(edgeMat,2);
-      i = i(:,1);
-      %
-      % id is [cellnumber, half-face tag]
-      id       = [(1:msh.nSurfaces)', repmat(1, [msh.nSurfaces, 1]);...
-        (1:msh.nSurfaces)', repmat(2, [msh.nSurfaces, 1]);...
-        (1:msh.nSurfaces)', repmat(3, [msh.nSurfaces, 1]);...
-        (1:msh.nSurfaces)', repmat(4, [msh.nSurfaces, 1])]; %#ok<REPMAT>
-      % Sort rows to find pairs of cells sharing a face
+
+      % Extract edges from each face (assuming quads)
+      bot = msh.surfaces(:, [1, 2]);  % bottom edge
+      top = msh.surfaces(:, [3, 4]);  % top edge
+      lft = msh.surfaces(:, [4, 1]);  % left edge
+      rgt = msh.surfaces(:, [2, 3]);  % right edge
+
+      % Stack all edges (with duplicates)
+      edgeMat = [bot; top; lft; rgt];
+
+      % Sort nodes within each edge to ensure consistency (edge = {min,max})
+      [edgeMat, i] = sort(edgeMat, 2);  % sort each row
+      i = i(:,1);  % keep first index (for left/right choice later)
+
+      % Build [faceID, localEdgeIndex] for each edge occurrence
+      nF = msh.nSurfaces;
+      id = [ (1:nF)', repmat(1, nF, 1);    % bottom
+        (1:nF)', repmat(2, nF, 1);    % top
+        (1:nF)', repmat(3, nF, 1);    % left
+        (1:nF)', repmat(4, nF, 1) ];  % right
+
+      % Sort rows of edgeMat to group identical edges
       [edgeMat, j] = sortrows(edgeMat);
 
-      % encode edge matrix
-      [e2n,n] = obj.rle(edgeMat);
+      % Run-length encode to find unique edges
+      [e2n, n] = obj.rle(edgeMat);
       nEdges = numel(n);
-      N = repelem(1:nEdges,n);
+
+      % For each occurrence, get the corresponding edge index
+      N = repelem(1:nEdges, n);  % same size as edgeMat
+
+      % Build face-to-edge mapping: each face maps to 4 edge indices
+      edgeIDs = zeros(size(edgeMat, 1), 1);
+      edgeIDs(j) = N;  % reorder to match original edge order
+
+      % Now reshape edgeIDs into f2e: one row per face, 4 edges per face
+      f2e = reshape(edgeIDs, [nF, 4]);  % columns: [bot, top, left, right]
+
+      % Assign fields depending on side
       switch side
         case 'master'
-          obj.e2fMaster = accumarray([N',i(j)],id(j,1),[nEdges,2]);
+          obj.e2fMaster = accumarray([N', i(j)], id(j,1), [nEdges, 2]);
           obj.e2nMaster = e2n;
           obj.nEdgesMaster = nEdges;
+          obj.f2eMaster = f2e;
         case 'slave'
-          obj.e2fSlave = accumarray([N',i(j)],id(j,1),[nEdges,2]);
+          obj.e2fSlave = accumarray([N', i(j)], id(j,1), [nEdges, 2]);
           obj.e2nSlave = e2n;
           obj.nEdgesSlave = nEdges;
+          obj.f2eSlave = f2e;
       end
     end
+
     %
     function getCellTypes(obj)
       switch obj.mshIntSlave.surfaceVTKType(1)
@@ -365,6 +481,7 @@ classdef Mortar < handle
 
   methods (Static)
     function [interfaceStruct,modelStruct] = buildInterfaceStruct(fileName,modelStruct)
+
       % read interface file and construct array of MeshGlue objects
       interfStr = readstruct(fileName);
       interfStr = interfStr.Interface;
