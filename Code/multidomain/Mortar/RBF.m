@@ -26,7 +26,7 @@ classdef RBF < handle
       tol = 1e-4;
       ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
       [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
-      Nm = (fiNM*obj.wF(:,repNum(obj.mortar.nNmaster,idMaster)))./(fiNM*obj.w1(:,idMaster));
+      Nm = (fiNM*obj.wF(:,repNum(obj.mortar.mesh.nN(1),idMaster)))./(fiNM*obj.w1(:,idMaster));
       Nsupp = Nm(:,[1 2 3]);
       % automatically detect supports computing interpolant
       id = all([Nsupp >= 0-tol id1],2);
@@ -36,20 +36,20 @@ classdef RBF < handle
   methods (Access = private)
     %
     function getWeights(obj)
-      switch obj.mortar.masterCellType
+      switch obj.mortar.mesh.cellType(1)
         case 10
           numPts = sum(1:obj.nInt);
         case 12
           numPts = (obj.nInt)^2;
       end
-      weighF = zeros(numPts,obj.mortar.nElMaster*obj.mortar.nNmaster);
-      weigh1 = zeros(numPts,obj.mortar.nElMaster);
-      pts = zeros(numPts,obj.mortar.nElMaster*3);
-      for i = 1:obj.mortar.nElMaster
+      weighF = zeros(numPts,obj.mortar.mesh.nEl(1)*obj.mortar.mesh.nN(1));
+      weigh1 = zeros(numPts,obj.mortar.mesh.nEl(1));
+      pts = zeros(numPts,obj.mortar.mesh.nEl(1)*3);
+      for i = 1:obj.mortar.mesh.nEl(1)
         [f, ptsInt] = computeMortarBasisF(obj,i);
         fiMM = obj.computeRBFfiMM(ptsInt);
         % solve local system to get weight of interpolant
-        weighF(:,repNum(obj.mortar.nNmaster,i)) = fiMM\f;
+        weighF(:,repNum(obj.mortar.mesh.nN(1),i)) = fiMM\f;
         weigh1(:,i) = fiMM\ones(size(ptsInt,1),1);
         pts(:,repNum(3,i)) = ptsInt;
       end
@@ -77,9 +77,9 @@ classdef RBF < handle
     function [bf,pos] = computeMortarBasisF(obj,id)
       % evaluate shape function in the real space and return position of
       % integration points in the real space
-      surfNodes = obj.mortar.mshIntMaster.surfaces(id,:);
-      coord = obj.mortar.mshIntMaster.coordinates(surfNodes,:);
-      elem = obj.mortar.getElem('master');
+      surfNodes = obj.mortar.mesh.msh(1).surfaces(id,:);
+      coord = obj.mortar.mesh.msh(1).coordinates(surfNodes,:);
+      elem = obj.mortar.getElem(1);
       % place interpolation points in a regular grid
       intPts = getInterpolationPoints(obj);
       bf = computeBasisF(elem,intPts);
@@ -88,7 +88,7 @@ classdef RBF < handle
     end
 
     function intPts = getInterpolationPoints(obj)
-      switch obj.mortar.masterCellType
+      switch obj.mortar.mesh.cellType(1)
         case 10
           % uniform grid in triangle
           intPts = zeros(sum(1:obj.nInt),2);
