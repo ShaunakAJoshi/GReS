@@ -2,6 +2,9 @@ classdef Mortar < handle
   % This class implement some basic operation for mortar interpolation
   
   properties
+    name        % identifier for the interface
+    printFlag
+    outStruct
     solvers
     idMaster
     idSlave
@@ -51,6 +54,8 @@ classdef Mortar < handle
       obj.solvers = [domains(1).Discretizer,domains(2).Discretizer];
       obj.idMaster = inputStruct.Master.idAttribute;
       obj.idSlave = inputStruct.Slave.idAttribute;
+      obj.name = inputStruct.Name;
+      obj.printFlag = inputStruct.Print;
       surfId = {inputStruct.Master.surfaceTagAttribute;
         inputStruct.Slave.surfaceTagAttribute};
       mshMaster = domains(1).Grid.topology;
