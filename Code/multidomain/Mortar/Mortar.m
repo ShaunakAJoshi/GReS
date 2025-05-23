@@ -152,8 +152,7 @@ classdef Mortar < handle
         end
         if ~all(id)
           % track element not fully projected
-          fprintf('GP not sorted for slave elem numb %i \n',is);
-          c_ns = c_ns + 1;
+          fprintf('%i GP not sorted for slave elem numb %i \n',sum(id),is);
         end
       end
 
@@ -194,6 +193,10 @@ classdef Mortar < handle
         fS = unique([find(obj.mesh.elemConnectivity(fM(1),:)),...
           find(obj.mesh.elemConnectivity(fM(2),:))]);
 
+        if numel(fS) < 3
+          continue
+        end
+
         % get internal edges of slave faces
         eS = unique(obj.mesh.f2e{2}(fS,:));
         id = all(ismember(obj.mesh.e2f{2}(eS,:),fS),2);
@@ -204,7 +207,7 @@ classdef Mortar < handle
         nS = unique(obj.mesh.e2n{2}(eS,:));
 
         % compute local schur complement approximation
-        S = computeSchurLocal(obj,nM,nS,fS,fld);
+        S = 1.0*computeSchurLocal(obj,nM,nS,fS,fld);
 
         % assemble stabilization matrix component
         for iesLoc = ieS'

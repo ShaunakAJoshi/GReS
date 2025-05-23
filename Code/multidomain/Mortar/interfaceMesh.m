@@ -46,51 +46,73 @@ classdef interfaceMesh < handle
   end
 
 
-    methods (Access = private)
+  methods (Access = private)
 
-    function setupEdgeTopology(obj,sideID)
-      % reorder surface topology
+    function setupEdgeTopology(obj, sideID)
+      % Extended to handle both triangular and quadrilateral faces
       % inspired by face topology for FV in MRST
 
       mesh = obj.msh(sideID);
-
-      % Extract edges from each face (assuming quads)
-      bot = mesh.surfaces(:, [1, 2]);  % bottom edge
-      top = mesh.surfaces(:, [3, 4]);  % top edge
-      lft = mesh.surfaces(:, [4, 1]);  % left edge
-      rgt = mesh.surfaces(:, [2, 3]);  % right edge
-
-      % Stack all edges (with duplicates)
-      edgeMat = [bot; top; lft; rgt];
-
-      % Sort nodes within each edge to ensure consistency (edge = {min,max})
-      [edgeMat, i] = sort(edgeMat, 2);  % sort each row
-      i = i(:,1);  % keep first index (for left/right choice later)
-
-      % Build [faceID, localEdgeIndex] for each edge occurrence
+      faces = mesh.surfaces;
       nF = mesh.nSurfaces;
-      id = [ (1:nF)', repmat(1, nF, 1);    % bottom
-        (1:nF)', repmat(2, nF, 1);    % top
-        (1:nF)', repmat(3, nF, 1);    % left
-        (1:nF)', repmat(4, nF, 1) ];  % right
 
-      % Sort rows of edgeMat to group identical edges
+
+      switch obj.cellType(sideID)
+        case 10
+          % Triangular elements: edges are [1,2], [2,3], [3,1]
+          e1 = faces(:, [1, 2]);  % edge 1
+          e2 = faces(:, [2, 3]);  % edge 2
+          e3 = faces(:, [3, 1]);  % edge 3
+
+          edgeMat = [e1; e2; e3];
+
+          % Edge local indices
+          id = [ (1:nF)', repmat(1, nF, 1);    % edge 1
+            (1:nF)', repmat(2, nF, 1);    % edge 2
+            (1:nF)', repmat(3, nF, 1) ];  % edge 3
+
+          nEdgesPerFace = 3;
+
+        case 12
+          % Quadrilateral elements: edges are [1,2], [2,3], [3,4], [4,1]
+          bot = faces(:, [1, 2]);  % bottom edge
+          rgt = faces(:, [2, 3]);  % right edge
+          top = faces(:, [3, 4]);  % top edge
+          lft = faces(:, [4, 1]);  % left edge
+
+          edgeMat = [bot; rgt; top; lft];
+
+          id = [ (1:nF)', repmat(1, nF, 1);    % bottom
+            (1:nF)', repmat(2, nF, 1);    % right
+            (1:nF)', repmat(3, nF, 1);    % top
+            (1:nF)', repmat(4, nF, 1) ];  % left
+
+          nEdgesPerFace = 4;
+
+        otherwise
+          error('Unsupported element type: each face must have 3 or 4 vertices.');
+      end
+
+      % Sort nodes in each edge (edge = {min,max})
+      [edgeMat, i] = sort(edgeMat, 2);
+      i = i(:,1);
+
+      % Sort edgeMat rows to group duplicates
       [edgeMat, j] = sortrows(edgeMat);
 
-      % Run-length encode to find unique edges
+      % Run-length encode to get unique edges and their multiplicity
       [obj.e2n{sideID}, n] = rle(edgeMat);
       obj.nEdges(sideID) = numel(n);
 
-      % For each occurrence, get the corresponding edge index
+      % Map each occurrence back to edge index
       N = repelem(1:obj.nEdges(sideID), n);  % same size as edgeMat
-
-      % Build face-to-edge mapping: each face maps to 4 edge indices
       edgeIDs = zeros(size(edgeMat, 1), 1);
-      edgeIDs(j) = N;  % reorder to match original edge order
+      edgeIDs(j) = N;
 
-      % Now reshape edgeIDs into f2e: one row per face, 4 edges per face
-      obj.f2e{sideID} = reshape(edgeIDs, [nF, 4]);  % columns: [bot, top, left, right]
-      
+      % Reshape to f2e mapping: nF rows, 3 or 4 edges per face
+      obj.f2e{sideID} = reshape(edgeIDs, [nF, nEdgesPerFace]);
+
+      % Build e2f mapping (each edge can be shared by up to 2 faces)
       obj.e2f{sideID} = accumarray([N', i(j)], id(j,1), [obj.nEdges(sideID), 2]);
     end
 
@@ -121,21 +143,53 @@ classdef interfaceMesh < handle
       obj.local2glob{side}(locNodes) = globNodes;
     end
 
-    function buildFace2CellMap(obj,meshBg)
-      % for now, this method only work for hexahedral meshes
+    function buildFace2CellMap(obj, meshBg)
+
       for i = [1 2]
-      top = obj.local2glob{i}(obj.msh(i).surfaces);
-      % get cell ID containing a face
-      obj.f2c{i} = zeros(obj.nEl(i),1);
-      listCell = (1:meshBg(i).nCells)';
-      for e = 1:obj.nEl(i)
-        idMat = ismember(meshBg(i).cells(listCell,:),top(e,:));
-        idMat = sum(idMat,2);
-        id = find(idMat==4);
-        assert(isscalar(id),'Invalid connectivity between face and cells');
-        obj.f2c{i}(e) = listCell(id);
-        listCell(id) = [];
-      end
+        top = obj.local2glob{i}(obj.msh(i).surfaces);  % global face node IDs
+        nFaces = obj.nEl(i);
+        nFaceNodes = size(top, 2);
+
+        % Initialize face-to-cell mapping
+        obj.f2c{i} = zeros(nFaces, 1);
+
+        % Build node-to-cell adjacency list
+        allCells = meshBg(i).cells;  % size: [nCells, nodesPerCell]
+        nCells = size(allCells, 1);
+        maxNodeID = max(allCells(:));
+
+        node2cells = cell(maxNodeID, 1);  % preallocate
+        for c = 1:nCells
+          for v = allCells(c, :)
+            node2cells{v} = [node2cells{v}, c];
+          end
+        end
+
+        % For each face, find the unique cell that contains all its nodes
+        for e = 1:nFaces
+          faceNodes = top(e, :);
+
+          % Get candidate cells as the intersection of node2cell lists
+          candidates = node2cells{faceNodes(1)};
+          for k = 2:nFaceNodes
+            candidates = intersect(candidates, node2cells{faceNodes(k)});
+            if isempty(candidates)
+              break;
+            end
+          end
+
+          % Among candidates, find the one that contains all the face nodes
+          hasCellNeigh = false;
+          for id = candidates
+            if all(ismember(faceNodes, allCells(id, :)))
+              obj.f2c{i}(e) = id;
+              hasCellNeigh = true;
+              break;
+            end
+          end
+
+          assert(hasCellNeigh, 'Invalid connectivity: face does not belong to any cell.');
+        end
       end
     end
   end
