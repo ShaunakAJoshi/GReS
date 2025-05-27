@@ -24,7 +24,7 @@ classdef OutState < handle
             model (1,1) ModelType
             mesh (1,1) Mesh
             fileName (1,1) string
-            options.flagMatFile logical = true
+            options.flagMatFile logical = false
             options.folderName string = "vtkOutput"
          end
          % deal variable input
@@ -45,8 +45,9 @@ classdef OutState < handle
          pointData3D = [];
          if nargin == 3
             time = stateOld.t;
-            % print result to mat-file (to be updated in future version of
-            % the code)
+
+            % print result to mat-file 
+            % this is not modular and will be updated in future version of the code
             if obj.writeSolution
                obj.results.expTime(obj.timeID,1) = time;
                if isPoromechanics(obj.model)

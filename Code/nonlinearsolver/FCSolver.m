@@ -96,7 +96,7 @@ classdef FCSolver < handle
 
             rhs = assembleRhs(obj.linSyst);
             % compute Rhs norm
-            rhsNorm = norm(rhs,2);
+            rhsNorm = norm(cell2mat(rhs),2);
 
             if obj.simParameters.verbosity > 1
                fprintf('%d     %e\n',obj.iter,rhsNorm);
@@ -198,7 +198,7 @@ classdef FCSolver < handle
     function sol = solve(J,rhs)
       J = FCSolver.cell2matJac(J);
       rhs = cell2mat(rhs);
-      sol = J\-rhs;
+      sol = J\(-rhs);
     end
 
     function mat = cell2matJac(mat)

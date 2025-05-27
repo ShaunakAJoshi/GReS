@@ -19,16 +19,22 @@ classdef MultidomainFCSolver < handle
     nfldDom
   end
 
+
   properties (Access = public)
     state
     domains
     interfaces
+    nDof
+    results
   end
+
 
   methods (Access = public)
     function obj = MultidomainFCSolver(simParam,models,interfaces)
       obj.setNonLinearSolver(simParam,models,interfaces);
     end
+
+
 
     function NonLinearLoop(obj)
 
@@ -38,7 +44,7 @@ classdef MultidomainFCSolver < handle
 
       %
       flConv = true; %convergence flag
-      %
+
 
       % Loop over time
       while obj.t < obj.simParameters.tMax
@@ -57,43 +63,10 @@ classdef MultidomainFCSolver < handle
           fprintf('Iter     ||rhs||\n');
         end
 
-        for i = 1:obj.nDom
-
-          discretizer = obj.domains(i).Discretizer;
-          bc = obj.domains(i).BoundaryConditions;
-
-          % Check if boundary conditions are defined for the i-th domain
-          if ~isempty(obj.domains(i).BoundaryConditions)
-            % Apply Dirichlet boundary values to i-th domain
-            obj.state(i).curr = applyDirVal(...
-              discretizer, bc, obj.t, obj.state(i).curr);
-          end
-
-          % Compute matrices and residuals for individual models of
-          % the i-th domain
-          obj.state(i).curr = computeMatricesAndRhs(...
-            discretizer, obj.state(i).curr, obj.state(i).prev, obj.dt);
-
-          % Compute domain coupling matrices and rhs
-          for j = discretizer.interfaceList
-            computeMat(obj.interfaces{j},i);
-            computeRhs(obj.interfaces{j},i,obj.state(i).curr);
-          end
-
-          % Apply BCs to the blocks of the linear system
-          applyBC(discretizer, bc, obj.t, obj.state(i).curr);
-
-          % Apply BC to coupling matrices
-          for j = discretizer.interfaceList
-            applyBC(obj.interfaces{j},i,bc,obj.t, obj.state(i).curr);
-          end
-
-        end
-
-        % Assemble multidomain solution system
+        applyDirVal(obj);
+        computeMatricesAndRhs(obj);
+        applyBC(obj);
         rhs = assembleRhs(obj);
-
-        % compute Rhs norm
         rhsNorm = norm(cell2mat(rhs),2);
 
         tolWeigh = obj.simParameters.relTol*rhsNorm;
@@ -105,35 +78,22 @@ classdef MultidomainFCSolver < handle
 
         while ((rhsNorm > tolWeigh) && (obj.iter < obj.simParameters.itMaxNR) ...
             && (rhsNorm > absTol)) || obj.iter == 0
+
           obj.iter = obj.iter + 1;
-          %
+
           J = assembleJacobian(obj);
 
-          du = FCSolver.solve(J,rhs);
-          % update solution vector for each model
-          obj.updateStateMD(du);
-          for i = 1:obj.nDom
-            obj.domains(i).Discretizer.resetJacobianAndRhs();
-            % Update tmpState
-            computeNLMatricesAndRhs(obj.domains(i).Discretizer,...
-              obj.state(i).curr,obj.state(i).prev,obj.dt);
-            % compute block Jacobian and block Rhs
-            obj.domains(i).Discretizer.computeBlockJacobianAndRhs(delta_t);
-          end
+          du = solve(obj,J,rhs);
+
+          % update primary variables and multipliers
+          updateState(obj,du);
+
+          computeMatricesAndRhs(obj);
+          applyBC(obj);
+          rhs = assembleRhs(obj);
+          rhsNorm = norm(cell2mat(rhs),2);
 
 
-          % Get unique multidomain solution system
-          [J,rhs] = obj.meshGlue.getMDlinSyst();
-
-          % Apply BCs to global linear system
-          for i = 1:obj.nDom
-            if ~isempty(obj.domains(i).BoundaryConditions)
-              [J,rhs] = applyBCAndForces_MD(i, obj.meshGlue, obj.t, obj.state(i).curr, J, rhs);
-            end
-          end
-
-          % compute Rhs norm
-          rhsNorm = norm(rhs,2);
           if obj.simParameters.verbosity > 1
             fprintf('%d     %e\n',obj.iter,rhsNorm);
           end
@@ -141,35 +101,39 @@ classdef MultidomainFCSolver < handle
         %
         % Check for convergence
         flConv = (rhsNorm < tolWeigh || rhsNorm < absTol);
+
         if flConv % Convergence
+          % Advance state of non linear models
           for i = 1:obj.nDom
             obj.state(i).curr.t = obj.t;
-            % Print the solution, if needed
             if isPoromechanics(obj.domains(i).ModelType)
-              obj.state(i).curr.advanceState();
-            end
-            if isVariabSatFlow(obj.domains(i).ModelType)
-              obj.state(i).curr.updateSaturation()
+              obj.state(i).curr = Poromechanics.advanceState(obj.state(i).curr);
             end
           end
-          if obj.t > obj.simParameters.tMax   % For Steady State
-            for i = 1:obj.nDom
-              printState(obj.domains(i).OutState,obj.state(i).curr);
-            end
-          else
-            for i = 1:obj.nDom
-              printState(obj.domains(i).OutState,obj.state(i).prev,obj.state(i).curr);
-            end
-          end
-        end
 
+          printState(obj);
+        end
         %
+        updateResults(obj);
         % Manage next time step
         delta_t = manageNextTimeStep(obj,delta_t,flConv);
       end
       %
     end
+
+    function finalizeOutput(obj)
+      % finalize print utils for domains and interfaces
+      for i =1:obj.nDom
+        obj.domains(i).OutState.finalize();
+      end
+
+      for i = 1:obj.nInterf
+        obj.interfaces{i}.finalizeOutput();
+      end
+    end
   end
+
+
 
   methods (Access = private)
     function setNonLinearSolver(obj,simParam,dom,interf)
@@ -186,6 +150,15 @@ classdef MultidomainFCSolver < handle
       end
       getSystemSize(obj);
       getNumField(obj);
+      setDoFcounter(obj);
+    end
+
+    function updateResults(obj)
+      id = getSymSurf(obj.interfaces{1});
+      mult = obj.interfaces{1}.multipliers(1).curr;
+      mult = reshape(mult,3,[]);
+      obj.results = [obj.results;...
+        struct('sn',mult(1,id)','t_norm',sqrt(mult(2,id).^2+mult(3,id).^2))];
     end
 
     function [t, dt] = updateTime(obj,conv,dt)
@@ -209,6 +182,21 @@ classdef MultidomainFCSolver < handle
       dt = t - obj.t;
     end
 
+
+
+    function sol = solve(obj,J,rhs)
+
+      % solve unstabilized system
+      J = FCSolver.cell2matJac(J);
+      rhs = cell2mat(rhs);
+      sol = J\(-rhs);
+      %       clear Jmat
+      %       Jstab =
+
+    end
+
+
+
     function out = computeRhsNorm(obj)
       %Return maximum norm of the entire domain
       rhsNorm = zeros(obj.nDom,1);
@@ -227,9 +215,7 @@ classdef MultidomainFCSolver < handle
 
     function [dt] = manageNextTimeStep(obj,dt,flConv)
       if ~flConv   % Perform backstep
-        for i = 1:obj.nDom
-          transferState(obj.state(i).curr,obj.state(i).prev);
-        end
+        goBackState(obj);
         obj.t = obj.t - obj.dt;
         obj.tStep = obj.tStep - 1;
         dt = dt/obj.simParameters.divFac;
@@ -246,9 +232,9 @@ classdef MultidomainFCSolver < handle
       end
       if flConv % Go on if converged
         tmpVec = obj.simParameters.multFac;
-        for i =1:obj.nDom
+        for i = 1:obj.nDom
           if isFlow(obj.domains(i).ModelType)
-            dpMax = max(abs(obj.state(i).curr.pressure - obj.state(i).prev.pressure));
+            dpMax = max(abs(obj.stateTmp.pressure - obj.statek.pressure));
             tmpVec = [tmpVec, (1+obj.simParameters.relaxFac)* ...
               obj.simParameters.pTarget/(dpMax + obj.simParameters.relaxFac* ...
               obj.simParameters.pTarget)];
@@ -256,9 +242,7 @@ classdef MultidomainFCSolver < handle
         end
         obj.dt = min([obj.dt * min(tmpVec),obj.simParameters.dtMax]);
         obj.dt = max([obj.dt obj.simParameters.dtMin]);
-        for i = 1:obj.nDom
-          transferState(obj.state(i).curr,obj.state(i).prev);
-        end
+        goOnState(obj);
         %
         if ((obj.t + obj.dt) > obj.simParameters.tMax)
           obj.dt = obj.simParameters.tMax - obj.t;
@@ -266,12 +250,16 @@ classdef MultidomainFCSolver < handle
       end
     end
 
+
+
     function getSystemSize(obj)
       % assemble blocks of jacobian matrix for multidomain system
       N = 0;
+      Ndof = 0;
       for i = 1:obj.nDom
         nf = numel(obj.domains(i).DoFManager.getFieldList());
         N = N + nf;
+        Ndof(1) = Ndof(1) + obj.domains(i).DoFManager.totDoF;
       end
       Nfld = N;
       for i = 1:obj.nInterf
@@ -279,7 +267,10 @@ classdef MultidomainFCSolver < handle
       end
       Ninterf = N - Nfld;
       obj.systSize = [N,Nfld,Ninterf];
+      obj.nDof = Ndof; % number of primary variable dofs
     end
+
+
 
     function getNumField(obj)
       for i = 1:obj.nDom
@@ -288,8 +279,22 @@ classdef MultidomainFCSolver < handle
       for i =1:obj.nInterf
         obj.nfldInt(i) = obj.interfaces{i}.nFld;
       end
-
     end
+
+
+
+    function setDoFcounter(obj)
+      N = zeros(obj.nDom,1);
+      for i = 1:obj.nDom-1
+        N(i) = obj.domains(i).DoFManager.totDoF;
+      end
+      N = [0; cumsum(N)];
+      for i = 1:obj.nInterf
+        obj.interfaces{i}.setDoFcount(N);
+      end
+    end
+
+
 
     function J = assembleJacobian(obj)
       % assemble blocks of jacobian matrix for multidomain system
@@ -307,11 +312,15 @@ classdef MultidomainFCSolver < handle
             jj = obj.systSize(2)+obj.nfldInt(iI)-obj.nfldInt(1)+pos;
             [J{iF+f,jj},J{jj,iF+f}] = getJacobian(...
               obj.interfaces{iF},pos,iD);
+            [J{jj,jj}] = getJacobian(...
+              obj.interfaces{iF},pos,iD);
           end
         end
         f = f + obj.nfldDom(iD);  % update field counter
       end
     end
+
+
 
     function rhs = assembleRhs(obj)
       % assemble blocks of rhs for multidomain system
@@ -330,12 +339,134 @@ classdef MultidomainFCSolver < handle
             if isempty(rhs{iMult})
               % dont compute rhsMult twice: 1field -> 1 interface
               rhs{iMult} = getRhs(obj.interfaces{iF},pos);
-            end        
+            end
           end
           f = f + 1;
         end
       end
+    end
 
+
+
+    function applyDirVal(obj)
+      for i = 1:obj.nDom
+        discretizer = obj.domains(i).Discretizer;
+        bc = obj.domains(i).BoundaryConditions;
+
+        % Check if boundary conditions are defined for the i-th domain
+        if ~isempty(obj.domains(i).BoundaryConditions)
+
+          % Apply Dirichlet boundary values to i-th domain
+          obj.state(i).curr = applyDirVal(...
+            discretizer, bc, obj.t, obj.state(i).curr);
+        end
+      end
+    end
+
+
+
+    function computeMatricesAndRhs(obj)
+      for i = 1:obj.nDom
+        discretizer = obj.domains(i).Discretizer;
+
+        % Compute matrices and residuals for individual models of
+        % the i-th domain
+        obj.state(i).curr = computeMatricesAndRhs(...
+          discretizer, obj.state(i).curr, obj.state(i).prev, obj.dt);
+
+        % Compute domain coupling matrices and rhs
+        for j = discretizer.interfaceList
+          computeMat(obj.interfaces{j},i);
+          computeRhs(obj.interfaces{j},i,obj.state(i).curr);
+        end
+      end
+    end
+
+
+
+    function applyBC(obj)
+      for i = 1:obj.nDom
+
+        discretizer = obj.domains(i).Discretizer;
+        bc = obj.domains(i).BoundaryConditions;
+        % Apply BCs to the blocks of the linear system
+        applyBC(discretizer, bc, obj.t, obj.state(i).curr);
+
+        % Apply BC to coupling matrices
+        for j = discretizer.interfaceList
+          applyBC(obj.interfaces{j},i,bc,obj.t, obj.state(i).curr);
+        end
+      end
+    end
+
+
+
+
+    function updateState(obj,dSol)
+      % update domain and interface state using incremental solution
+      for i = 1:obj.nDom
+        discretizer = obj.domains(i).Discretizer;
+        N = obj.domains(i).DoFManager.totDoF;
+        du = dSol(1:N);
+        obj.state(i).curr = updateState(discretizer,obj.state(i).curr,du);
+        dSol = dSol(N+1:end);
+      end
+
+      % update interface state
+      for j = 1:obj.nInterf
+        N = obj.interfaces{j}.totMult;
+        du = dSol(1:N);
+        obj.interfaces{j}.updateState(du);
+        dSol = dSol(N+1:end);
+      end
+    end
+
+
+    function printState(obj)
+      if obj.t > obj.simParameters.tMax
+        for i = 1:obj.nDom
+          printState(obj.domains(i).OutState,obj.state(i).curr);
+        end
+        for i = 1:obj.nInterf
+          id = obj.interfaces{i}.idSlave;
+          tOld = obj.state(id).prev.t;
+          printState(obj.interfaces{i},tOld)
+        end
+      else
+        for i = 1:obj.nDom
+          printState(obj.domains(i).OutState,obj.domains(i).Discretizer,obj.state(i).prev,obj.state(i).curr);
+        end
+        for i = 1:obj.nInterf
+          id = obj.interfaces{i}.idDomain(2);
+          tOld = obj.state(id).prev.t;
+          tNew = obj.state(id).curr.t;
+          printState(obj.interfaces{i},tOld,tNew)
+        end
+      end
+    end
+
+
+
+    function goOnState(obj)
+      % transfer current state into previous state
+      for i = 1:obj.nDom
+        obj.state(i).prev = obj.state(i).curr;
+      end
+
+      for i = 1:obj.nInterf
+        obj.interfaces{i}.goOnState();
+      end
+    end
+
+    function goBackState(obj)
+      % transfer previous state into current state (backstep)
+      for i = 1:obj.nDom
+        obj.state(i).prev = obj.state(i).curr;
+      end
+
+      for i = 1:obj.nInterf
+        obj.interfaces{i}.goBackState();
+      end
     end
   end
 end

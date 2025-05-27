@@ -193,11 +193,12 @@ classdef Mortar < handle
         fS = unique([find(obj.mesh.elemConnectivity(fM(1),:)),...
           find(obj.mesh.elemConnectivity(fM(2),:))]);
 
-        if numel(fS) < 3
+        if numel(fS) < 2
           continue
         end
 
         % get internal edges of slave faces
+        
         eS = unique(obj.mesh.f2e{2}(fS,:));
         id = all(ismember(obj.mesh.e2f{2}(eS,:),fS),2);
         ieS = eS(id);
@@ -207,17 +208,14 @@ classdef Mortar < handle
         nS = unique(obj.mesh.e2n{2}(eS,:));
 
         % compute local schur complement approximation
-        S = 1.0*computeSchurLocal(obj,nM,nS,fS,fld);
-
+        S = computeSchurLocal(obj,nM,nS,fS,fld);
+        S = [mean(S(1:3:end));mean(S(2:3:end));mean(S(3:3:end))];
         % assemble stabilization matrix component
         for iesLoc = ieS'
            f = obj.mesh.e2f{2}(iesLoc,:);
-           fL = find(fS==f(1)); fR = find(fS==f(2));
-           Sdiag = diag(S);
-           K = 0.5*(Sdiag(dofId(fL,nc))+Sdiag(dofId(fR,nc)));
            id1(c+1:c+nc) = dofId(f(1),nc);
            id2(c+1:c+nc) = dofId(f(2),nc);
-           vals(c+1:c+nc) = K;
+           vals(c+1:c+nc) = S;
            c = c+nc;
         end
       end

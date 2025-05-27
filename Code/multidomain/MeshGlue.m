@@ -5,14 +5,16 @@ classdef MeshGlue < Mortar
 
   properties (Access = private)
     mortar
+    isMatrixComputed
+    out
+    dofCount
   end
 
   properties (Access = public)
     physics
-    slaveMat
-    masterMat
     multipliers
     iniMultipliers
+    totMult
   end
 
   methods
@@ -24,12 +26,12 @@ classdef MeshGlue < Mortar
       obj.physics = split(inputStruct.Physics);
       obj.nFld = numel(obj.physics);
       initializeJacobianAndRhs(obj);
-      isFldMaster = isField(obj.dofmMaster,obj.physics);
-      isFldSlave = isField(obj.dofmSlave,obj.physics);
+      isFldMaster = isField(obj.dofm(1),obj.physics);
+      isFldSlave = isField(obj.dofm(2),obj.physics);
       assert(isFldMaster,['MeshGlue physic not available for ' ...
-        'master domain %i'],obj.idMaster);
+        'master domain %i'],obj.idDomain(1));
       assert(isFldSlave,['MeshGlue physic not available for ' ...
-        'slave domain %i'],obj.idSlave);
+        'slave domain %i'],obj.idDomain(2));
       % initializing the multiplier cell array
       computeMortarMatrices(obj);
     end
@@ -40,17 +42,18 @@ classdef MeshGlue < Mortar
     %
     function varargout = getJacobian(obj,fldId,domId)
       % get jacobian blocks associated to specific field and specific
-      % domain 
+      % domain
       % if nargout = 2 -> get master/slave pair of jacobian blocks
       % if nargout = 1 -> return multiplier jacobian
       switch nargout
         case 1
           varargout{1} = obj.Jmult{fldId};
+          % 0.5 is needed because the multiplier matrix is retrieved twice
         case 2
-          if domId == obj.idMaster
+          if domId == obj.idDomain(1)
             varargout{1} = (obj.Jmaster{fldId})';
             varargout{2} = obj.Jmaster{fldId};
-          elseif domId == obj.idSlave
+          elseif domId == obj.idDomain(2)
             varargout{1} = (obj.Jslave{fldId})';
             varargout{2} = obj.Jslave{fldId};
           else
@@ -67,9 +70,9 @@ classdef MeshGlue < Mortar
           rhs = obj.rhsMult{fldId};
         case 3
           domId = varargin{1};
-          if domId == obj.idMaster
+          if domId == obj.idDomain(1)
             rhs = obj.rhsMaster{fldId};
-          elseif domId == obj.idSlave
+          elseif domId == obj.idDomain(2)
             rhs = obj.rhsSlave{fldId};
           else
             error('Input domain %i is not a valid master/slave',domId)
@@ -80,25 +83,33 @@ classdef MeshGlue < Mortar
 
     function computeMat(obj,idDomain)
       % return matrices for master and slave side in appropriate field
+
+      if obj.isMatrixComputed
+        % mesh glue matrices are constant troughout the simulation
+        return
+      end
+
       side = getSide(obj,idDomain);
       for i = 1:obj.nFld
         % map local mortar matrices to global indices
         switch side
           case 'master'
-            obj.Jmaster{i} = obj.getMatrix('master',obj.physics{i});
+            obj.Jmaster{i} = obj.getMatrix(1,obj.physics(i));
           case 'slave'
-            obj.Jslave{i} = obj.getMatrix('slave',obj.physics{i});
+            obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
         end
       end
 
+      isStabReady = all(...
+        [~cellfun(@isempty, obj.Jslave), ~cellfun(@isempty, obj.Jmaster)]);
+      % if both master and slave matrices are computed, proceed to evaluate the
       % stabilization matrix
-      c = 0;
-      for ph = obj.physics'
-        c = 1;
-        computeStabilizationMatrix(obj,ph);
-        obj.Jmult{}
+      if isStabReady
+        for i = 1:obj.nFld
+          obj.Jmult{i} = -computeStabilizationMatrix(obj,obj.physics(i));
+        end
+        obj.isMatrixComputed = true;
       end
-
     end
 
     function computeRhs(obj,idDomain,state)
@@ -112,75 +123,6 @@ classdef MeshGlue < Mortar
             computeRhsSlave(obj,i,state);
         end
       end
-    end
-
-
-    function computeMortarMatrices(obj)
-      elemSlave = getElem(obj,'slave');
-      [imVec,jmVec,MVec] = allocateMatrix(obj,'master');
-      [idVec,jdVec,DVec] = allocateMatrix(obj,'slave');
-      % Ns: basis function matrix on slave side
-      % Nm: basis function matrix on master side
-      % Nmult: basis function matrix for multipliers
-      cs = 0; % slave matrix entry counter
-      cm = 0; % master matrix entry counter
-      
-      % and interpolation coordinates)
-      for i = 1:obj.nElSlave
-        is = obj.activeSlaveCells(i);
-        masterElems = find(obj.elemConnectivity(:,is));
-        if isempty(masterElems)
-          continue
-        end
-        %Compute Slave quantities
-        dJWeighed = elemSlave.getDerBasisFAndDet(is,3);
-        posGP = getGPointsLocation(elemSlave,is);
-        nSlave = obj.mshIntSlave.surfaces(is,:);
-        Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-        for im = masterElems'
-          nMaster = obj.mshIntMaster.surfaces(im,:);
-          [Nm,id] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
-          if any(id)
-            % get basis function matrices
-            Nm = Nm(id,:);
-            Ns = Nslave(id,:);
-            Nmult = ones(size(Ns,1),1);
-            Nm = Discretizer.reshapeBasisF(Nm,1);
-            Ns = Discretizer.reshapeBasisF(Ns,1);
-            Nmult = Discretizer.reshapeBasisF(Nmult,1);
-
-            % compute slave mortar matrix
-            Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
-            [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
-              Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),i,nSlave);
-
-            % compute master mortar matrix
-            Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
-            [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
-              Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),i,nMaster);
-
-            % sort out gauss points already ised
-            dJWeighed = dJWeighed(~id);
-            posGP = posGP(~id,:);
-            Nslave = Nslave(~id,:);
-          end
-        end
-        if ~all(id)
-          % track element not fully projected
-          fprintf('GP not sorted for slave elem numb %i \n',is);
-          c_ns = c_ns + 1;
-        end
-      end
-
-      % cut vectors for sparse matrix assembly
-      imVec = imVec(1:cm); jmVec = jmVec(1:cm); MVec = MVec(1:cm);
-      idVec = idVec(1:cs); jdVec = jdVec(1:cs); DVec = DVec(1:cs);
-
-      % assemble mortar matrices in sparse format
-      obj.masterMat = sparse(imVec,jmVec,MVec,...
-        obj.nElSlave,obj.mshIntMaster.nNodes);
-      obj.slaveMat = sparse(idVec,jdVec,DVec,...
-        obj.nElSlave,obj.mshIntSlave.nNodes);
     end
 
     function applyBCmaster(obj,bound,bc,t,state)
@@ -198,43 +140,117 @@ classdef MeshGlue < Mortar
       obj.rhsSlave{i}(bcEnts) = 0;
       obj.Jslave{i}(:,bcEnts) = 0;
     end
+
+    function updateState(obj,du)
+      for i = 1:obj.nFld
+        n = numel(obj.multipliers(i).curr);
+        obj.multipliers(i).curr = obj.multipliers(i).curr + du(1:n);
+        du = du(n+1:end);
+      end
+    end
   end
 
   methods (Access = private)
 
     function initializeJacobianAndRhs(obj)
-      [obj.Jmaster,obj.Jslave] = deal(cell(obj.nFld,1));
-      [obj.rhsMaster,obj.rhsSlave,obj.multipliers] = deal(cell(obj.nFld,1));
+      [obj.Jmaster,obj.Jslave,obj.Jmult] = deal(cell(obj.nFld,1));
+      [obj.rhsMaster,obj.rhsSlave, obj.iniMultipliers] = deal(cell(obj.nFld,1));
+      obj.multipliers = repmat(struct('prev',[],'curr',[]),obj.nFld,1);
+      obj.totMult = 0;
       for i = 1:obj.nFld
-        ncomp = obj.dofmMaster.getDoFperEnt(obj.physics(i));
-        nDofMaster = getNumDoF(obj.dofmMaster,obj.physics(i));
-        nDofSlave = getNumDoF(obj.dofmSlave,obj.physics(i));
-        nDofMult = ncomp*obj.nElSlave;
+        ncomp = obj.dofm(1).getDoFperEnt(obj.physics(i));
+        nDofMaster = getNumDoF(obj.dofm(1),obj.physics(i));
+        nDofSlave = getNumDoF(obj.dofm(2),obj.physics(i));
+        nDofMult = ncomp*obj.mesh.nEl(2);
         obj.rhsMaster{i} = zeros(nDofMaster,1);
         obj.rhsSlave{i} = zeros(nDofSlave,1);
         obj.rhsMult{i} = zeros(nDofMult,1);
-        obj.multipliers{i} = zeros(nDofMult,1);
-        obj.iniMultipliers = obj.multipliers;
+        obj.multipliers(i).curr = zeros(nDofMult,1);
+        obj.multipliers(i).prev = obj.multipliers(i).curr;
+        obj.iniMultipliers{i} = obj.multipliers(i).curr;
+        obj.totMult = obj.totMult + nDofMult;
       end
     end
-    
-    function computeRhsMaster(obj,i,state)     
+
+    function computeRhsMaster(obj,i,state)
       obj.rhsMaster{i} = ...
-        obj.Jmaster{i}'*(obj.multipliers{i}-obj.iniMultipliers{i});
+        obj.Jmaster{i}'*(obj.multipliers(i).curr-obj.iniMultipliers{i});
       var = getState(obj.solvers(1).getSolver(obj.physics(i)),state);
-      ents = obj.dofmMaster.getActiveEnts(obj.physics(i));
+      ents = obj.dofm(1).getActiveEnts(obj.physics(i));
       obj.rhsMult{i} = obj.rhsMult{i} + obj.Jmaster{i}*var(ents);
     end
 
     function computeRhsSlave(obj,i,state)
       obj.rhsSlave{i} = ...
-        obj.Jslave{i}'*(obj.multipliers{i}-obj.iniMultipliers{i});
+        obj.Jslave{i}'*(obj.multipliers(i).curr-obj.iniMultipliers{i});
       var = getState(obj.solvers(2).getSolver(obj.physics(i)),state);
-      ents = obj.dofmSlave.getActiveEnts(obj.physics(i));
-      obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents);
+      ents = obj.dofm(2).getActiveEnts(obj.physics(i));
+      obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents) + ...
+        obj.Jmult{i}*obj.multipliers(i).curr;
+    end
+  end
+
+  methods (Access = public)
+    function [cellStr,pointStr] = buildPrintStruct(obj,fldId,fac)
+
+      fieldName = obj.physics(fldId);
+      nCellData = obj.dofm(1).getDoFperEnt(fieldName);
+      cellStr = repmat(struct('name', 1, 'data', 1), nCellData, 1);
+      if nargin ==2
+        outVar = obj.multipliers(fldId).prev;
+      elseif nargin == 3
+        outVar = fac*obj.multipliers(fldId).curr + ...
+          (1-fac)*obj.multipliers(fldId).prev;
+      else
+        error('Invalid number of input arguments for function buildPrintStruct');
+      end
+
+      for i = 1:nCellData
+        cellStr(i).name = char(strcat(fieldName,'_',num2str(i)));
+        cellStr(i).data = outVar(i:nCellData:end);
+      end
+
+      pointStr = [];        % when using P0 multipliers
     end
 
+    function goOnState(obj)
+      % update the value of the multipliers
+      for i = 1:obj.nFld
+        obj.multipliers(i).prev = obj.multipliers(i).curr;
+      end
+    end
+
+    function goBackState(obj)
+      for i = 1:obj.nFld
+        obj.multipliers(i).curr = obj.multipliers(i).curr;
+      end
+    end
+
+    function setDoFcount(obj,ndof)
+      obj.dofCount = ndof(obj.idDomain);
+    end
+
+    function du = solveMultipliers(obj,du,rhs,k)
+      % This method solves for the multipliers using a post-processing
+      % stabilization
+      % Input is the incremental solution for the unstabilized saddle point
+      % problem and rhs of the interface
+      % k points to the first row index of the current
+      % interfaces in the system
+      duMaster = du(obj.dofCount(1)+1:obj.dofCount(1)+obj.dofm(1).totDoF);
+      duSlave = du(obj.dofCount(2)+1:obj.dofCount(2)+obj.dofm(2).totDoF);
+      for i = 1:obj.nFld
+        nm = length(obj.multipliers(i).curr);
+        rhs = rhs(k+1:k+obj.totMult);
+        f = rhs + obj.Jmaster{i}*duMaster + obj.Jslave{i}*duSlave + ...
+          obj.Jmult{i}*obj.multipliers(i).curr;
+        dmult = obj.Jmult{i}\(-f);
+        du(k+1:k+nm) = dmult;
+        k = k+nm;
+        % 
+      end
+    end
   end
-  
+
 end
 

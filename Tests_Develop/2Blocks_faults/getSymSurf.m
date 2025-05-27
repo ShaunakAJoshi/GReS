@@ -1,7 +1,7 @@
-function list = getSymSurf(mG)
+function list = getSymSurf(interf)
 % get list of surfaces along the symmetry axis of the fault
 % it is needed for the print utilities of the 2 blocks fault model
-msh = mG.interfaces.mortar.intSlave;
+msh = interf.mesh.msh(2);
 % get surfaces on the symmetry axis
 tolerance = 1e-3; % Set a small tolerance
 x_coords = unique(round(msh.coordinates(:,2)/tolerance)*tolerance);

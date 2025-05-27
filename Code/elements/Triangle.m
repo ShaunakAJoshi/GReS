@@ -53,21 +53,17 @@ classdef Triangle < handle
          %    1) [mat,dJWeighed] = getDerBasisFAndDet(obj,el,1)
          %    2) mat = getDerBasisFAndDet(obj,el,2)
          %    3) dJWeighed = getDerBasisFAndDet(obj,el,3)
-         c = obj.mesh.coordinates(obj.mesh.surfaces(el,:),:);
-         J = [c(2,1)-c(1,1) c(3,1)-c(1,1);
-            c(2,2)-c(1,2) c(3,2)-c(1,2);
-            c(2,3)-c(1,3) c(3,3)-c(1,3);];
-         obj.detJ = norm(cross(J(:,1),J(:,2)),2);
-         inv_A = inv([1 obj.mesh.coordinates(obj.mesh.surfaces(el,1),1:2);
-            1 obj.mesh.coordinates(obj.mesh.surfaces(el,2),1:2);
-            1 obj.mesh.coordinates(obj.mesh.surfaces(el,3),1:2)]);
-         mat = inv_A(2:3,:);
+         c = obj.mesh.coordinates(obj.mesh.surfaces(el,:),1:obj.mesh.nDim);
+         J = obj.J1*c;
+         obj.detJ = norm(cross(J(1,:),J(2,:)),2);
+
+         % jacobian is constant for triangles
          switch flOut
             case 1
-               outVar1 = mat;
+               outVar1 = inv(J);
                outVar2 = obj.detJ*obj.GaussPts.weight';
             case 2
-               outVar1 = mat;
+               outVar1 = inv(J);
             case 3
                outVar1 = obj.detJ*obj.GaussPts.weight';
          end
@@ -201,7 +197,7 @@ classdef Triangle < handle
 
       function findLocDerBasisF(obj, varargin)
          % Find the value the basis functions take at the Gauss points
-         obj.J1 = [-1 1 0; -1 0 1];
+         obj.J1 = [-1 1 0; -1 0 1; 0 0 0];
       end
 
       function computeCellCentroid(obj)

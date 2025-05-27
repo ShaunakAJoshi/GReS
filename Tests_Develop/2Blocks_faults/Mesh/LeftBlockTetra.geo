@@ -1,9 +1,11 @@
 Mesh.Format = 1; // msh output format
 Mesh.MshFileVersion = 2.2; // Version of the MSH file format to use
 
-lc = 1.25;
+nX = 3;
+nY = 9;
+nZ = 8;
 // This variable can then be used in the definition of Gmsh's simplest
-// `elementary entity', a `Point'. A Point is uniquely identified by a tag (a
+// `elementary entity', a `Point'. A Point is uniquely identified by a tag (
 // strictly positive integer; here `1') and defined by a list of four numbers:
 // three coordinates (X, Y and Z) and the target mesh size (lc) close to the
 // point:
@@ -23,6 +25,11 @@ Line(2) = {2, 3};
 Line(3) = {3, 4};
 Line(4) = {4, 1};
 
+Transfinite Line{1} = nX;
+Transfinite Line{2} = nY;
+Transfinite Line{3} = nX;
+Transfinite Line{4} = nY; 
+
 Curve Loop(1) = {1, 2, 3, 4};
 
 Plane Surface(1) = {1};
@@ -31,7 +38,7 @@ Transfinite Surface {1}; // structured grid
 //Recombine Surface {1}; // using hexahedra
 
 // extruding mesh along the z direction
-Extrude {0, 0, 15} { Surface{1}; Layers{10};}
+Extrude {0, 0, 15} { Surface{1}; Layers{nZ};}
 Physical Volume("Left", 1) = {1}; 
 Physical Surface("Left_bound",1) = {25};
 Physical Surface("Left_interf",2) = {17};
@@ -39,4 +46,5 @@ Physical Surface("Left_bottom",3) = {1};
 
 
 Mesh 3;
-Save "LeftBlock_hexa.msh";
+Save "LeftBlock_tetra.msh";
+
