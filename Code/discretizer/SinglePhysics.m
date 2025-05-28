@@ -15,10 +15,11 @@ classdef SinglePhysics < handle
       faces
       material
       GaussPts
+      state
    end
    
    methods
-      function obj = SinglePhysics(fld,symmod,params,dofManager,grid,mat,data)
+      function obj = SinglePhysics(fld,symmod,params,dofManager,grid,mat,state,data)
          obj.field = fld;
          obj.model = symmod;
          obj.simParams = params;
@@ -27,6 +28,7 @@ classdef SinglePhysics < handle
          obj.elements = grid.cells;
          obj.faces = grid.faces;
          obj.material = mat;
+         obj.state = state;
          % obj.field = 
          if ~isempty(data)
             obj.GaussPts = data{1};
@@ -70,20 +72,24 @@ classdef SinglePhysics < handle
          rhs = obj.rhs;
       end
 
-      function varargout = assembleFEM(obj,nEntries,localAssembly)
+
+      function varargout = assembleFEM(obj,nEntries,assembler,N)
         % general sparse assembly loop over elements for single physics
-        % kernel using FEM
-        % nEntries: array of length of index arrays for sparse
-        % assembly localAssembly: array of routines to compute local
-        
+        % kernel using FEM this method is flexible and can generate
+        % multiple sparse matrices in output. nEntries: cell array of
+        % length of index arrays for sparse assembly 
+        % localAssembly: cell array of routines to compute local 
+        % N: cell array of [numb row,numb col] for each output marix
+
         % setup indices array
-        assert(numel(nEntries)==numel(localAssembly),...
+        assert(numel(nEntries)==numel(assembler),...
           'Lenght of entires number and assembly routine list must match!');
+
         subCells = obj.dofm.getFieldCells(obj.field);
         nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
-        nDof = obj.dofm.getNumDoF(obj.field);
         % number of matrices to be assembled
         nMat = numel(nEntries);
+        assert(nargout == nMat,'Incorrect number of output matrices.')
         varargout = cell(nMat,1);
         [iiVec,jjVec,matVec] = deal(cell(nMat,1));
 
@@ -94,29 +100,31 @@ classdef SinglePhysics < handle
         end
         l1 = 0;
         l2 = 0;
-
         % loop over cells
         for el = subCells'
           for i = 1:nMat
             % get dof id and local matrix
-            [dofRow,dofCol,locMat,s2] = localAssembly{i}(el);
-            [jjLoc,iiLoc] = meshgrid(dofCol,dorRow);
-            s1 = numel(dofRow(:));
+            [dofRow,dofCol,locMat,s2] = assembler{i}(el,l2);
+            [jjLoc,iiLoc] = meshgrid(dofCol,dofRow);
+            s1 = numel(locMat(:));
             iiVec{i}(l1+1:l1+s1) = iiLoc(:);
             jjVec{i}(l1+1:l1+s1) = jjLoc(:);
             matVec{i}(l1+1:l1+s1) = locMat(:);
             l1 = l1 + s1;
-            l2 = l2+s2;
+            l2 = l2 + s2;
           end
         end
+
         for i = 1:nMat
           % renumber indices according to active nodes
           % important: this call to unique assumes that iiVec contains all active
           % degrees of freedom in the domain
-          [~,~,iiVec] = unique(iiVec);
-          [~,~,jjVec] = unique(jjVec);
+          [~,~,iiVec{i}] = unique(iiVec{i});
+          [~,~,jjVec{i}] = unique(jjVec{i});
           % populate stiffness matrix
-          varargout{i} = sparse(iiVec, jjVec, matVec, nDof, nDof);
+          Nr = N{i}(1); 
+          Nc = N{i}(2);
+          varargout{i} = sparse(iiVec{i}, jjVec{i}, matVec{i}, Nr, Nc);
         end
       end
    end

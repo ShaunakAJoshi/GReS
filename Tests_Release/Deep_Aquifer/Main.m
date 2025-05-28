@@ -1,6 +1,7 @@
 close all;
 clear;
 
+
 scriptFullPath = mfilename('fullpath');
 scriptDir = fileparts(scriptFullPath);
 cd(scriptDir);
@@ -49,10 +50,10 @@ dofmanager = DoFManager(topology, model, DoFfileName);
 linSyst = Discretizer(model,simParam,dofmanager,grid,mat,GaussPts);
 
 % Build a structure storing variable fields at each time step
-state = linSyst.setState();
+linSyst.setState();
 
 % Create and set the print utility
-printUtils = OutState(model,topology,'outTime.dat','folderName','Output_DeepAquifer');
+printUtils = OutState(model,topology,'outTime.dat','folderName','Output_DeepAquifer','flagMatFile',true);
 
 % Write BC files programmatically with function utility 
 %fileName = setDeepAquiferBC('BCs',time,flux,topology,DoFfileName);
@@ -65,7 +66,7 @@ end
 bound = Boundaries(fileName,model,grid);
 
 % perform a fully coupled simulation
-solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,state,linSyst,GaussPts);
+solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst,GaussPts);
 [simState] = solver.NonLinearLoop();
 
 % Finalize the print utility

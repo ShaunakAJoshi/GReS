@@ -12,10 +12,11 @@ classdef CouplingPhysics < handle
       faces
       material
       GaussPts
+      state
    end
    
    methods
-      function obj = CouplingPhysics(field1,field2,symmod,params,dofManager,grid,mat,data)
+      function obj = CouplingPhysics(field1,field2,symmod,params,dofManager,grid,mat,state,data)
          obj.fields = {field1,field2};
          obj.model = symmod;
          obj.simParams = params;
@@ -24,6 +25,7 @@ classdef CouplingPhysics < handle
          obj.elements = grid.cells;
          obj.faces = grid.faces;
          obj.material = mat;
+         obj.state = state;
          if ~isempty(data)
             obj.GaussPts = data{1};
          end

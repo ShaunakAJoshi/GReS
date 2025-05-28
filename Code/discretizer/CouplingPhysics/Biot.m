@@ -7,22 +7,25 @@ classdef Biot < CouplingPhysics
     properties
         Q
         flowScheme   % Discretization scheme used for Flow
+        indBtetra
+        indBhexa
     end
 
     methods (Access = public)
-        function obj = Biot(symmod,params,dofManager,grid,mat,data)
-            obj@CouplingPhysics('Poromechanics','SinglePhaseFlow',symmod,params,dofManager,grid,mat,data);
+        function obj = Biot(symmod,params,dofManager,grid,mat,state,data)
+            obj@CouplingPhysics('Poromechanics','SinglePhaseFlow',symmod,params,dofManager,grid,mat,state,data);
             if isSinglePhaseFlow(obj.model)
                 obj.flowScheme = 'SinglePhaseFlow';
             elseif isVariabSatFlow(obj.model)
                 obj.flowScheme = 'VaraiblySsaturatedFlow';
             end
+            obj.indBtetra = Poromechanics.setStrainMat(4);
+            obj.indBhexa = Poromechanics.setStrainMat(8*obj.GaussPts.nNode);
             %
         end
 
-        function state = computeMat(obj,varargin)
-           state = varargin{1};
-           dt = varargin{3};
+        function computeMat(obj,varargin)
+           dt = varargin{2};
            % call method according to the discretization technique chosen
            if isempty(obj.J{1}) || ~isLinear(obj)
               if isFEMBased(obj.model, 'Flow')
@@ -65,7 +68,7 @@ classdef Biot < CouplingPhysics
                         nG = obj.GaussPts.nNode;
                         iN = zeros(6,8,nG); %matrix product i*N
                         B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
-                        B(obj.elements.indB(:,2)) = N(obj.elements.indB(:,1));
+                        B(obj.indBhexa(:,2)) = N(obj.indBhexa(:,1));
                         iN(1,:,:) = reshape(N1',1,8,nG);
                         iN(2:3,:,:) = repmat(iN(1,:,:),2,1,1);
                         Qs = biot*pagemtimes(B,'ctranspose',iN,'none');
@@ -112,7 +115,7 @@ classdef Biot < CouplingPhysics
                         nG = obj.GaussPts.nNode;
                         %iN = zeros(6,8,nG); %matrix product i*N
                         B = zeros(6,8*obj.mesh.nDim,nG);
-                        B(obj.elements.indB(:,2)) = N(obj.elements.indB(:,1));
+                        B(obj.indBhexa(:,2)) = N(obj.indBhexa(:,1));
                         kron = repmat([1;1;1;0;0;0],1,1,8);
                         Qs = biot*pagemtimes(B,'ctranspose',kron,'none');
                         Qs = Qs.*reshape(dJWeighed,1,1,[]);
@@ -133,15 +136,15 @@ classdef Biot < CouplingPhysics
             obj.Q = sparse(iiVec, jjVec, Qvec, nDoF1, nDoF2);
         end
 
-        function stateTmp = computeRhs(obj,stateTmp,statek,dt)
+        function computeRhs(obj,stateOld,dt)
             % compute Biot rhs contribute
             theta = obj.simParams.theta;
             % select active coefficients of solution vectors
             entsPoro = obj.dofm.getActiveEnts(obj.fields{1});
             entsFlow = obj.dofm.getActiveEnts(obj.fields{2});
-            obj.rhs{1} = -theta*obj.Q*stateTmp.pressure(entsFlow) - ...
-                (1-theta)*(obj.Q*statek.pressure(entsFlow));
-            obj.rhs{2} = (obj.Q/dt)'*(stateTmp.dispCurr(entsPoro) - stateTmp.dispConv(entsPoro));
+            obj.rhs{1} = -theta*obj.Q*obj.state.data.pressure(entsFlow) - ...
+                (1-theta)*(obj.Q*stateOld.data.pressure(entsFlow));
+            obj.rhs{2} = (obj.Q/dt)'*(obj.state.data.dispCurr(entsPoro) - obj.state.data.dispConv(entsPoro));
         end
 
         function applyDirBC(obj,field,ents,varargin)

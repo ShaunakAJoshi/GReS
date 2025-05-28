@@ -11,6 +11,7 @@ classdef Discretizer < handle
 
    properties (GetAccess=public, SetAccess=public)
      interfaceList = []; 
+     state
      % empty - single domain simulation
      % not empty - call to mesh glue instances 
 
@@ -28,7 +29,7 @@ classdef Discretizer < handle
          obj.checkTimeDependence(symmod,mat,simParams);
       end
       
-      function applyBC(obj,bound,t,state)
+      function applyBC(obj,bound,t)
          % Apply boundary condition to blocks of physical solver
          % ents: id of constrained entity
          % vals: value to assign to each entity
@@ -37,7 +38,7 @@ classdef Discretizer < handle
          for bc = string(bcList)
             field = bound.getPhysics(bc);
             % get id of constrained entities and corresponding BC values
-            [bcEnts,bcVals] = getBC(getSolver(obj,field),bound,bc,t,state);
+            [bcEnts,bcVals] = getBC(getSolver(obj,field),bound,bc,t);
             % apply Boundary conditions to each Jacobian/rhs block
             for f = obj.fields
                if ~isCoupled(obj,field,f)
@@ -54,7 +55,7 @@ classdef Discretizer < handle
          end
       end
 
-      function state = applyDirVal(obj,bound,t,state)
+      function applyDirVal(obj,bound,t)
          % Apply boundary condition to blocks of physical solver
          % ents: id of constrained entity
          % vals: value to assign to each entity
@@ -65,7 +66,7 @@ classdef Discretizer < handle
                continue
             end
             field = bound.getPhysics(bc);
-            state = getSolver(obj,field).applyDirVal(bound,bc,t,state);
+            getSolver(obj,field).applyDirVal(bound,bc,t);
          end
       end
 
@@ -139,12 +140,12 @@ classdef Discretizer < handle
       end
 
 
-      function stateTmp = computeMatricesAndRhs(obj,stateTmp,statek,dt)
+      function computeMatricesAndRhs(obj,stateOld,dt)
          % loop trough solver database and compute non-costant jacobian
          % blocks and rhs block
          for i = 1:obj.numSolvers
-            stateTmp = computeMat(obj.solver(i),stateTmp,statek,dt);
-            stateTmp = computeRhs(obj.solver(i),stateTmp,statek,dt);
+           computeMat(obj.solver(i),stateOld,dt);
+           computeRhs(obj.solver(i),stateOld,dt);
          end
       end
 
@@ -156,37 +157,39 @@ classdef Discretizer < handle
          out = any(intersect(sub1,sub2));
       end
 
-      function state = setState(obj)
+      function setState(obj)
          % loop trough active single physics solver and update the state class
          % accordingly
-         state = struct();
-         state.t = 0;
          for i = 1:numel(obj.fields)
             % loop trough active fields and update the state structure
-            state = setState(obj.getSolver(obj.fields(i)),state);
+            setState(obj.getSolver(obj.fields(i)));
          end
       end
 
-      function state = updateState(obj,state,du)
+      function updateState(obj,du)
          % update current state
          for i = 1:numel(obj.fields)
-            state = obj.getSolver(obj.fields(i)).updateState(state,du);
+            obj.getSolver(obj.fields(i)).updateState(du);
          end
       end
    end
 
    methods(Access = private)
       function setDiscretizer(obj,symmod,params,dofManager,grid,mat,data)
-         flds = getFieldList(obj.dofm); 
-         nF = numel(flds);
-         % loop over all fields and define corresponding models
-         k = 0;
-         for i = 1:nF
+        flds = getFieldList(obj.dofm);
+        nF = numel(flds);
+        % loop over all fields and define corresponding models
+        k = 0;
+        % create the handle to state object that will be shared across all physical
+        % modules
+        stat = State();
+        for i = 1:nF
             for j = i:nF
                k = k+1;
-               addPhysics(obj,k,flds(i),flds(j),symmod,params,dofManager,grid,mat,data);
+               addPhysics(obj,k,flds(i),flds(j),symmod,params,dofManager,grid,mat,stat,data);
             end
-         end
+        end
+        obj.state = stat;
          obj.fields = flds;
          obj.numSolvers = k;
       end
@@ -208,7 +211,7 @@ classdef Discretizer < handle
          end
       end
 
-      function addPhysics(obj,id,f1,f2,mod,parm,dof,grid,mat,data)
+      function addPhysics(obj,id,f1,f2,mod,parm,dof,grid,mat,state,data)
          % Add new key to solver database
          % Prepare input fields for solver definition
          if ~isCoupled(obj,f1,f2)
@@ -218,15 +221,15 @@ classdef Discretizer < handle
          f = join(f,'_');
          switch f{:}
            case 'SinglePhaseFlow_SinglePhaseFlow'
-               obj.solver(id) = SPFlow(mod,parm,dof,grid,mat,data);
+               obj.solver(id) = SPFlow(mod,parm,dof,grid,mat,state,data);
             case 'Poromechanics_Poromechanics'
-               obj.solver(id) = Poromechanics(mod,parm,dof,grid,mat,data);
+               obj.solver(id) = Poromechanics(mod,parm,dof,grid,mat,state,data);
            case 'Poromechanics_SinglePhaseFlow'
                assert(isSinglePhaseFlow(mod),['Coupling between' ...
                   'poromechanics and unsaturated flow is not yet implemented']);
-               obj.solver(id) = Biot(mod,parm,dof,grid,mat,data);
+               obj.solver(id) = Biot(mod,parm,dof,grid,mat,state,data);
            case 'VariablySaturatedFlow_VaraiablySaturatedFlow'
-               obj.solver(id) = VSFlow(mod,parm,dof,grid,mat,data);
+               obj.solver(id) = VSFlow(mod,parm,dof,grid,mat,state,data);
             otherwise
                error('A physical module coupling %s with %s is not available!',f1,f2)
          end

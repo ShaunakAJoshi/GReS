@@ -52,10 +52,10 @@ dofmanager = DoFManager(topology,model);
 linSyst = Discretizer(model,simParam,dofmanager,grid,mat,GaussPts);
 
 % Build a structure storing variable fields at each time step
-state = linSyst.setState();
+linSyst.setState();
 
 % Create and set the print utility
-printUtils = OutState(model,topology,'outTime.dat','folderName','Output_Terzaghi');
+printUtils = OutState(model,topology,'outTime.dat','folderName','Output_Terzaghi','flagMatFile',true);
 
 
 % Write BC files programmatically with function utility 
@@ -73,16 +73,16 @@ bound = Boundaries(fileName,model,grid);
 % manually, by directly modifying the entries of the state structure. 
 % In this example, we use a user defined function to apply Terzaghi initial
 % conditions to the state structure
-state = applyTerzaghiIC(state,mat,topology,F);
+applyTerzaghiIC(linSyst.state,mat,topology,F);
 
 % Print model initial state
-printUtils.printState(linSyst,state);
+printState(printUtils,linSyst);
 
 % The modular structure of the discretizer class allow the user to easily
 % customize the solution scheme. 
 % Here, a built-in fully implict solution scheme is adopted with class
 % FCSolver. This could be simply be replaced by a user defined function
-Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,state,linSyst,GaussPts);
+Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst,GaussPts);
 %
 % Solve the problem
 [simState] = Solver.NonLinearLoop();

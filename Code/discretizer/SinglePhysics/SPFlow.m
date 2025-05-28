@@ -13,13 +13,13 @@ classdef SPFlow < SinglePhysics
    end
 
    methods (Access = public)
-      function obj = SPFlow(symmod,params,dofManager,grid,mat,data,varargin)
+      function obj = SPFlow(symmod,params,dofManager,grid,mat,state,data,varargin)
          if isempty(varargin)
             fieldName = 'SinglePhaseFlow';
          else
             fieldName = varargin{1};
          end
-         obj@SinglePhysics(fieldName,symmod,params,dofManager,grid,mat,data);
+         obj@SinglePhysics(fieldName,symmod,params,dofManager,grid,mat,state,data);
          if obj.model.isFVTPFABased('Flow')
             obj.computeTrans;
             %get cells with active flow model
@@ -31,22 +31,22 @@ classdef SPFlow < SinglePhysics
          computeRHSGravTerm(obj);
       end
 
-      function state = setState(obj,state)
+      function setState(obj)
          if isFEMBased(obj.model,'Flow')
             n = obj.mesh.nNodes;
          elseif isFVTPFABased(obj.model,'Flow')
             n = obj.mesh.nCells;
          end
-         state.pressure = zeros(n,1);
+         obj.state.data.pressure = zeros(n,1);
       end
 
-      function state = updateState(obj,state,dSol)
+      function updateState(obj,dSol)
          ents = obj.dofm.getActiveEnts(obj.field);
-         state.pressure(ents) = state.pressure(ents) + dSol(obj.dofm.getDoF(obj.field));
+         obj.state.data.pressure(ents) = obj.state.data.pressure(ents) + dSol(obj.dofm.getDoF(obj.field));
       end
 
-      function fluidPot = finalizeState(obj,state)
-         fluidPot = state.pressure;
+      function fluidPot = finalizeState(obj,stateIn)
+         fluidPot = stateIn.data.pressure;
          gamma = obj.material.getFluid().getFluidSpecWeight();
          if gamma > 0
             if isFEMBased(obj.model,'Flow')
@@ -57,10 +57,10 @@ classdef SPFlow < SinglePhysics
          end
       end
 
-      function state = getState(obj,stateIn)
+      function var = getState(obj,stateIn)
         % input: state structure
         % output: current primary variable
-        state = stateIn.pressure;
+        var = stateIn.data.pressure;
       end
 
       function [cellData,pointData] = printState(obj,sOld,sNew,t)
@@ -68,21 +68,21 @@ classdef SPFlow < SinglePhysics
          switch nargin
             case 2
                fluidPot = finalizeState(obj,sOld);
-               pressure = sOld.pressure;
+               pressure = sOld.data.pressure;
             case 4
                % linearly interpolate state variables containing print time
                fac = (t - sOld.t)/(sNew.t - sOld.t);
                fluidPotOld = finalizeState(obj,sOld);
                fluidPotNew = finalizeState(obj,sNew);
                fluidPot = fluidPotNew*fac+fluidPotOld*(1-fac);
-               pressure = sNew.pressure*fac+sOld.pressure*(1-fac);
+               pressure = sNew.data.pressure*fac+sOld.data.pressure*(1-fac);
             otherwise
                error('Wrong number of input arguments');
          end
          [cellData,pointData] = SPFlow.buildPrintStruct(obj.model,pressure,fluidPot);
       end
 
-      function state = computeMat(obj,state,~,dt)
+      function computeMat(obj,~,dt)
          % recompute elementary matrices only if the model is linear
          if ~isLinear(obj) || isempty(obj.J)
             if obj.model.isFEMBased('Flow')
@@ -121,7 +121,7 @@ classdef SPFlow < SinglePhysics
          for el = subCells'
             permMat = obj.material.getMaterial(obj.mesh.cellTag(el)).PorousRock.getPermMatrix();
             poro = obj.material.getMaterial(obj.mesh.cellTag(el)).PorousRock.getPorosity();
-            if ismember(obj.mesh.cellTag(el),getFieldCellTags(obj.dofm,{"Poromechanics","SPFlow"}))
+            if ismember(obj.mesh.cellTag(el),getFieldCellTags(obj.dofm,{obj.field,'Poromechanics'}))
                alpha = 0; %this term is not needed in coupled formulation
             else
                alpha = obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw.getRockCompressibility();
@@ -220,16 +220,16 @@ classdef SPFlow < SinglePhysics
       end
 
 
-      function stateTmp = computeRhs(obj,stateTmp,statek,dt)
+      function computeRhs(obj,stateOld,dt)
          % Compute the residual of the flow problem
          lw = obj.material.getFluid().getDynViscosity();
          ents = obj.dofm.getActiveEnts(obj.field);
          if ~obj.simParams.isTimeDependent
-            obj.rhs = obj.H*stateTmp.pressure(ents);
+            obj.rhs = obj.H*obj.state.data.pressure(ents);
          else
             theta = obj.simParams.theta;
-            rhsStiff = theta*obj.H*stateTmp.pressure(ents) + (1-theta)*obj.H*statek.pressure(ents);
-            rhsCap = (obj.P/dt)*(stateTmp.pressure(ents) - statek.pressure(ents));
+            rhsStiff = theta*obj.H*obj.state.data.pressure(ents) + (1-theta)*obj.H*stateOld.data.pressure(ents);
+            rhsCap = (obj.P/dt)*(obj.state.data.pressure(ents) - stateOld.data.pressure(ents));
             obj.rhs = rhsStiff + rhsCap;
          end
          gamma = obj.material.getFluid().getFluidSpecWeight();
@@ -288,7 +288,7 @@ classdef SPFlow < SinglePhysics
          gTerm = gTerm(obj.dofm.getActiveEnts(obj.field));
       end
 
-      function [dof,vals] = getBC(obj,bc,id,t,state)
+      function [dof,vals] = getBC(obj,bc,id,t)
          switch bc.getCond(id)
             case {'NodeBC','ElementBC'}
                ents = bc.getEntities(id);
@@ -307,7 +307,7 @@ classdef SPFlow < SinglePhysics
                         gamma = obj.material.getFluid().getFluidSpecWeight();
                         mu = obj.material.getFluid().getDynViscosity();
                         tr = obj.getFaceTransmissibilities(faceID);
-                        q = 1/mu*tr.*((state.pressure(ents) - v)...
+                        q = 1/mu*tr.*((obj.state.data.pressure(ents) - v)...
                            + gamma*(obj.elements.cellCentroid(ents,3) - obj.faces.faceCentroid(faceID,3)));
                         vals = [1/mu*tr,accumarray(ind,q)]; % {JacobianVal,rhsVal]
                   end
@@ -330,7 +330,7 @@ classdef SPFlow < SinglePhysics
          dof = obj.dofm.getLocalDoF(ents,obj.field);
       end
 
-      function state = applyDirVal(obj,bc,id,t,state)
+      function applyDirVal(obj,bc,id,t)
          if isFVTPFABased(obj.model,'Flow')
             % Dirichlet BCs cannot be directly applied to the solution
             % vector
@@ -349,7 +349,7 @@ classdef SPFlow < SinglePhysics
                error('BC type %s is not available for %s field',cond,obj.field);
          end
          dof = bc.getCompEntities(id,ents);
-         state.pressure(dof) = vals;
+         obj.state.data.pressure(dof) = vals;
       end
 
       function applyDirBC(obj,~,ents,vals)

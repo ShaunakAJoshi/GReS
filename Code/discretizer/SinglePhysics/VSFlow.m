@@ -11,33 +11,33 @@ classdef VSFlow < SPFlow
     end
 
     methods (Access = public)
-        function obj = VSFlow(symmod,params,dofManager,grid,mat,data)
+        function obj = VSFlow(symmod,params,dofManager,grid,mat,state,data)
             % initialize as SPFlow class
-            obj@SPFlow(symmod,params,dofManager,grid,mat,data,'VSFlow');
+            obj@SPFlow(symmod,params,dofManager,grid,mat,data,state,'VSFlow');
         end
 
-        function stateTmp = computeMat(obj,stateTmp,statek,dt)
-            pkpt = obj.simParams.theta*stateTmp.pressure + ...
-                (1 - obj.simParams.theta)*statek.pressure;
+        function computeMat(obj,stateOld,dt)
+            pkpt = obj.simParams.theta*obj.state.data.pressure + ...
+                (1 - obj.simParams.theta)*stateOld.data.pressure;
             [Swkpt,dSwkpt,d2Swkpt, obj.lwkpt,dlwkpt] = computeUpElemAndProperties(obj,pkpt);
             computeStiffMatFV(obj,obj.lwkpt);
             computeCapMatFV(obj,Swkpt,dSwkpt);
             obj.J = obj.simParams.theta*obj.H + obj.P/dt;
             if isNewtonNLSolver(obj.simParams)
-                computeNewtPartOfJacobian(obj,dt,statek,stateTmp,pkpt,dSwkpt,d2Swkpt,dlwkpt)
+                computeNewtPartOfJacobian(obj,dt,stateOld,pkpt,dSwkpt,d2Swkpt,dlwkpt)
                 obj.J = obj.J + obj.JNewt;
             end
         end
 
-        function stateTmp = computeRhs(obj,stateTmp,statek,dt)
+        function computeRhs(obj,stateOld,dt)
             % Compute the residual of the flow problem
             theta = obj.simParams.theta;
             ents = obj.dofm.getActiveEnts(obj.field);
-            rhsStiff = theta*obj.H*stateTmp.pressure(ents) + (1-theta)*obj.H*statek.pressure(ents);
-            rhsCap = (obj.P/dt)*(stateTmp.pressure(ents) - statek.pressure(ents));
+            rhsStiff = theta*obj.H*obj.state.data.pressure(ents) + (1-theta)*obj.H*stateOld.data.pressure(ents);
+            rhsCap = (obj.P/dt)*(obj.state.data.pressure(ents) - stateOld.data.pressure(ents));
             obj.rhs = rhsStiff + rhsCap;
             gamma = obj.material.getFluid().getFluidSpecWeight();
-            %adding gravity rhs contribute
+            % adding gravity rhs contribute
             if gamma > 0
                 if isFEMBased(obj.model,'Flow')
                     obj.rhs = obj.rhs + obj.rhsGrav;
@@ -47,16 +47,16 @@ classdef VSFlow < SPFlow
             end
         end
 
-        function state = setState(obj,state)
+        function setState(obj)
             n = obj.mesh.nCells;
-            state.pressure = zeros(n,1);
-            state.saturation = zeros(n,1);
+            obj.state.data.pressure = zeros(n,1);
+            obj.state.data.saturation = zeros(n,1);
         end
 
-        function state = updateState(obj,state,dSol)
+        function updateState(obj,dSol)
             ents = obj.dofm.getActiveEnts(obj.field);
-            state.pressure(ents) = state.pressure(ents) + dSol(obj.dofm.getDoF(obj.field));
-            state.saturation = obj.material.computeSwAnddSw(obj.mesh,state.pressure);
+            obj.state.pressure(ents) = obj.state.pressure(ents) + dSol(obj.dofm.getDoF(obj.field));
+            obj.state.saturation = obj.material.computeSwAnddSw(obj.mesh,obj.state.pressure);
         end
 
         function [cellData,pointData] = printState(obj,sOld,sNew,t)
@@ -106,7 +106,7 @@ classdef VSFlow < SPFlow
             dlwkpt = - dlwkpt;
         end
 
-        function computeNewtPartOfJacobian(obj,dt,statek,stateTmp,pkpt,dSwkpt,d2Swkpt,dlwkpt)
+        function computeNewtPartOfJacobian(obj,dt,stateOld,pkpt,dSwkpt,d2Swkpt,dlwkpt)
             subCells = obj.dofm.getFieldCells(obj.field);
             nSubCells = length(subCells);
             % compute matrices J1 and J2 (gathering non linear terms)
@@ -124,7 +124,7 @@ classdef VSFlow < SPFlow
                 alphaMat(m) = obj.material.getMaterial(m).ConstLaw.getRockCompressibility();
             end
             tmpVec2 = alphaMat(obj.mesh.cellTag) + beta*poroMat(obj.mesh.cellTag);
-            tmpVec2 = 1/dt*((tmpVec2(subCells).*dSwkpt(subCells) + poroMat(obj.mesh.cellTag).*d2Swkpt(subCells)).*(stateTmp.pressure(subCells) - statek.pressure(subCells))).*obj.elements.vol(subCells);
+            tmpVec2 = 1/dt*((tmpVec2(subCells).*dSwkpt(subCells) + poroMat(obj.mesh.cellTag).*d2Swkpt(subCells)).*(obj.state.data.pressure(subCells) - stateOld.data.pressure(subCells))).*obj.elements.vol(subCells);
             [~,~,neigh1] = unique(neigh(:,1));
             [~,~,neigh2] = unique(neigh(:,2));
             [~,~,upElemdof] = unique(obj.upElem);
