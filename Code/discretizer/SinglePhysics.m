@@ -69,5 +69,55 @@ classdef SinglePhysics < handle
       function rhs = getRhs(obj,varargin)
          rhs = obj.rhs;
       end
+
+      function varargout = assembleFEM(obj,nEntries,localAssembly)
+        % general sparse assembly loop over elements for single physics
+        % kernel using FEM
+        % nEntries: array of length of index arrays for sparse
+        % assembly localAssembly: array of routines to compute local
+        
+        % setup indices array
+        assert(numel(nEntries)==numel(localAssembly),...
+          'Lenght of entires number and assembly routine list must match!');
+        subCells = obj.dofm.getFieldCells(obj.field);
+        nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
+        nDof = obj.dofm.getNumDoF(obj.field);
+        % number of matrices to be assembled
+        nMat = numel(nEntries);
+        varargout = cell(nMat,1);
+        [iiVec,jjVec,matVec] = deal(cell(nMat,1));
+
+        for i = 1:nMat
+          % preallocate arrays for sparse assembly
+          n = nEntries{i}*nSubCellsByType;
+          [iiVec{i},jjVec{i},matVec{i}] = deal(zeros(n,1));
+        end
+        l1 = 0;
+        l2 = 0;
+
+        % loop over cells
+        for el = subCells'
+          for i = 1:nMat
+            % get dof id and local matrix
+            [dofRow,dofCol,locMat,s2] = localAssembly{i}(el);
+            [jjLoc,iiLoc] = meshgrid(dofCol,dorRow);
+            s1 = numel(dofRow(:));
+            iiVec{i}(l1+1:l1+s1) = iiLoc(:);
+            jjVec{i}(l1+1:l1+s1) = jjLoc(:);
+            matVec{i}(l1+1:l1+s1) = locMat(:);
+            l1 = l1 + s1;
+            l2 = l2+s2;
+          end
+        end
+        for i = 1:nMat
+          % renumber indices according to active nodes
+          % important: this call to unique assumes that iiVec contains all active
+          % degrees of freedom in the domain
+          [~,~,iiVec] = unique(iiVec);
+          [~,~,jjVec] = unique(jjVec);
+          % populate stiffness matrix
+          varargout{i} = sparse(iiVec, jjVec, matVec, nDof, nDof);
+        end
+      end
    end
 end

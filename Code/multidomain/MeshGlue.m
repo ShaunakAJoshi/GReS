@@ -5,7 +5,6 @@ classdef MeshGlue < Mortar
 
   properties (Access = private)
     mortar
-    isMatrixComputed
     out
     dofCount
   end
@@ -33,7 +32,6 @@ classdef MeshGlue < Mortar
       assert(isFldSlave,['MeshGlue physic not available for ' ...
         'slave domain %i'],obj.idDomain(2));
       % initializing the multiplier cell array
-      computeMortarMatrices(obj);
     end
     %
   end
@@ -84,7 +82,7 @@ classdef MeshGlue < Mortar
     function computeMat(obj,idDomain)
       % return matrices for master and slave side in appropriate field
 
-      if obj.isMatrixComputed
+      if obj.isMatrixComputed()
         % mesh glue matrices are constant troughout the simulation
         return
       end
@@ -98,17 +96,6 @@ classdef MeshGlue < Mortar
           case 'slave'
             obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
         end
-      end
-
-      isStabReady = all(...
-        [~cellfun(@isempty, obj.Jslave), ~cellfun(@isempty, obj.Jmaster)]);
-      % if both master and slave matrices are computed, proceed to evaluate the
-      % stabilization matrix
-      if isStabReady
-        for i = 1:obj.nFld
-          obj.Jmult{i} = -computeStabilizationMatrix(obj,obj.physics(i));
-        end
-        obj.isMatrixComputed = true;
       end
     end
 
@@ -185,8 +172,10 @@ classdef MeshGlue < Mortar
         obj.Jslave{i}'*(obj.multipliers(i).curr-obj.iniMultipliers{i});
       var = getState(obj.solvers(2).getSolver(obj.physics(i)),state);
       ents = obj.dofm(2).getActiveEnts(obj.physics(i));
-      obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents) + ...
-        obj.Jmult{i}*obj.multipliers(i).curr;
+      obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents); 
+      if ~isempty(obj.Jmult{i})
+        obj.rhsMult{i} = obj.rhsMult{i} + obj.Jmult{i}*(obj.multipliers(i).curr-obj.iniMultipliers{i});
+      end
     end
   end
 
@@ -230,26 +219,11 @@ classdef MeshGlue < Mortar
       obj.dofCount = ndof(obj.idDomain);
     end
 
-    function du = solveMultipliers(obj,du,rhs,k)
-      % This method solves for the multipliers using a post-processing
-      % stabilization
-      % Input is the incremental solution for the unstabilized saddle point
-      % problem and rhs of the interface
-      % k points to the first row index of the current
-      % interfaces in the system
-      duMaster = du(obj.dofCount(1)+1:obj.dofCount(1)+obj.dofm(1).totDoF);
-      duSlave = du(obj.dofCount(2)+1:obj.dofCount(2)+obj.dofm(2).totDoF);
-      for i = 1:obj.nFld
-        nm = length(obj.multipliers(i).curr);
-        rhs = rhs(k+1:k+obj.totMult);
-        f = rhs + obj.Jmaster{i}*duMaster + obj.Jslave{i}*duSlave + ...
-          obj.Jmult{i}*obj.multipliers(i).curr;
-        dmult = obj.Jmult{i}\(-f);
-        du(k+1:k+nm) = dmult;
-        k = k+nm;
-        % 
-      end
+
+    function out = isMatrixComputed(obj)
+      out = all(cellfun(@(x) ~isempty(x), [obj.Jmaster(:); obj.Jslave(:)]));
     end
+
   end
 
 end

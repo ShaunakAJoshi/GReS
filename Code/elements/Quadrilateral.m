@@ -19,7 +19,9 @@
 % |     +-----|---->                
 % |           |   u  
 % |           |      
-% 1-----------2           
+% 1-----------2    
+
+
       
 
     coordLoc = [-1 -1;
@@ -29,11 +31,11 @@
     GaussPts
     J1
     mesh
-%     vol
     J
     detJ
-%     invJ;
     N1
+    Nb
+    Jb
   end
 
   methods (Access = public)
@@ -157,15 +159,21 @@
 
 
 
-    function N = computeBasisF(obj, list)
-        % Find the value the basis functions take at some  reference points defined in
-        % a list
-        N = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*list(i,1)).* ...
-            (1+obj.coordLoc(j,2).*list(i,2)), ...
-            (1:size(list,1))',1:obj.mesh.surfaceNumVerts(1));
-        if size(N,2) ~= obj.mesh.surfaceNumVerts(1)
-           N = N';
-        end
+    function N = computeBasisF(obj, coord)
+      % Find the value the basis functions take at some  reference points
+      % whose 2D coordinates are store in coord
+      N = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*coord(i,1)).* ...
+        (1+obj.coordLoc(j,2).*coord(i,2)), ...
+        (1:size(coord,1))',1:obj.mesh.surfaceNumVerts(1));
+      if size(N,2) ~= obj.mesh.surfaceNumVerts(1)
+        N = N';
+      end
+    end
+
+    function N = computeBubbleBasisF(obj, coord)
+      % Find the value the bubble basis functions take at some  reference
+      % points whose 2D coordinates are store in coord
+      N = arrayfun(@(i) (1-coord(i,1)^2)*(1-coord(i,2)^2),(1:size(coord,1)));
     end
 
 
@@ -191,7 +199,7 @@
 
     function findLocDerBasisF(obj)
       % Compute derivatives in the reference space for all Gauss points
-      obj.J1 = zeros(obj.mesh.nDim,obj.mesh.surfaceNumVerts(1),obj.GaussPts.nNode);
+      obj.J1 = zeros(2,obj.mesh.surfaceNumVerts(1),obj.GaussPts.nNode);
       %
       % d(N)/d\csi
       d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
@@ -207,8 +215,6 @@
       obj.J1(1,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d1';
       obj.J1(2,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d2';
       
-      % the third row will remain 0 (shape functions are constant w.r.t the
-      % third coordinate
     end
     
 
@@ -223,7 +229,16 @@
           obj.N1 = obj.N1';
       end
     end
-    
+
+    function findLocBubbleBasisF(obj)
+      % Find the value the basis functions take at the Gauss points
+
+      g = obj.GaussPts.coord;
+      bub = @(x,y) 1-g(x,y)^2;
+
+      obj.Nb = zeros(obj.GaussPts.nNode,1);
+      obj.Nb =  arrayfun(@(i) bub(i,1).*bub(i,2),1:obj.GaussPts.nNode);
+    end    
 
 
     function setQuad(obj,msh,GPoints)
@@ -231,6 +246,7 @@
       obj.GaussPts = GPoints;
       findLocDerBasisF(obj);
       findLocBasisF(obj);
+      findLocBubbleBasisF(obj);
       obj.detJ = zeros(1,obj.GaussPts.nNode);
     end
   end

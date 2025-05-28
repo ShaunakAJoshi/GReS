@@ -6,6 +6,7 @@ classdef Discretizer < handle
      numSolvers  % number of solvers discretized
      mod
      fields
+     grid
    end
 
    properties (GetAccess=public, SetAccess=public)
@@ -21,6 +22,7 @@ classdef Discretizer < handle
          %   Detailed explanation goes here
          obj.mod = symmod;
          obj.dofm = dofManager;
+         obj.grid = grid;
          obj.solver = containers.Map('KeyType','double','ValueType','any');
          obj.setDiscretizer(symmod,simParams,dofManager,grid,mat,varargin);
          obj.checkTimeDependence(symmod,mat,simParams);

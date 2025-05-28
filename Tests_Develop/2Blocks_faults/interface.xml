@@ -5,6 +5,7 @@
     <Master id="1" surfaceTag="2" />
     <Slave id="2" surfaceTag="1" />
     <Type> MeshTying </Type>
+    <Stabilization> Bubble </Stabilization>
     <nGP> 16 </nGP>
     <Quadrature type = "RBF" nInt = "4"/>
     <Physics> Poromechanics </Physics>
