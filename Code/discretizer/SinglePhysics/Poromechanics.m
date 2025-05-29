@@ -11,53 +11,63 @@ classdef Poromechanics < SinglePhysics
     function obj = Poromechanics(symmod,params,dofManager,grid,mat,state,data)
       obj@SinglePhysics('Poromechanics',symmod,params,dofManager,grid,mat,state,data);
       obj.nEntryKLoc = (obj.mesh.nDim^2)*(obj.elements.nNodesElem).^2;
-      setStrainMatrices(obj)
+      setStrainMatrices(obj);
       nDof = obj.dofm.getNumDoF(obj.field);
       obj.fInt = zeros(nDof,1); % reset internal forces
     end
 
-    function state = computeMatOld(obj,state,~,dt)
-      if ~isLinear(obj) || isempty(obj.J)
-        % recompute matrix if the model is non linear
-        obj.computeStiffMat(dt);
-      end
-      if obj.simParams.isTimeDependent
-        obj.J = obj.simParams.theta*obj.J;
-      end
-    end
+%     function state = computeMatOld(obj,state,~,dt)
+%       if ~isLinear(obj) || isempty(obj.J)
+%         % recompute matrix if the model is non linear
+%         
+%         obj.computeStiffMat(dt);
+%       end
+%       if obj.simParams.isTimeDependent
+%         obj.J = obj.simParams.theta*obj.J;
+%       end
+%     end
 
     function computeMat(obj,~,dt)
       if ~isLinear(obj) || isempty(obj.J)
         % recompute matrix if the model is non linear
-        profile on
-        obj.computeStiffMat2(dt);
-        profile viewer
+        assembler = @(elemId,counter) computeLocalStiff(obj,elemId,dt,counter);
+        % define size of output matrix
+        computeStiffMat(obj,assembler);
       end
       if obj.simParams.isTimeDependent
         obj.J = obj.simParams.theta*obj.J;
       end
     end
 
-    function computeStiffMat2(obj,dt)
-      % define the assembler
-      assembler = @(elemId,counter) computeLocalStiff(obj,elemId,dt,counter); 
-      % define number of entires
-      nDof = obj.dofm.getNumDoF(obj.field);
-      obj.J = assembleFEM(obj,{obj.nEntryKLoc},{assembler},{[nDof,nDof]});
+    function computeStiffMat(obj,LocalAssembler)
+      % general sparse assembly loop over elements for Poromechanics
+      subCells = obj.dofm.getFieldCells(obj.field);
+      nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
+      n = obj.nEntryKLoc*nSubCellsByType;
+      [iiVec,jjVec,matVec] = deal(zeros(n,1));
+      l1 = 0;
+      l2 = 0;
+      Ndof = obj.dofm.getNumDoF(obj.field);
+      % loop over cells
+      for el = subCells'
+        % get dof id and local matrix
+        [dofRow,dofCol,locMat,s2,dsigma,status] = LocalAssembler(el,l2);
+        [jjLoc,iiLoc] = meshgrid(dofCol,dofRow);
+        s1 = numel(locMat(:));
+        iiVec(l1+1:l1+s1) = iiLoc(:);
+        jjVec(l1+1:l1+s1) = jjLoc(:);
+        matVec(l1+1:l1+s1) = locMat(:);
+        obj.state.data.curr.status(l2+1:l2+obj.GaussPts.nNode,:) = status;
+        obj.state.data.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = dsigma;
+        l1 = l1 + s1;
+        l2 = l2 + s2;
+      end
+      % populate stiffness matrix
+      obj.J = sparse(iiVec, jjVec, matVec, Ndof,Ndof);
     end
 
-%     function [dofr,dofc,KLoc,n] = assembleLocal(obj,id,dt,el,offset)
-%       switch id
-%         case 'stiffness'
-%           [dofr,dofc,KLoc,n] = computeLocalStiff(obj,dt,el,offset);
-%         otherwise
-%           error('invalid identifier for assembleLocal method')
-%       end
-%     end
-
-    function [dofr,dofc,KLoc,n] = computeLocalStiff(obj,el,dt,l)
+    function [dofr,dofc,KLoc,fLoc,sigma,status] = computeLocalStiff(obj,el,dt,l)
       % get state object
-      currStress = obj.state.data.curr.stress;
       switch obj.mesh.cellVTKType(el)
         case 10 % Tetrahedra
           N = getDerBasisF(obj.elements.tetra,el);
@@ -68,14 +78,13 @@ classdef Poromechanics < SinglePhysics
             obj.state.data.conv.stress(l+1,:), ...
             obj.state.data.curr.strain(l+1,:), ...
             dt,obj.obj.state.data.conv.status(l+1,:), el, state.t);
-          obj.state.data.curr.status(l+1,:) = status;
-          if ~isLinear(obj)
-            obj.state.data.curr.stress(l+1,:) = sigma;
-          end
+          %obj.state.data.curr.status(l+1,:) = status;
+%           if ~isLinear(obj)
+%             obj.state.data.curr.stress(l+1,:) = sigma;
+%           end
           KLoc = B'*D*B*vol;
           sz = sigma - obj.state.data.iniStress(l+1,:);
           fLoc = (B')*sz'*vol;
-          n = 1;
           %             end
         case 12 % Hexahedra
           [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
@@ -85,9 +94,8 @@ classdef Poromechanics < SinglePhysics
             obj.state.data.conv.stress(l+1:l+obj.GaussPts.nNode,:), ...
             obj.state.data.curr.strain(l+1:l+obj.GaussPts.nNode,:), ...
             dt,obj.state.data.conv.status(l+1:l+obj.GaussPts.nNode,:), el, obj.state.t);
-          obj.state.data.curr.status(l+1:l+obj.GaussPts.nNode,:) = status;
-          currStress((l+1):(l+obj.GaussPts.nNode),:) = sigma;
-          obj.state.data.curr.stress = currStress; 
+%           obj.state.data.curr.status(l+1:l+obj.GaussPts.nNode,:) = status;
+%           obj.state.data.curr.stress(l+1:l+obj.GaussPts.nNode,:) = ones(8,6);
           Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
           Ks = Ks.*reshape(dJWeighed,1,1,[]);
           KLoc = sum(Ks,3);
@@ -97,90 +105,90 @@ classdef Poromechanics < SinglePhysics
           fTmp = pagemtimes(B,'ctranspose',sz,'none');
           fTmp = fTmp.*reshape(dJWeighed,1,1,[]);
           fLoc = sum(fTmp,3);
-          n = obj.GaussPts.nNode;
       end
       % get global DoF
-      dof = dofId(obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)),3);
+      nodes = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
+      dof = obj.dofm.getLocalDoF(nodes,obj.fldId);
       dofr = dof; dofc = dof;
       % assemble internal forces
       obj.fInt(dof) = obj.fInt(dof)+fLoc;
     end
 
-
-    function computeStiffMat(obj,dt)
-      subCells = obj.dofm.getFieldCells(obj.field);
-      nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
-      iiVec = zeros(obj.nEntryKLoc*nSubCellsByType,1);
-      jjVec = zeros(obj.nEntryKLoc*nSubCellsByType,1);
-      KVec = zeros(obj.nEntryKLoc*nSubCellsByType,1);
-      nDof = obj.dofm.getNumDoF(obj.field);
-      obj.fInt = zeros(nDof,1); % reset internal forces
-      nComp = obj.dofm.getDoFperEnt(obj.field);
-      %
-      l1 = 0;
-      l2 = 0;
-      for el=subCells'
-        % Get the right material stiffness for each element
-        switch obj.mesh.cellVTKType(el)
-          case 10 % Tetrahedra
-            N = getDerBasisF(obj.elements.tetra,el);
-            vol = findVolume(obj.elements.tetra,el);
-            B = zeros(6,4*obj.mesh.nDim);
-            B(obj.indBtetra(:,2)) = N(obj.indBtetra(:,1));
-            [D, sigma, status] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
-              obj.state.data.conv.stress(l2+1,:), ...
-              obj.state.data.curr.strain(l2+1,:), ...
-              dt,obj.state.data.conv.status(l2+1,:), el, obj.state.t);
-            obj.state.data.curr.status(l2+1,:) = status;
-            if ~isLinear(obj)
-              obj.state.data.curr.stress(l2+1,:) = sigma;
-            end
-            KLoc = B'*D*B*vol;
-            s1 = obj.nEntryKLoc(1);
-            sz = sigma - obj.state.data.iniStress(l2+1,:);
-            fLoc = (B')*sz'*vol;
-            s2 = 1;
-            %             end
-          case 12 % Hexahedra
-            [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
-            B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
-            B(obj.indBhexa(:,2)) = N(obj.indBhexa(:,1));
-            [D, sigma, status] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
-              obj.state.data.conv.stress(l2+1:l2+obj.GaussPts.nNode,:), ...
-              obj.state.data.curr.strain(l2+1:l2+obj.GaussPts.nNode,:), ...
-              dt,obj.state.data.conv.status(l2+1:l2+obj.GaussPts.nNode,:), el, obj.state.t);
-            obj.state.data.curr.status(l2+1:l2+obj.GaussPts.nNode,:) = status;
-            obj.state.data.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = sigma;
-            Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
-            Ks = Ks.*reshape(dJWeighed,1,1,[]);
-            KLoc = sum(Ks,3);
-            clear Ks;
-            s1 = obj.nEntryKLoc(2);
-            sz = sigma - obj.state.data.iniStress(l2+1:l2+obj.GaussPts.nNode,:);
-            sz = reshape(sz',6,1,obj.GaussPts.nNode);
-            fTmp = pagemtimes(B,'ctranspose',sz,'none');
-            fTmp = fTmp.*reshape(dJWeighed,1,1,[]);
-            fLoc = sum(fTmp,3);
-            s2 = obj.GaussPts.nNode;
-        end
-        % get global DoF
-        dof = dofId(obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)),nComp);
-        [jjLoc,iiLoc] = meshgrid(dof,dof);
-        iiVec(l1+1:l1+s1) = iiLoc(:);
-        jjVec(l1+1:l1+s1) = jjLoc(:);
-        KVec(l1+1:l1+s1) = KLoc(:);
-        l1 = l1 + s1;
-        l2 = l2 + s2;
-        obj.fInt(dof) = obj.fInt(dof)+fLoc;
-      end
-      % renumber indices according to active nodes
-      % important: this call to unique assumes that iiVec contains all active
-      % degrees of freedom in the domain
-      [~,~,iiVec] = unique(iiVec);
-      [~,~,jjVec] = unique(jjVec);
-      % populate stiffness matrix
-      obj.J = sparse(iiVec, jjVec, KVec, nDof, nDof);
-    end
+% 
+%     function computeStiffMat(obj,dt)
+%       subCells = obj.dofm.getFieldCells(obj.field);
+%       nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
+%       iiVec = zeros(obj.nEntryKLoc*nSubCellsByType,1);
+%       jjVec = zeros(obj.nEntryKLoc*nSubCellsByType,1);
+%       KVec = zeros(obj.nEntryKLoc*nSubCellsByType,1);
+%       nDof = obj.dofm.getNumDoF(obj.field);
+%       obj.fInt = zeros(nDof,1); % reset internal forces
+%       nComp = obj.dofm.getDoFperEnt(obj.field);
+%       %
+%       l1 = 0;
+%       l2 = 0;
+%       for el=subCells'
+%         % Get the right material stiffness for each element
+%         switch obj.mesh.cellVTKType(el)
+%           case 10 % Tetrahedra
+%             N = getDerBasisF(obj.elements.tetra,el);
+%             vol = findVolume(obj.elements.tetra,el);
+%             B = zeros(6,4*obj.mesh.nDim);
+%             B(obj.indBtetra(:,2)) = N(obj.indBtetra(:,1));
+%             [D, sigma, status] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
+%               obj.state.data.conv.stress(l2+1,:), ...
+%               obj.state.data.curr.strain(l2+1,:), ...
+%               dt,obj.state.data.conv.status(l2+1,:), el, obj.state.t);
+%             obj.state.data.curr.status(l2+1,:) = status;
+%             if ~isLinear(obj)
+%               obj.state.data.curr.stress(l2+1,:) = sigma;
+%             end
+%             KLoc = B'*D*B*vol;
+%             s1 = obj.nEntryKLoc(1);
+%             sz = sigma - obj.state.data.iniStress(l2+1,:);
+%             fLoc = (B')*sz'*vol;
+%             s2 = 1;
+%             %             end
+%           case 12 % Hexahedra
+%             [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
+%             B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
+%             B(obj.indBhexa(:,2)) = N(obj.indBhexa(:,1));
+%             [D, sigma, status] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
+%               obj.state.data.conv.stress(l2+1:l2+obj.GaussPts.nNode,:), ...
+%               obj.state.data.curr.strain(l2+1:l2+obj.GaussPts.nNode,:), ...
+%               dt,obj.state.data.conv.status(l2+1:l2+obj.GaussPts.nNode,:), el, obj.state.t);
+%             obj.state.data.curr.status(l2+1:l2+obj.GaussPts.nNode,:) = status;
+%             obj.state.data.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = sigma;
+%             Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
+%             Ks = Ks.*reshape(dJWeighed,1,1,[]);
+%             KLoc = sum(Ks,3);
+%             clear Ks;
+%             s1 = obj.nEntryKLoc(2);
+%             sz = sigma - obj.state.data.iniStress(l2+1:l2+obj.GaussPts.nNode,:);
+%             sz = reshape(sz',6,1,obj.GaussPts.nNode);
+%             fTmp = pagemtimes(B,'ctranspose',sz,'none');
+%             fTmp = fTmp.*reshape(dJWeighed,1,1,[]);
+%             fLoc = sum(fTmp,3);
+%             s2 = obj.GaussPts.nNode;
+%         end
+%         % get global DoF
+%         dof = dofId(obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)),nComp);
+%         [jjLoc,iiLoc] = meshgrid(dof,dof);
+%         iiVec(l1+1:l1+s1) = iiLoc(:);
+%         jjVec(l1+1:l1+s1) = jjLoc(:);
+%         KVec(l1+1:l1+s1) = KLoc(:);
+%         l1 = l1 + s1;
+%         l2 = l2 + s2;
+%         obj.fInt(dof) = obj.fInt(dof)+fLoc;
+%       end
+%       % renumber indices according to active nodes
+%       % important: this call to unique assumes that iiVec contains all active
+%       % degrees of freedom in the domain
+%       [~,~,iiVec] = unique(iiVec);
+%       [~,~,jjVec] = unique(jjVec);
+%       % populate stiffness matrix
+%       obj.J = sparse(iiVec, jjVec, KVec, nDof, nDof);;
+%     end
 
     function setState(obj)
       % add poromechanics fields to state structure
@@ -265,10 +273,15 @@ classdef Poromechanics < SinglePhysics
       end
     end
 
-    function var = getState(obj)
+    function var = getState(obj,varargin)
       % input: state structure
       % output: current primary variable
-      var = obj.state.data.dispCurr;
+      if isempty(varargin)
+        var = obj.state.data.dispCurr;
+      else
+        stateIn = varargin{1};
+        var = stateIn.data.dispCurr;
+      end
     end
 
     function [dof,vals] = getBC(obj,bc,id,t,~)
@@ -389,7 +402,7 @@ classdef Poromechanics < SinglePhysics
           error('BC type %s is not available for %s field',cond,obj.field);
       end
       % map entities dof to local dof numbering
-      dof = obj.dofm.getLocalEnts(ents,obj.field);
+      dof = obj.dofm.getLocalEnts(ents,obj.fldId);
       switch bc.getType(id)
         case 'Dir'
           % component multiplication of Dirichlet BC dofs

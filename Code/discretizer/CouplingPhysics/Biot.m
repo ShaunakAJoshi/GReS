@@ -78,8 +78,9 @@ classdef Biot < CouplingPhysics
                         s1 = obj.elements.nNodesElem(2)^2*obj.mesh.nDim;
                 end
                 %assembly Coupling Matrix
-                dofrow = getLocalDoF(obj.dofm,obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)),obj.fields{1});
-                dofcol = getLocalDoF(obj.dofm,obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)),obj.fields{2});
+                nodes = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
+                dofrow = getLocalDoF(obj.dofm,nodes,obj.fldId(1));
+                dofcol = getLocalDoF(obj.dofm,nodes,obj.fldId(2));
                 [jjloc,iiloc] = meshgrid(dofcol,dofrow);
                 iiVec(l1+1:l1+s1) = iiloc(:);
                 jjVec(l1+1:l1+s1) = jjloc(:);

@@ -57,10 +57,15 @@ classdef SPFlow < SinglePhysics
          end
       end
 
-      function var = getState(obj,stateIn)
+      function var = getState(obj,varargin)
         % input: state structure
         % output: current primary variable
-        var = stateIn.data.pressure;
+        if isempty(varargin)
+          var = obj.state.data.pressure;
+        else
+          stateIn = varargin{1};
+          var = stateIn.data.pressure;
+        end
       end
 
       function [cellData,pointData] = printState(obj,sOld,sNew,t)
@@ -151,7 +156,8 @@ classdef SPFlow < SinglePhysics
                   PLoc = (alpha+poro*beta)*(N1'*diag(dJWeighed)*N1);
             end
             %Getting dof associated to Flow subphysic
-            dof = dofId(obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)),1);
+            nodes = (obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)));
+            dof = obj.dofm.getLocalDoF(nodes,obj.fldId);
             [jjLoc,iiLoc] = meshgrid(dof,dof);
             iiVec(l1+1:l1+s1) = iiLoc(:);
             jjVec(l1+1:l1+s1) = jjLoc(:);
@@ -160,8 +166,6 @@ classdef SPFlow < SinglePhysics
             l1 = l1 + s1;
          end
          % renumber indices according to active nodes
-         [~,~,iiVec] = unique(iiVec);
-         [~,~,jjVec] = unique(jjVec);
          nDoF = obj.dofm.getNumDoF(obj.field);
          % Assemble H and P matrices defined as new fields of
          obj.H = sparse(iiVec, jjVec, HVec, nDoF, nDoF);
@@ -316,18 +320,19 @@ classdef SPFlow < SinglePhysics
                   entitiesInfl = bc.getEntitiesInfluence(id);
                   vals = entitiesInfl*v;
                end
-            case 'VolumeForce'
-               v = bc.getVals(id,t);
+           case 'VolumeForce'
+             v = bc.getVals(id,t);
+             if isFVTPFABased(obj.model,'Flow')
                ents = bc.getEntities(id);
-               if isFVTPFABased(obj.model,'Flow')
-                  vals = v.*obj.elements.vol(ents);
-               elseif isFEMBased(obj.model,'Flow')
-                  entitiesInfl = bc.getEntitiesInfluence(id);
-                  vals = entitiesInfl*v;
-               end
+               vals = v.*obj.elements.vol(ents);
+             elseif isFEMBased(obj.model,'Flow')
+               ents = bc.getLoadedEntities(id);
+               entitiesInfl = bc.getEntitiesInfluence(id);
+               vals = entitiesInfl*v;
+             end
          end
          % get local dof numbering
-         dof = obj.dofm.getLocalDoF(ents,obj.field);
+         dof = obj.dofm.getLocalDoF(ents,obj.fldId);
       end
 
       function applyDirVal(obj,bc,id,t)

@@ -13,6 +13,7 @@ classdef CouplingPhysics < handle
       material
       GaussPts
       state
+      fldId
    end
    
    methods
@@ -26,6 +27,9 @@ classdef CouplingPhysics < handle
          obj.faces = grid.faces;
          obj.material = mat;
          obj.state = state;
+         obj.fldId = zeros(2,1);
+         obj.fldId(1) = obj.dofm.getFieldId(field1);
+         obj.fldId(2) = obj.dofm.getFieldId(field2);
          if ~isempty(data)
             obj.GaussPts = data{1};
          end

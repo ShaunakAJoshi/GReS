@@ -16,6 +16,7 @@ classdef SinglePhysics < handle
       material
       GaussPts
       state
+      fldId
    end
    
    methods
@@ -29,6 +30,7 @@ classdef SinglePhysics < handle
          obj.faces = grid.faces;
          obj.material = mat;
          obj.state = state;
+         obj.fldId = obj.dofm.getFieldId(fld);
          % obj.field = 
          if ~isempty(data)
             obj.GaussPts = data{1};
@@ -70,62 +72,6 @@ classdef SinglePhysics < handle
 
       function rhs = getRhs(obj,varargin)
          rhs = obj.rhs;
-      end
-
-
-      function varargout = assembleFEM(obj,nEntries,assembler,N)
-        % general sparse assembly loop over elements for single physics
-        % kernel using FEM this method is flexible and can generate
-        % multiple sparse matrices in output. nEntries: cell array of
-        % length of index arrays for sparse assembly 
-        % localAssembly: cell array of routines to compute local 
-        % N: cell array of [numb row,numb col] for each output marix
-
-        % setup indices array
-        assert(numel(nEntries)==numel(assembler),...
-          'Lenght of entires number and assembly routine list must match!');
-
-        subCells = obj.dofm.getFieldCells(obj.field);
-        nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
-        % number of matrices to be assembled
-        nMat = numel(nEntries);
-        assert(nargout == nMat,'Incorrect number of output matrices.')
-        varargout = cell(nMat,1);
-        [iiVec,jjVec,matVec] = deal(cell(nMat,1));
-
-        for i = 1:nMat
-          % preallocate arrays for sparse assembly
-          n = nEntries{i}*nSubCellsByType;
-          [iiVec{i},jjVec{i},matVec{i}] = deal(zeros(n,1));
-        end
-        l1 = 0;
-        l2 = 0;
-        % loop over cells
-        for el = subCells'
-          for i = 1:nMat
-            % get dof id and local matrix
-            [dofRow,dofCol,locMat,s2] = assembler{i}(el,l2);
-            [jjLoc,iiLoc] = meshgrid(dofCol,dofRow);
-            s1 = numel(locMat(:));
-            iiVec{i}(l1+1:l1+s1) = iiLoc(:);
-            jjVec{i}(l1+1:l1+s1) = jjLoc(:);
-            matVec{i}(l1+1:l1+s1) = locMat(:);
-            l1 = l1 + s1;
-            l2 = l2 + s2;
-          end
-        end
-
-        for i = 1:nMat
-          % renumber indices according to active nodes
-          % important: this call to unique assumes that iiVec contains all active
-          % degrees of freedom in the domain
-          [~,~,iiVec{i}] = unique(iiVec{i});
-          [~,~,jjVec{i}] = unique(jjVec{i});
-          % populate stiffness matrix
-          Nr = N{i}(1); 
-          Nc = N{i}(2);
-          varargout{i} = sparse(iiVec{i}, jjVec{i}, matVec{i}, Nr, Nc);
-        end
       end
    end
 end
