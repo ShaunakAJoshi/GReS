@@ -10,6 +10,7 @@ classdef DoFManager < handle
       cellTags
       domainFields
       tag2subDomain
+      entMap      % collection of maps of domain entities to local dof
       fieldList
    end
    properties (Access = public)
@@ -96,9 +97,10 @@ classdef DoFManager < handle
                end
             end
          end
-         obj.numEntsField = zeros(1,numel(obj.fields));
+         nFld = numel(obj.fields);
+         obj.numEntsField = zeros(1,nFld);
          obj.numEntsSubdomain = zeros(1,subID);
-         obj.nComp = zeros(1,numel(obj.fields));
+         obj.nComp = zeros(1,nFld);
       end
 
 
@@ -142,8 +144,10 @@ classdef DoFManager < handle
       end
 
       function finalizeDoFManager(obj,mesh)
+        nFld = numel(obj.fields);
+        obj.entMap = cell(nFld,1);
          % updated DoF structure with entitiy list for each subdomain
-         for i = 1:numel(obj.fields)
+         for i = 1:nFld
             nSub = numel(obj.fields(i).subID);
             obj.fields(i).entCount = zeros(1,nSub);
             obj.fields(i).subdomainEnts = cell(nSub,1);
@@ -165,7 +169,8 @@ classdef DoFManager < handle
                obj.numEntsSubdomain(subID) = obj.numEntsSubdomain(subID) + obj.fields(i).entCount(j);
                obj.numEntsField(i) = obj.numEntsField(i) + obj.fields(i).entCount(j);
                obj.fieldList = string({obj.fields.field});
-            end
+            end 
+            getDoFMap(obj,i);
          end
          obj.totDoF = obj.nComp*obj.numEntsField';
       end
@@ -184,7 +189,7 @@ classdef DoFManager < handle
                   % all dofs of input field
                   dofs = dofId((1:obj.numEntsField(fldId))',nc);
                else
-                  dofs = getLocalDoF(obj,varargin{1},field);
+                  dofs = getLocalDoF(obj,varargin{1},fldId);
                end
                nDoF = obj.nComp.*obj.numEntsField;
                dofs = dofs+sum(nDoF(1:fldId-1));
@@ -193,34 +198,31 @@ classdef DoFManager < handle
          end
       end
       %
-      function dofList = getLocalDoF(obj,entList,field)
+      function dofList = getLocalDoF(obj,entList,fldId)
         % get local DoF numbering for entities within a field
-         fldId = obj.getFieldId(field);
          nc = obj.nComp(fldId);
-         ents = getLocalEnts(obj,entList,field);
+         ents = obj.entMap{fldId}(entList);
+         if ~all(ents)
+           error('Inactive entity for input field')
+         end
          dofList = dofId(ents,nc);
       end
 
-      function dofList = getLocalEnts(obj,entList,field)
+      function entList = getLocalEnts(obj,entList,fldId)
          % renumber entity id skipping inactive entities 
-         fldId = obj.getFieldId(field);
-         entList = reshape(entList,[],1);
-         dofList = zeros(numel(entList),1);
-         if ~all(obj.fields(fldId).isEntActive(entList))
-            error('Inactive entity for field %s in input list',field);
+         entList = obj.entMap{fldId}(entList);
+         if ~all(entList)
+           error('Inactive entity for input field')
          end
-         % sorting entity list is way more efficient
-         [entList,idSort] = sort(entList); 
-         s = 0;
-         k = 0;
-         iPrev = 0;
-         actEnt = obj.fields(fldId).isEntActive;
-         for j = idSort'
-            s = s+sum(actEnt(iPrev+1:entList(k+1)));
-            iPrev = entList(k+1);
-            dofList(j) = s;
-            k = k+1;
-         end
+      end
+
+      function getDoFMap(obj,id)
+        % renumber entity id skipping inactive entities
+        %entList = 1:size();
+        dofMap = zeros(numel(obj.fields(id).isEntActive),1);
+        dofMap(obj.fields(id).isEntActive) = 1:sum(obj.fields(id).isEntActive);
+        dofMap(~obj.fields(id).isEntActive) = 0;
+        obj.entMap{id} = dofMap;
       end
 
       function fldDofs = getFieldDoF(obj,dofs,field)

@@ -98,73 +98,75 @@ classdef Mortar < handle
     end
 
     function computeMortarMatrices(obj)
-      elemSlave = getElem(obj,2);
-      [imVec,jmVec,MVec] = allocateMatrix(obj,1);
-      [idVec,jdVec,DVec] = allocateMatrix(obj,2);
-      % Ns: basis function matrix on slave side
-      % Nm: basis function matrix on master side
-      % Nmult: basis function matrix for multipliers
-      cs = 0; % slave matrix entry counter
-      cm = 0; % master matrix entry counter
+      if isempty(obj.mortarMatrix{1}) % compute only once
+        elemSlave = getElem(obj,2);
+        [imVec,jmVec,MVec] = allocateMatrix(obj,1);
+        [idVec,jdVec,DVec] = allocateMatrix(obj,2);
+        % Ns: basis function matrix on slave side
+        % Nm: basis function matrix on master side
+        % Nmult: basis function matrix for multipliers
+        cs = 0; % slave matrix entry counter
+        cm = 0; % master matrix entry counter
 
-      for i = 1:obj.mesh.nEl(2)
-        is = obj.mesh.activeCells{2}(i);
-        masterElems = find(obj.mesh.elemConnectivity(:,is));
-        if isempty(masterElems)
-          continue
-        end
-        %Compute Slave quantities
-        dJWeighed = elemSlave.getDerBasisFAndDet(is,3);
-        posGP = getGPointsLocation(elemSlave,is);
-        nSlave = obj.mesh.msh(2).surfaces(is,:);
-        Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-        for im = masterElems'
-          nMaster = obj.mesh.msh(1).surfaces(im,:);
-          [Nm,id] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
-          if any(id)
-            % get basis function matrices
-            Nm = Nm(id,:);
-            Ns = Nslave(id,:);
-            Nmult = ones(size(Ns,1),1);
-            Nm = Discretizer.reshapeBasisF(Nm,1);
-            Ns = Discretizer.reshapeBasisF(Ns,1);
-            Nmult = Discretizer.reshapeBasisF(Nmult,1);
+        for i = 1:obj.mesh.nEl(2)
+          is = obj.mesh.activeCells{2}(i);
+          masterElems = find(obj.mesh.elemConnectivity(:,is));
+          if isempty(masterElems)
+            continue
+          end
+          %Compute Slave quantities
+          dJWeighed = elemSlave.getDerBasisFAndDet(is,3);
+          posGP = getGPointsLocation(elemSlave,is);
+          nSlave = obj.mesh.msh(2).surfaces(is,:);
+          Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
+          for im = masterElems'
+            nMaster = obj.mesh.msh(1).surfaces(im,:);
+            [Nm,id] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
+            if any(id)
+              % get basis function matrices
+              Nm = Nm(id,:);
+              Ns = Nslave(id,:);
+              Nmult = ones(size(Ns,1),1);
+              Nm = Discretizer.reshapeBasisF(Nm,1);
+              Ns = Discretizer.reshapeBasisF(Ns,1);
+              Nmult = Discretizer.reshapeBasisF(Nmult,1);
 
-            % compute slave mortar matrix
-            Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
-            [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
-              Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),i,nSlave);
+              % compute slave mortar matrix
+              Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
+              [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
+                Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),i,nSlave);
 
-            % compute master mortar matrix
-            Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
-            [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
-              Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),i,nMaster);
+              % compute master mortar matrix
+              Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
+              [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
+                Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),i,nMaster);
 
-            % sort out gauss points already ised
-            dJWeighed = dJWeighed(~id);
-            posGP = posGP(~id,:);
-            Nslave = Nslave(~id,:);
-          else
-            % pair of elements does not share support. update connectivity
-            % matrix
-            obj.mesh.elemConnectivity(im,is) = 0;
+              % sort out gauss points already ised
+              dJWeighed = dJWeighed(~id);
+              posGP = posGP(~id,:);
+              Nslave = Nslave(~id,:);
+            else
+              % pair of elements does not share support. update connectivity
+              % matrix
+              obj.mesh.elemConnectivity(im,is) = 0;
+            end
+          end
+          if ~all(id)
+            % track element not fully projected
+            fprintf('%i GP not sorted for slave elem numb %i \n',sum(id),is);
           end
         end
-        if ~all(id)
-          % track element not fully projected
-          fprintf('%i GP not sorted for slave elem numb %i \n',sum(id),is);
-        end
+
+        % cut vectors for sparse matrix assembly
+        imVec = imVec(1:cm); jmVec = jmVec(1:cm); MVec = MVec(1:cm);
+        idVec = idVec(1:cs); jdVec = jdVec(1:cs); DVec = DVec(1:cs);
+
+        % assemble mortar matrices in sparse format
+        obj.mortarMatrix{1} = -sparse(imVec,jmVec,MVec,...
+          obj.mesh.nEl(2),obj.mesh.msh(1).nNodes);
+        obj.mortarMatrix{2} = sparse(idVec,jdVec,DVec,...
+          obj.mesh.nEl(2),obj.mesh.msh(2).nNodes);
       end
-
-      % cut vectors for sparse matrix assembly
-      imVec = imVec(1:cm); jmVec = jmVec(1:cm); MVec = MVec(1:cm);
-      idVec = idVec(1:cs); jdVec = jdVec(1:cs); DVec = DVec(1:cs);
-
-      % assemble mortar matrices in sparse format
-      obj.mortarMatrix{1} = -sparse(imVec,jmVec,MVec,...
-        obj.mesh.nEl(2),obj.mesh.msh(1).nNodes);
-      obj.mortarMatrix{2} = sparse(idVec,jdVec,DVec,...
-        obj.mesh.nEl(2),obj.mesh.msh(2).nNodes);
     end
 
 
@@ -178,6 +180,8 @@ classdef Mortar < handle
       elseif isSlave
         sideStr = 'slave';
       else
+        % consider the case where both sides belong to the same domain,
+        % something like 'master_slave'
         error('Input domain not belonging to the interface');
       end
     end

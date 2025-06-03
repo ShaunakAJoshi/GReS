@@ -2,7 +2,7 @@ clc;
 clear;
 close all;
 
-list = {'Code/read', 'Code/write', 'ThirdPartyLibs/VTKreader'};
+list = {'Code/read', 'Code/write', 'ThirdPartyLibs/VTKreader', 'Code/elements'};
 
 home = pwd;
 for folder = list

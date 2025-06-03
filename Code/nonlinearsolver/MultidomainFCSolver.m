@@ -107,7 +107,7 @@ classdef MultidomainFCSolver < handle
           for i = 1:obj.nDom
             obj.state(i).curr.t = obj.t;
             if isPoromechanics(obj.domains(i).ModelType)
-              obj.state(i).curr = Poromechanics.advanceState(obj.state(i).curr);
+              obj.domains(i).Discretizer.getSolver('Poromechanics').advanceState();
             end
           end
 
@@ -145,8 +145,8 @@ classdef MultidomainFCSolver < handle
       obj.state = repmat(struct('prev',{},'curr',{}),obj.nDom,1);
       % initialize a state structure for each domains
       for i = 1:obj.nDom
-        obj.state(i).prev = obj.domains(i).State;
-        obj.state(i).curr =  obj.domains(i).State;
+        obj.state(i).curr = obj.domains(i).Discretizer.state;
+        obj.state(i).prev =  copy(obj.state(i).curr);
       end
       getSystemSize(obj);
       getNumField(obj);
@@ -357,8 +357,7 @@ classdef MultidomainFCSolver < handle
         if ~isempty(obj.domains(i).BoundaryConditions)
 
           % Apply Dirichlet boundary values to i-th domain
-          obj.state(i).curr = applyDirVal(...
-            discretizer, bc, obj.t, obj.state(i).curr);
+            applyDirVal(discretizer, bc, obj.t);
         end
       end
     end
@@ -371,14 +370,14 @@ classdef MultidomainFCSolver < handle
 
         % Compute matrices and residuals for individual models of
         % the i-th domain
-        obj.state(i).curr = computeMatricesAndRhs(...
-          discretizer, obj.state(i).curr, obj.state(i).prev, obj.dt);
+        computeMatricesAndRhs(...
+          discretizer, obj.state(i).prev, obj.dt);
+      end
 
-        % Compute domain coupling matrices and rhs
-        for j = discretizer.interfaceList
-          computeMat(obj.interfaces{j},i);
-          computeRhs(obj.interfaces{j},i,obj.state(i).curr);
-        end
+      % Compute domain coupling matrices and rhs
+      for j = 1:obj.nInterf
+        computeMat(obj.interfaces{j}, obj.dt);
+        computeRhs(obj.interfaces{j});
       end
     end
 
@@ -386,15 +385,14 @@ classdef MultidomainFCSolver < handle
 
     function applyBC(obj)
       for i = 1:obj.nDom
-
         discretizer = obj.domains(i).Discretizer;
         bc = obj.domains(i).BoundaryConditions;
         % Apply BCs to the blocks of the linear system
-        applyBC(discretizer, bc, obj.t, obj.state(i).curr);
+        applyBC(discretizer, bc, obj.t);
 
         % Apply BC to coupling matrices
         for j = discretizer.interfaceList
-          applyBC(obj.interfaces{j},i,bc,obj.t, obj.state(i).curr);
+          applyBC(obj.interfaces{j},i,bc,obj.t,obj.state(i).curr);
         end
       end
     end
@@ -408,7 +406,7 @@ classdef MultidomainFCSolver < handle
         discretizer = obj.domains(i).Discretizer;
         N = obj.domains(i).DoFManager.totDoF;
         du = dSol(1:N);
-        obj.state(i).curr = updateState(discretizer,obj.state(i).curr,du);
+        updateState(discretizer,du);
         dSol = dSol(N+1:end);
       end
 
@@ -425,7 +423,7 @@ classdef MultidomainFCSolver < handle
     function printState(obj)
       if obj.t > obj.simParameters.tMax
         for i = 1:obj.nDom
-          printState(obj.domains(i).OutState,obj.state(i).curr);
+          printState(obj.domains(i).OutState);
         end
         for i = 1:obj.nInterf
           id = obj.interfaces{i}.idSlave;
@@ -434,7 +432,7 @@ classdef MultidomainFCSolver < handle
         end
       else
         for i = 1:obj.nDom
-          printState(obj.domains(i).OutState,obj.domains(i).Discretizer,obj.state(i).prev,obj.state(i).curr);
+          printState(obj.domains(i).OutState,obj.domains(i).Discretizer,obj.state(i).prev);
         end
         for i = 1:obj.nInterf
           id = obj.interfaces{i}.idDomain(2);
@@ -450,7 +448,7 @@ classdef MultidomainFCSolver < handle
     function goOnState(obj)
       % transfer current state into previous state
       for i = 1:obj.nDom
-        obj.state(i).prev = obj.state(i).curr;
+        obj.state(i).prev = copy(obj.state(i).curr);
       end
 
       for i = 1:obj.nInterf
@@ -461,7 +459,7 @@ classdef MultidomainFCSolver < handle
     function goBackState(obj)
       % transfer previous state into current state (backstep)
       for i = 1:obj.nDom
-        obj.state(i).prev = obj.state(i).curr;
+        obj.state(i).prev = copy(obj.state(i).curr);
       end
 
       for i = 1:obj.nInterf

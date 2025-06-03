@@ -79,42 +79,31 @@ classdef MeshGlue < Mortar
     end
 
 
-    function computeMat(obj,idDomain)
+    function computeMat(obj)
       % return matrices for master and slave side in appropriate field
-
       if obj.isMatrixComputed()
         % mesh glue matrices are constant troughout the simulation
         return
       end
-
-      side = getSide(obj,idDomain);
+      computeMortarMatrices(obj);
       for i = 1:obj.nFld
         % map local mortar matrices to global indices
-        switch side
-          case 'master'
-            obj.Jmaster{i} = obj.getMatrix(1,obj.physics(i));
-          case 'slave'
-            obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
-        end
+        obj.Jmaster{i} = obj.getMatrix(1,obj.physics(i));
+        obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
       end
     end
 
-    function computeRhs(obj,idDomain,state)
+    function computeRhs(obj)
       % compute rhs contributions for a specified input field
-      side = getSide(obj,idDomain);
       for i = 1:obj.nFld
-        switch side
-          case 'master'
-            computeRhsMaster(obj,i,state);
-          case 'slave'
-            computeRhsSlave(obj,i,state);
-        end
+        computeRhsMaster(obj,i);
+        computeRhsSlave(obj,i);
       end
     end
 
     function applyBCmaster(obj,bound,bc,t,state)
       physic = bound.getPhysics(bc);
-      [bcEnts,~] = getBC(obj.solvers(1).getSolver(physic),bound,bc,t,state);
+      [bcEnts,~] = getBC(obj.solvers(1).getSolver(physic),bound,bc,t);
       i = strcmp(obj.physics,physic);
       obj.rhsMaster{i}(bcEnts) = 0;
       obj.Jmaster{i}(:,bcEnts) = 0;
@@ -122,7 +111,7 @@ classdef MeshGlue < Mortar
 
     function applyBCslave(obj,bound,bc,t,state)
       physic = bound.getPhysics(bc);
-      [bcEnts,~] = getBC(obj.solvers(2).getSolver(physic),bound,bc,t,state);
+      [bcEnts,~] = getBC(obj.solvers(2).getSolver(physic),bound,bc,t);
       i = strcmp(obj.physics,physic);
       obj.rhsSlave{i}(bcEnts) = 0;
       obj.Jslave{i}(:,bcEnts) = 0;
@@ -159,18 +148,18 @@ classdef MeshGlue < Mortar
       end
     end
 
-    function computeRhsMaster(obj,i,state)
+    function computeRhsMaster(obj,i)
       obj.rhsMaster{i} = ...
         obj.Jmaster{i}'*(obj.multipliers(i).curr-obj.iniMultipliers{i});
-      var = getState(obj.solvers(1).getSolver(obj.physics(i)),state);
+      var = getState(obj.solvers(1).getSolver(obj.physics(i)));
       ents = obj.dofm(1).getActiveEnts(obj.physics(i));
       obj.rhsMult{i} = obj.rhsMult{i} + obj.Jmaster{i}*var(ents);
     end
 
-    function computeRhsSlave(obj,i,state)
+    function computeRhsSlave(obj,i)
       obj.rhsSlave{i} = ...
         obj.Jslave{i}'*(obj.multipliers(i).curr-obj.iniMultipliers{i});
-      var = getState(obj.solvers(2).getSolver(obj.physics(i)),state);
+      var = getState(obj.solvers(2).getSolver(obj.physics(i)));
       ents = obj.dofm(2).getActiveEnts(obj.physics(i));
       obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents); 
       if ~isempty(obj.Jmult{i})

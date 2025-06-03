@@ -1,7 +1,7 @@
 close all;
 clear;
 
-
+profile on
 scriptFullPath = mfilename('fullpath');
 scriptDir = fileparts(scriptFullPath);
 cd(scriptDir);
@@ -9,7 +9,7 @@ warning('off','MATLAB:nearlySingularMatrix');
 
 % List the physical models activated in the simulation and their
 % discretization scheme
-model = ModelType(["SinglePhaseFlow_FVTPFA","Poromechanics_FEM"]);
+model = ModelType(["SinglePhaseFlow_FEM","Poromechanics_FEM"]);
 
 % Create object containing simulation parameters
 fileName = "simParam.dat";
@@ -68,7 +68,7 @@ bound = Boundaries(fileName,model,grid);
 % perform a fully coupled simulation
 solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst,GaussPts);
 [simState] = solver.NonLinearLoop();
-
+profile viewer
 % Finalize the print utility
 printUtils.finalize()
 

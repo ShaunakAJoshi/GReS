@@ -94,6 +94,11 @@
       N1Mat = obj.N1;
     end
 
+    function NbMat = getBubbleBasisFinGPoints(obj)
+      NbMat = obj.Nb;
+      NbMat = reshape(NbMat,obj.GaussPts.nNode,[]);
+    end
+
  
 
     function [area,cellCentroid] = findAreaAndCentroid(obj,idHexa)
@@ -173,7 +178,7 @@
     function N = computeBubbleBasisF(obj, coord)
       % Find the value the bubble basis functions take at some  reference
       % points whose 2D coordinates are store in coord
-      N = arrayfun(@(i) (1-coord(i,1)^2)*(1-coord(i,2)^2),(1:size(coord,1)));
+      N = arrayfun(@(i) (1-coord(i,1)^2).*(1-coord(i,2)^2),(1:size(coord,1)));
     end
 
 

@@ -1,19 +1,21 @@
 classdef Poromechanics < SinglePhysics
   %POROMECHANICS
-  properties
-    nEntryKLoc      % Entries of local stiffness matrix per elem type
+  properties        % Entries of local stiffness matrix per elem type
+    nEntryKLoc      
     fInt            % internal forces
     indBhexa
     indBtetra
+    cell2stress     % map cell ID to position in stress/strain matrix
   end
+
+%   properties (Constant)
+%     nEntryKLoc      % Entries of local stiffness matrix per elem type
+%   end
 
   methods (Access = public)
     function obj = Poromechanics(symmod,params,dofManager,grid,mat,state,data)
       obj@SinglePhysics('Poromechanics',symmod,params,dofManager,grid,mat,state,data);
-      obj.nEntryKLoc = (obj.mesh.nDim^2)*(obj.elements.nNodesElem).^2;
-      setStrainMatrices(obj);
-      nDof = obj.dofm.getNumDoF(obj.field);
-      obj.fInt = zeros(nDof,1); % reset internal forces
+      setPoromechanics(obj)
     end
 
 %     function state = computeMatOld(obj,state,~,dt)
@@ -51,14 +53,16 @@ classdef Poromechanics < SinglePhysics
       % loop over cells
       for el = subCells'
         % get dof id and local matrix
-        [dofRow,dofCol,locMat,s2,dsigma,status] = LocalAssembler(el,l2);
+        [dofRow,dofCol,locMat,dsigma,status] = LocalAssembler(el,l2);
         [jjLoc,iiLoc] = meshgrid(dofCol,dofRow);
         s1 = numel(locMat(:));
+        s2 = obj.GaussPts.nNode;
         iiVec(l1+1:l1+s1) = iiLoc(:);
         jjVec(l1+1:l1+s1) = jjLoc(:);
         matVec(l1+1:l1+s1) = locMat(:);
         obj.state.data.curr.status(l2+1:l2+obj.GaussPts.nNode,:) = status;
         obj.state.data.curr.stress((l2+1):(l2+obj.GaussPts.nNode),:) = dsigma;
+        obj.cell2stress(el) = l2;
         l1 = l1 + s1;
         l2 = l2 + s2;
       end
@@ -66,7 +70,7 @@ classdef Poromechanics < SinglePhysics
       obj.J = sparse(iiVec, jjVec, matVec, Ndof,Ndof);
     end
 
-    function [dofr,dofc,KLoc,fLoc,sigma,status] = computeLocalStiff(obj,el,dt,l)
+    function [dofr,dofc,KLoc,sigma,status] = computeLocalStiff(obj,el,dt,l)
       % get state object
       switch obj.mesh.cellVTKType(el)
         case 10 % Tetrahedra
@@ -96,9 +100,7 @@ classdef Poromechanics < SinglePhysics
             dt,obj.state.data.conv.status(l+1:l+obj.GaussPts.nNode,:), el, obj.state.t);
 %           obj.state.data.curr.status(l+1:l+obj.GaussPts.nNode,:) = status;
 %           obj.state.data.curr.stress(l+1:l+obj.GaussPts.nNode,:) = ones(8,6);
-          Ks = pagemtimes(pagemtimes(B,'ctranspose',D,'none'),B);
-          Ks = Ks.*reshape(dJWeighed,1,1,[]);
-          KLoc = sum(Ks,3);
+          KLoc = obj.computeKloc(B,D,B,dJWeighed);
           clear Ks;
           sz = sigma - obj.state.data.iniStress(l+1:l+obj.GaussPts.nNode,:);
           sz = reshape(sz',6,1,obj.GaussPts.nNode);
@@ -112,6 +114,49 @@ classdef Poromechanics < SinglePhysics
       dofr = dof; dofc = dof;
       % assemble internal forces
       obj.fInt(dof) = obj.fInt(dof)+fLoc;
+    end
+
+     function [dofr,dofc,Kub,Kbb] = computeLocalStiffBubble(obj,el,dt)
+      % compute local stiffness matrix contribution due to bubble basis
+      % functions
+      % the method return Kub and Kbb. 
+      % assumption: the grid consist only of tetra or hexa, not mixed.
+      % the unstabilized stiffness has been already assembled
+
+      l = obj.cell2stress(el);      % get index to access stress and strain matrix
+      switch obj.mesh.cellVTKType(el)
+        case 10 % Tetrahedra
+          error('Bubbles for tetrahedra not yet available')
+          N = getDerBasisF(obj.elements.tetra,el);
+          vol = findVolume(obj.elements.tetra,el);
+          B = zeros(6,4*obj.mesh.nDim);
+          B(obj.indBtetra(:,2)) = N(obj.indBtetra(:,1));
+          [D, ~, ~] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
+            obj.state.data.conv.stress(el+1,:), ...
+            obj.state.data.curr.strain(el+1,:), ...
+            dt,obj.obj.state.data.conv.status(l+1,:), el, state.t);
+          KLoc = B'*D*B*vol;
+          sz = sigma - obj.state.data.iniStress(l+1,:);
+          fLoc = (B')*sz'*vol;
+          %             end
+        case 12 % Hexahedra
+          [Nu,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
+          Bu = getStrainMat(obj,Nu,8,obj.indBhexa);
+          Nb = getDerBubbleBasisFAndDet(obj.elements.hexa,el,2);
+          Bb = getStrainMat(obj,Nb,6);
+          [D, ~, ~] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
+            obj.state.data.conv.stress(l+1:l+obj.GaussPts.nNode,:), ...
+            obj.state.data.curr.strain(l+1:l+obj.GaussPts.nNode,:), ...
+            dt,obj.state.data.conv.status(l+1:l+obj.GaussPts.nNode,:), el, obj.state.t);
+          Kub = Poromechanics.computeKloc(Bu,D,Bb,dJWeighed);
+          Kbb = Poromechanics.computeKloc(Bb,D,Bb,dJWeighed);
+          % important: right hand side in the unstabilized block already
+          % considers the bubble contribution due to enhanced strain
+      end
+      % get global DoF
+      nodes = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
+      dof = obj.dofm.getLocalDoF(nodes,obj.fldId);   
+      dofr = dof; dofc = dof;
     end
 
 % 
@@ -239,6 +284,7 @@ classdef Poromechanics < SinglePhysics
             obj.state.data.curr.strain((l+1):(l+obj.GaussPts.nNode),:) = ...
               reshape(pagemtimes(B,du(dof)),6,obj.GaussPts.nNode)';
             l = l + obj.GaussPts.nNode;
+            % consider 
         end
       end
     end
@@ -317,7 +363,7 @@ classdef Poromechanics < SinglePhysics
           D = getElasticTensor(obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw);
           % Get the right material stiffness for each element
           switch obj.mesh.cellVTKType(el)
-            case 10 % Tetrahedra
+            case 10 % Tetrahedrad
               obj.state.data.curr.stress(l1+1,:) = obj.state.data.curr.stress(l1+1,:)+obj.state.data.curr.strain(l1+1,:)*D;
               s1 = 1;
             case 12 % Hexahedra
@@ -427,8 +473,34 @@ classdef Poromechanics < SinglePhysics
     end
 
     function setStrainMatrices(obj)
-      obj.indBtetra = obj.setStrainMat(4);
-      obj.indBhexa = obj.setStrainMat(8*obj.GaussPts.nNode);
+      obj.indBtetra = obj.setStrainMatIndex(4);
+      obj.indBhexa = obj.setStrainMatIndex(8*obj.GaussPts.nNode);
+    end
+
+    function setPoromechanics(obj)
+      obj.nEntryKLoc = (obj.mesh.nDim^2)*(obj.elements.nNodesElem).^2;
+      setStrainMatrices(obj);
+      nDof = obj.dofm.getNumDoF(obj.field);
+      obj.cell2stress = zeros(obj.mesh.nCells,1);
+      obj.fInt = zeros(nDof,1); % reset internal forces
+    end
+
+    function B = getStrainMat(obj,N,Nnode,ind)
+      % Preapare indices of strain matrix for direct assignment of shape
+      % function derivatives
+      if nargin == 3
+        if ~isempty(obj.GaussPts)
+          ng = obj.GaussPts.nNode;
+        else
+          ng = 1;
+        end
+        indB = Poromechanics.setStrainMatIndex(Nnode*ng);
+        B = zeros(6,Nnode*obj.mesh.nDim,obj.GaussPts.nNode);
+        B(indB(:,2)) = N(indB(:,1));
+      elseif nargin == 4
+        B = zeros(6,Nnode*obj.mesh.nDim,obj.GaussPts.nNode);
+        B(ind(:,2)) = N(ind(:,1));
+      end
     end
   end
 
@@ -475,7 +547,7 @@ classdef Poromechanics < SinglePhysics
       cellStr(12).data = strain(:,6);
     end
 
-    function indB = setStrainMat(N)
+    function indB = setStrainMatIndex(N)
       % Preapare indices of strain matrix for direct assignment of shape
       % function derivatives
       indB = zeros(9*N,2);
@@ -483,6 +555,13 @@ classdef Poromechanics < SinglePhysics
       indB(:,2) = repmat([1, 4, 6, 8,10,11,15,17,18],[1,N]);
       indB(:,1) = indB(:,1) + repelem(3*(0:(N-1))',9);
       indB(:,2) = indB(:,2) + repelem(18*(0:(N-1))',9);
+    end
+
+
+    function Kloc = computeKloc(a,b,c,dJW)
+      Ks = pagemtimes(pagemtimes(a,'ctranspose',b,'none'),c);
+      Ks = Ks.*reshape(dJW,1,1,[]);
+      Kloc = sum(Ks,3);
     end
   end
 end
