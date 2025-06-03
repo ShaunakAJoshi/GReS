@@ -2,6 +2,10 @@ classdef interfaceMesh < handle
   % Manager for topological information and operation on interfaces between
   % meshes
 
+  properties (Access = private)
+    activeCells
+  end
+
   
   properties
     % prop{1} -> master     prop{2} -> slave 
@@ -10,7 +14,6 @@ classdef interfaceMesh < handle
     elemConnectivity
     nN
     nEl
-    activeCells
     cellType
     nEdges
     e2n
@@ -42,6 +45,16 @@ classdef interfaceMesh < handle
       obj.activeCells{1} = find(any(obj.elemConnectivity,2));
       obj.nEl(2) = numel(obj.activeCells{2});
       obj.nEl(1) = sum(any(obj.elemConnectivity,2));
+    end
+
+    function list = getSlaveCells(obj,id)
+      if nargin == 1
+        list = obj.activeCells{2};
+      elseif nargin == 2
+        list = obj.activeCells{2}(id);
+      else
+        error('Too many input arguments')
+      end
     end
   end
 

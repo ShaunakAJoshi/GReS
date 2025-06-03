@@ -365,20 +365,36 @@ classdef MultidomainFCSolver < handle
 
 
     function computeMatricesAndRhs(obj)
+
+      % Compute domain matrices
       for i = 1:obj.nDom
         discretizer = obj.domains(i).Discretizer;
+        for j = 1:discretizer.numSolvers
+          computeMat(discretizer.solver(j), obj.state(i).prev, obj.dt);
+        end
+      end
 
-        % Compute matrices and residuals for individual models of
-        % the i-th domain
-        computeMatricesAndRhs(...
-          discretizer, obj.state(i).prev, obj.dt);
+      % Compute domain coupling matrices 
+      for j = 1:obj.nInterf
+        computeMat(obj.interfaces{j}, obj.dt);
+      end
+
+      % Compute domain rhs
+      for i = 1:obj.nDom
+        discretizer = obj.domains(i).Discretizer;
+        for j = 1:discretizer.numSolvers
+          computeRhs(discretizer.solver(j), obj.state(i).prev, obj.dt);
+        end
       end
 
       % Compute domain coupling matrices and rhs
       for j = 1:obj.nInterf
-        computeMat(obj.interfaces{j}, obj.dt);
         computeRhs(obj.interfaces{j});
       end
+      % Compute matrices and residuals for individual models of
+        % the i-th domain
+%         computeMatricesAndRhs(...
+%           discretizer, obj.state(i).prev, obj.dt);
     end
 
 

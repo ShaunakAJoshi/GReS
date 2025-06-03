@@ -110,7 +110,7 @@ classdef Mortar < handle
         cm = 0; % master matrix entry counter
 
         for i = 1:obj.mesh.nEl(2)
-          is = obj.mesh.activeCells{2}(i);
+          is = obj.mesh.getSlaveCells(i);
           masterElems = find(obj.mesh.elemConnectivity(:,is));
           if isempty(masterElems)
             continue

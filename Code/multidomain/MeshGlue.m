@@ -119,8 +119,10 @@ classdef MeshGlue < Mortar
 
     function updateState(obj,du)
       for i = 1:obj.nFld
-        n = numel(obj.multipliers(i).curr);
-        obj.multipliers(i).curr = obj.multipliers(i).curr + du(1:n);
+        ncomp = obj.dofm(1).getDoFperEnt(obj.physics(i));
+        actMult = dofId(getSlaveCells(obj.mesh),ncomp);
+        n = numel(actMult);
+        obj.multipliers(i).curr(actMult) = obj.multipliers(i).curr(actMult) + du(1:n);
         du = du(n+1:end);
       end
     end
@@ -133,11 +135,12 @@ classdef MeshGlue < Mortar
       [obj.rhsMaster,obj.rhsSlave, obj.iniMultipliers] = deal(cell(obj.nFld,1));
       obj.multipliers = repmat(struct('prev',[],'curr',[]),obj.nFld,1);
       obj.totMult = 0;
+      nSurfSlave = obj.mesh.msh(2).nSurfaces;
       for i = 1:obj.nFld
         ncomp = obj.dofm(1).getDoFperEnt(obj.physics(i));
         nDofMaster = getNumDoF(obj.dofm(1),obj.physics(i));
         nDofSlave = getNumDoF(obj.dofm(2),obj.physics(i));
-        nDofMult = ncomp*obj.mesh.nEl(2);
+        nDofMult = ncomp*nSurfSlave;
         obj.rhsMaster{i} = zeros(nDofMaster,1);
         obj.rhsSlave{i} = zeros(nDofSlave,1);
         obj.rhsMult{i} = zeros(nDofMult,1);
@@ -149,21 +152,25 @@ classdef MeshGlue < Mortar
     end
 
     function computeRhsMaster(obj,i)
+      actMult = dofId(getSlaveCells(obj.mesh),3);
       obj.rhsMaster{i} = ...
-        obj.Jmaster{i}'*(obj.multipliers(i).curr-obj.iniMultipliers{i});
+        obj.Jmaster{i}'*(obj.multipliers(i).curr(actMult)-obj.iniMultipliers{i}(actMult));
       var = getState(obj.solvers(1).getSolver(obj.physics(i)));
       ents = obj.dofm(1).getActiveEnts(obj.physics(i));
       obj.rhsMult{i} = obj.rhsMult{i} + obj.Jmaster{i}*var(ents);
     end
 
     function computeRhsSlave(obj,i)
+      actMult = dofId(getSlaveCells(obj.mesh),3);
+      multIncrement = obj.multipliers(i).curr(actMult)-obj.iniMultipliers{i}(actMult);
       obj.rhsSlave{i} = ...
-        obj.Jslave{i}'*(obj.multipliers(i).curr-obj.iniMultipliers{i});
+        obj.Jslave{i}'*multIncrement;
       var = getState(obj.solvers(2).getSolver(obj.physics(i)));
       ents = obj.dofm(2).getActiveEnts(obj.physics(i));
-      obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents); 
+      obj.rhsMult{i} = obj.rhsMult{i} + obj.Jslave{i}*var(ents);
       if ~isempty(obj.Jmult{i})
-        obj.rhsMult{i} = obj.rhsMult{i} + obj.Jmult{i}*(obj.multipliers(i).curr-obj.iniMultipliers{i});
+        obj.rhsMult{i} = obj.rhsMult{i} + ...
+          obj.Jmult{i}*multIncrement;
       end
     end
   end

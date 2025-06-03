@@ -50,6 +50,7 @@ classdef Poromechanics < SinglePhysics
       l1 = 0;
       l2 = 0;
       Ndof = obj.dofm.getNumDoF(obj.field);
+      obj.fInt = zeros(Ndof,1);
       % loop over cells
       for el = subCells'
         % get dof id and local matrix
@@ -71,7 +72,6 @@ classdef Poromechanics < SinglePhysics
     end
 
     function [dofr,dofc,KLoc,sigma,status] = computeLocalStiff(obj,el,dt,l)
-      % get state object
       switch obj.mesh.cellVTKType(el)
         case 10 % Tetrahedra
           N = getDerBasisF(obj.elements.tetra,el);
@@ -116,7 +116,7 @@ classdef Poromechanics < SinglePhysics
       obj.fInt(dof) = obj.fInt(dof)+fLoc;
     end
 
-     function [dofr,dofc,Kub,Kbb] = computeLocalStiffBubble(obj,el,dt)
+    function [dofr,dofc,Kub,Kbb,varargout] = computeLocalStiffBubble(obj,el,dt,varargin)
       % compute local stiffness matrix contribution due to bubble basis
       % functions
       % the method return Kub and Kbb. 
@@ -157,6 +157,20 @@ classdef Poromechanics < SinglePhysics
       nodes = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
       dof = obj.dofm.getLocalDoF(nodes,obj.fldId);   
       dofr = dof; dofc = dof;
+      % get variable output from matrix
+      if ~isempty(varargin)
+        varargout = cell(numel(varargin),1);
+        for i = 1:numel(varargin)
+        switch varargin{i}
+          case 'Bb'
+            varargout{i} = Bb;
+          case 'Bu'
+            varargout{i} = Bu;
+          case 'D'
+            varargout{i} = D;
+        end
+        end
+      end
     end
 
 % 
@@ -363,7 +377,7 @@ classdef Poromechanics < SinglePhysics
           D = getElasticTensor(obj.material.getMaterial(obj.mesh.cellTag(el)).ConstLaw);
           % Get the right material stiffness for each element
           switch obj.mesh.cellVTKType(el)
-            case 10 % Tetrahedrad
+            case 10 % Tetrahedra
               obj.state.data.curr.stress(l1+1,:) = obj.state.data.curr.stress(l1+1,:)+obj.state.data.curr.strain(l1+1,:)*D;
               s1 = 1;
             case 12 % Hexahedra
@@ -406,7 +420,7 @@ classdef Poromechanics < SinglePhysics
     end
 
     function out = isLinear(obj)
-      out = true;
+      out = false;
       for i = 1:obj.mesh.nCellTag
         out = isa(obj.material.getMaterial(i).ConstLaw,"Elastic");
         if ~out
@@ -482,7 +496,6 @@ classdef Poromechanics < SinglePhysics
       setStrainMatrices(obj);
       nDof = obj.dofm.getNumDoF(obj.field);
       obj.cell2stress = zeros(obj.mesh.nCells,1);
-      obj.fInt = zeros(nDof,1); % reset internal forces
     end
 
     function B = getStrainMat(obj,N,Nnode,ind)
