@@ -11,19 +11,15 @@ classdef MeshGlueJumpStabilization < MeshGlue
       computeMortarMatrices(obj);
     end
 
-    function computeMat(obj,idDomain)
-      computeMat@MeshGlue(obj,idDomain);
+    function computeMat(obj,dt)
+      computeMat@MeshGlue(obj,dt);
       if isMatrixComputed(obj)
         return
       end
-      side = getSide(obj,idDomain);
       for i = 1:obj.nFld
         % map local mortar matrices to global indices
-        switch side
-          case 'slave'
-            if isStabReady(obj)
-              obj.Jmult{i} = -computeStabilizationMatrix(obj,obj.physics(i));
-            end
+        if isStabReady(obj)
+          obj.Jmult{i} = -computeStabilizationMatrix(obj,obj.physics(i));
         end
       end
     end
@@ -105,13 +101,13 @@ classdef MeshGlueJumpStabilization < MeshGlue
       stabMat = stabMat + stabMat' - diag(diag(stabMat));
     end
 
-    function S = computeSchurLocal(obj,nm,ns,fs,fld)
+    function S = computeSchurLocal(obj,nm,ns,fs,field)
       % compute approximate schur complement for local nonconforming
       % patch of element
       % input: nm/ns local master/slave node indices
       % fs: local slave faces indices
 
-      nc = obj.dofm(1).getDoFperEnt(fld);
+      nc = obj.dofm(1).getDoFperEnt(field);
 
       % get local mortar matrices
       Dloc = obj.mortarMatrix{2}(fs,ns);
@@ -120,12 +116,14 @@ classdef MeshGlueJumpStabilization < MeshGlue
       V = Discretizer.expandMat(V,nc);
 
       % get slave and master dof to access jacobian
-      dofS = obj.dofm(2).getLocalDoF(obj.mesh.local2glob{2}(ns),fld);
-      dofM = obj.dofm(1).getLocalDoF(obj.mesh.local2glob{1}(nm),fld);
+      fldM = getFieldId(obj.dofm(1),field);
+      fldS = getFieldId(obj.dofm(2),field);
+      dofS = obj.dofm(2).getLocalDoF(obj.mesh.local2glob{2}(ns),fldS);
+      dofM = obj.dofm(1).getLocalDoF(obj.mesh.local2glob{1}(nm),fldM);
 
       % get local jacobian
-      Km = getSolver(obj.solvers(1),fld).J(dofM,dofM);
-      Ks = getSolver(obj.solvers(2),fld).J(dofS,dofS);
+      Km = getSolver(obj.solvers(1),field).J(dofM,dofM);
+      Ks = getSolver(obj.solvers(2),field).J(dofS,dofS);
       Kloc = diag([1./diag(Ks);1./diag(Km)]);
 
       S = V*(Kloc*V');  % compute Schur complement

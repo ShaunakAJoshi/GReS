@@ -49,8 +49,12 @@ classdef MeshGlueBubbleStabilization < MeshGlue
       subCells = obj.mesh.f2c{2};
       mshSlave = obj.solvers(2).grid.topology;
       nSubCellsByType = histc(mshSlave.cellVTKType(subCells),[10, 12, 13, 14]);
-      n = poro.nEntryKLoc*nSubCellsByType;
-      [iKvec,jKvec,Kvec] = deal(zeros(n,1));
+      nuu = poro.nEntryKLoc*nSubCellsByType;
+      [iKvec,jKvec,Kvec] = deal(zeros(nuu,1));
+
+      % allocate condensation block for coupling slave dof and multipliers
+      nul = 9*8*obj.mesh.nEl(2); 
+      [iBvec,jBvec,Bvec] = deal(zeros(nul,1));
 
       % allocate condensation block for multipliers
       [iLvec,jLvec,Lvec] = deal(zeros(9*obj.mesh.nEl(2),1));
@@ -62,6 +66,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
       cm = 0; % master matrix entry counter
       cl = 0; % multiplier matrix counter
       ck = 0; % slave inner block entry counter
+      cb = 0; % condensation disp-mult entry counter
 
       % set number of dofs for each block
       nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
@@ -153,20 +158,15 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         iKvec(ck+1:ck+nk) = iKloc(:);   jKvec(ck+1:ck+nk) = jKloc(:);
         Kvec(ck+1:ck+nk) = KuuLoc(:);
         
-        % slave matrix + condensation
-        % consider only surface dofs in Kub with correct 3d to 2D map
-        nodeSlave3D = mshSlave.cells(cellId,:);
-%         [isSurfNode,node2D] = ismember(nodeSlave3D,nodeSlave);
-%         ntmp = find(isSurfNode);
-%         node3D = ntmp(node2D(node2D~=0)); % extract cell nodes in consistent order with surface nodes
-%         assert(sum(isSurfNode) == numel(nodeSlave),['Not enough surface' ...
-%           'nodes for cell %i'],cellId);
-        %dofTmp = dofId(node3D,3);
-        %fac = norm(Dloc,'fro')/norm(Dbloc*(invKbb)*Kub','fro');
-        Dbloc*(invKbb)*Kub';
+        % condensation term coupling displacement with multipliers
+        Bloc = -Dbloc*(invKbb)*Kub';
+        [jBloc,iBloc] = meshgrid(dofRow,dofId(i,3));
+        nb = numel(Bloc);
+        iBvec(cb+1:cb+nb) = iBloc(:);   jBvec(cb+1:cb+nb) = jBloc(:);
+        Bvec(cb+1:cb+nb) = Bloc(:);
+
+        % Mortar Dslave matrix
         dofSlave = obj.dofm(2).getLocalDoF(nodeSlave,fld(2));
-        % i have to preserve the right correspondence between 2D and 3D
-        % nodes!
         [jDloc,iDloc] = meshgrid(dofSlave,dofId(i,3));
         nd = numel(Dloc);
         iDvec(cd+1:cd+nd) = iDloc(:);   jDvec(cd+1:cd+nd) = jDloc(:);
@@ -183,6 +183,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         cd = cd+nd;
         ck = ck+nk;
         cl = cl+nl;
+        cb = cb+nb;
          
         % track element not fully projected
         if ~all(id)
@@ -195,7 +196,8 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
       % assemble mortar matrices in sparse format
       obj.Jmaster{1} = sparse(iMvec,jMvec,-Mvec,nDofMult,nDofMaster);
-      obj.Jslave{1} = sparse(iDvec,jDvec,Dvec,nDofMult,nDofSlave);
+      obj.Jslave{1} = sparse(iDvec,jDvec,Dvec,nDofMult,nDofSlave)+...
+        sparse(iBvec,jBvec,Bvec,nDofMult,nDofSlave);
       obj.Jmult{1} = sparse(iLvec,jLvec,Lvec,nDofMult,nDofMult); 
 %       % apply condensation to slave inner block
       Jcondensation = sparse(iKvec,jKvec,Kvec,nDofSlave,nDofSlave);

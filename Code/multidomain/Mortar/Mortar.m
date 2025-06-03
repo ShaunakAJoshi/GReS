@@ -89,7 +89,8 @@ classdef Mortar < handle
       n = obj.dofm(sideID).getDoFperEnt(field);
       dofMult = dofId(1:obj.mesh.nEl(2),n);
       dof = obj.mesh.local2glob{sideID}(1:size(obj.mortarMatrix{sideID},2));
-      dof = obj.dofm(sideID).getLocalDoF(dof,field);
+      fld = obj.dofm(sideID).getFieldId(field);
+      dof = obj.dofm(sideID).getLocalDoF(dof,fld);
       [j,i] = meshgrid(dof,dofMult);
       nr = n*obj.mesh.nEl(2);
       nc = obj.dofm(sideID).getNumDoF(field);
@@ -98,7 +99,7 @@ classdef Mortar < handle
     end
 
     function computeMortarMatrices(obj)
-      if isempty(obj.mortarMatrix{1}) % compute only once
+      if isempty(obj.mortarMatrix) % compute only once
         elemSlave = getElem(obj,2);
         [imVec,jmVec,MVec] = allocateMatrix(obj,1);
         [idVec,jdVec,DVec] = allocateMatrix(obj,2);

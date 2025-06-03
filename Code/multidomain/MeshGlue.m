@@ -79,7 +79,7 @@ classdef MeshGlue < Mortar
     end
 
 
-    function computeMat(obj)
+    function computeMat(obj,~)
       % return matrices for master and slave side in appropriate field
       if obj.isMatrixComputed()
         % mesh glue matrices are constant troughout the simulation
