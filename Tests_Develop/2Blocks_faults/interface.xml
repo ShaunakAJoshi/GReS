@@ -7,7 +7,7 @@
     <Type> MeshTying </Type>
     <Stabilization> Bubble </Stabilization>
     <nGP> 16 </nGP>
-    <Quadrature type = "RBF" nInt = "4"/>
+    <Quadrature type = "RBF" nInt = "6"/>
     <Physics> Poromechanics </Physics>
     <Print name = "verticalFault"/>
   </Interface>

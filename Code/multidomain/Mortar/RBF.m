@@ -5,8 +5,9 @@ classdef RBF < handle
   properties
     mortar    % instance of mortar object (store mesh info)
     nInt      % number of interpolation points per master element
-    wF        % weight of RBF
+    wF        % weight of RBF for primary variable basis function
     w1        % weight of rescaling RBF
+    wB        % weight of RBF for bubble basis functions
     ptsRBF    % position of interpolation points
   end
 
@@ -21,7 +22,22 @@ classdef RBF < handle
   end
   
   methods (Access = public)
-    function [Nm,id] = getMasterBasisF(obj,idMaster,posGP)
+    function [Nm,id,Nb] = getMasterBasisF(obj,idMaster,posGP)
+      % return interpolated master basis function into slave domain
+      tol = 1e-4;
+      ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
+      [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
+      Nm = (fiNM*obj.wF(:,repNum(obj.mortar.mesh.nN(1),idMaster)))./(fiNM*obj.w1(:,idMaster));
+      Nsupp = Nm(:,[1 2 3]);
+      % automatically detect supports computing interpolant
+      id = all([Nsupp >= 0-tol id1],2);
+      if nargout > 2
+        % interpolated bubble basis function
+        Nb = (fiNM*obj.wB(:,idMaster))./(fiNM*obj.w1(:,idMaster));
+      end
+    end
+
+    function [Nm,id] = getMasterBubbleBasisF(obj,idMaster,posGP)
       % return interpolated master basis function into slave domain
       tol = 1e-4;
       ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
@@ -44,17 +60,22 @@ classdef RBF < handle
       end
       weighF = zeros(numPts,obj.mortar.mesh.nEl(1)*obj.mortar.mesh.nN(1));
       weigh1 = zeros(numPts,obj.mortar.mesh.nEl(1));
+      weighB = weigh1;
       pts = zeros(numPts,obj.mortar.mesh.nEl(1)*3);
       for i = 1:obj.mortar.mesh.nEl(1)
         [f, ptsInt] = computeMortarBasisF(obj,i);
+        bf = computeMortarBubbleBasisF(obj);
         fiMM = obj.computeRBFfiMM(ptsInt);
         % solve local system to get weight of interpolant
+        warning('off','MATLAB:nearlySingularMatrix')
         weighF(:,repNum(obj.mortar.mesh.nN(1),i)) = fiMM\f;
         weigh1(:,i) = fiMM\ones(size(ptsInt,1),1);
+        weighB(:,i) = fiMM\bf;
         pts(:,repNum(3,i)) = ptsInt;
       end
       obj.wF = weighF;
       obj.w1 = weigh1;
+      obj.wB = weighB;
       obj.ptsRBF = pts;
       % loop trough master elements and interpolate Basis function
     end
@@ -85,6 +106,13 @@ classdef RBF < handle
       bf = computeBasisF(elem,intPts);
       % get coords of interpolation points in the real space
       pos = bf*coord;
+    end
+
+    function bf = computeMortarBubbleBasisF(obj)
+      % place interpolation points in a regular grid
+      intPts = getInterpolationPoints(obj);
+      elem = obj.mortar.getElem(1);
+      bf = computeBubbleBasisF(elem,intPts);
     end
 
     function intPts = getInterpolationPoints(obj)

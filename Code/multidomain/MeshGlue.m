@@ -120,7 +120,7 @@ classdef MeshGlue < Mortar
     function updateState(obj,du)
       for i = 1:obj.nFld
         ncomp = obj.dofm(1).getDoFperEnt(obj.physics(i));
-        actMult = dofId(getSlaveCells(obj.mesh),ncomp);
+        actMult = dofId(getActiveCells(obj.mesh,2),ncomp);
         n = numel(actMult);
         obj.multipliers(i).curr(actMult) = obj.multipliers(i).curr(actMult) + du(1:n);
         du = du(n+1:end);
@@ -152,7 +152,7 @@ classdef MeshGlue < Mortar
     end
 
     function computeRhsMaster(obj,i)
-      actMult = dofId(getSlaveCells(obj.mesh),3);
+      actMult = dofId(getActiveCells(obj.mesh,2),3);
       obj.rhsMaster{i} = ...
         obj.Jmaster{i}'*(obj.multipliers(i).curr(actMult)-obj.iniMultipliers{i}(actMult));
       var = getState(obj.solvers(1).getSolver(obj.physics(i)));
@@ -161,7 +161,7 @@ classdef MeshGlue < Mortar
     end
 
     function computeRhsSlave(obj,i)
-      actMult = dofId(getSlaveCells(obj.mesh),3);
+      actMult = dofId(getActiveCells(obj.mesh,2),3);
       multIncrement = obj.multipliers(i).curr(actMult)-obj.iniMultipliers{i}(actMult);
       obj.rhsSlave{i} = ...
         obj.Jslave{i}'*multIncrement;

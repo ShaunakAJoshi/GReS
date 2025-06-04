@@ -179,6 +179,7 @@
       % Find the value the bubble basis functions take at some  reference
       % points whose 2D coordinates are store in coord
       N = arrayfun(@(i) (1-coord(i,1)^2).*(1-coord(i,2)^2),(1:size(coord,1)));
+      N = N';
     end
 
 

@@ -4,7 +4,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
   % will become FaultBubbleStabilization in the future
 
   properties
-    JcondSlave  % static condensation block for inner slave domain
+%     Jcond          % static condensation block for inner slave domain
     localFaceIndex % slave faces with local index in neighboring cell
     Dbubble
   end
@@ -35,7 +35,10 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         % allocate mortar matrices
         Nm = nnz(obj.mesh.elemConnectivity)*9*obj.mesh.nN(1);
         [iMvec,jMvec,Mvec] = deal(zeros(Nm,1));
+        [iBMvec,jBMvec,BMvec] = deal(zeros(Nm,1));
         %[iDvec,jDvec,Dvec] = allocateMatrix(obj,2);
+
+        masterFlag = false(obj.solvers(1).grid.topology.nSurfaces,1); % flags for inner master condensation
 
         Nd = obj.mesh.nEl(2)*9*obj.mesh.nN(2);
         [iDvec,jDvec,Dvec] = deal(zeros(Nd,1));
@@ -44,16 +47,24 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           obj.dofm(2).getFieldId(obj.physics)];
 
         % allocate condensation block for the inner slave domain
-        poro = getSolver(obj.solvers(2),obj.physics);
+        poroSlave = getSolver(obj.solvers(2),obj.physics);
         subCells = obj.mesh.f2c{2};
         mshSlave = obj.solvers(2).grid.topology;
         nSubCellsByType = histc(mshSlave.cellVTKType(subCells),[10, 12, 13, 14]);
-        nuu = poro.nEntryKLoc*nSubCellsByType;
-        [iKvec,jKvec,Kvec] = deal(zeros(nuu,1));
+        nuu = poroSlave.nEntryKLoc*nSubCellsByType;
+        [iKSvec,jKSvec,KSvec] = deal(zeros(nuu,1));
+
+        % allocate condensation block for the inner master domain
+        poroMaster = getSolver(obj.solvers(1),obj.physics);
+        subCells = obj.mesh.f2c{1};
+        mshSlave = obj.solvers(1).grid.topology;
+        nSubCellsByType = histc(mshSlave.cellVTKType(subCells),[10, 12, 13, 14]);
+        nuu = poroMaster.nEntryKLoc*nSubCellsByType;
+        [iKMvec,jKMvec,KMvec] = deal(zeros(nuu,1));
 
         % allocate condensation block for coupling slave dof and multipliers
         nul = 9*8*obj.mesh.nEl(2);
-        [iBvec,jBvec,Bvec] = deal(zeros(nul,1));
+        [iBSvec,jBSvec,BSvec] = deal(zeros(nul,1));
 
         % allocate condensation block for multipliers
         [iLvec,jLvec,Lvec] = deal(zeros(9*obj.mesh.nEl(2),1));
@@ -64,8 +75,10 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         cd = 0; % slave matrix entry counter
         cm = 0; % master matrix entry counter
         cl = 0; % multiplier matrix counter
-        ck = 0; % slave inner block entry counter
-        cb = 0; % condensation disp-mult entry counter
+        cks = 0; % slave inner block entry counter
+        ckm = 0; % master inner block entry counter
+        cbs = 0; % condensation slave-mult entry counter
+        cbm = 0; % condensation slave-mult entry counter
 
         % set number of dofs for each block
         nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
@@ -74,33 +87,36 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
 
         for i = 1:obj.mesh.nEl(2)
-          is = obj.mesh.getSlaveCells(i);
+          is = obj.mesh.getActiveCells(2,i);
           masterElems = find(obj.mesh.elemConnectivity(:,is));
           if isempty(masterElems)
             continue
           end
+          Lloc = zeros(3,3);
           %Compute Mortar Slave quantities
           w = elemSlave.getDerBasisFAndDet(is,3);
           posGP = getGPointsLocation(elemSlave,is);
           nodeSlave = obj.mesh.local2glob{2}(obj.mesh.msh(2).surfaces(is,:));
           Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-          Nbubble = getBubbleBasisFinGPoints(elemSlave);
+          NbubbleSlave = getBubbleBasisFinGPoints(elemSlave);
           Dbloc = zeros(3,3);
           Dloc = zeros(3,3*size(Nslave,2));
           for im = masterElems'
             nodeMaster = obj.mesh.local2glob{1}(obj.mesh.msh(1).surfaces(im,:));
-            [Nm,id] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
+            [Nm,id,NbubbleMaster] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
             if any(id)
               % get basis function matrices
               Nm = Nm(id,:);
               Ns = Nslave(id,:);
-              Nb = Nbubble(id,:);
+              Nbs = NbubbleSlave(id,:);
+              Nbm = NbubbleMaster(id,:);
               Nmult = ones(size(Ns,1),1);
 
               % assuming poromechanics only
               Nm = Discretizer.reshapeBasisF(Nm,3);
               Ns = Discretizer.reshapeBasisF(Ns,3);
-              Nb = Discretizer.reshapeBasisF(Nb,3);
+              Nbs = Discretizer.reshapeBasisF(Nbs,3);
+              Nbm = Discretizer.reshapeBasisF(Nbm,3);
               Nmult = Discretizer.reshapeBasisF(Nmult,3);
 
               % compute slave mortar matrix
@@ -123,11 +139,45 @@ classdef MeshGlueBubbleStabilization < MeshGlue
               % [iMvec,jMvec,Mvec,cm] = Discretizer.computeLocalMatrix( ...
               % Mloc,iMvec,jMvec,Mvec,cm,w(id),i,nMaster);
 
+              % compute master Bubble matrix
+              Mbloc = pagemtimes(Nmult,'transpose',Nbm,'none');
+              Mbloc = Mbloc.*reshape(w(id),1,1,[]);
+              Mbloc = sum(Mbloc,3);
+
               % compute slave Bubble matrix
-              Dbtmp = pagemtimes(Nmult,'transpose',Nb,'none');
+              Dbtmp = pagemtimes(Nmult,'transpose',Nbs,'none');
               Dbtmp = Dbtmp.*reshape(w(id),1,1,[]);
               Dbtmp = sum(Dbtmp,3);
               Dbloc = Dbloc+Dbtmp;
+
+              cellId = obj.mesh.f2c{1}(im);
+              [dofRow,dofCol,Kub,Kbb] = computeLocalStiffBubble(poroMaster,cellId,dt);
+              % extract only active bubble dofs
+              faceId = dofId(obj.localFaceIndex{1}(im),3);
+              Kub = Kub(:,faceId);
+              Kbb = Kbb(faceId,faceId);
+              invKbb = inv(Kbb);
+
+              if ~masterFlag(im) % if not yet computed
+                KuuLoc = -Kub*(invKbb)*Kub';
+                [jKMloc,iKMloc] = meshgrid(dofCol,dofRow);
+                nkm = numel(KuuLoc);
+                iKMvec(ckm+1:ckm+nkm) = iKMloc(:);   jKMvec(ckm+1:ckm+nkm) = jKMloc(:);
+                KMvec(ckm+1:ckm+nkm) = KuuLoc(:);
+                ckm = ckm + nkm;
+                masterFlag(im) = true;
+              end
+
+              % condensation term coupling displacement with multipliers
+              Bloc = + Mbloc*(invKbb)*Kub';
+              [jBMloc,iBMloc] = meshgrid(dofRow,dofId(i,3));
+              nbm = numel(Bloc);
+              iBMvec(cbm+1:cbm+nbm) = iBMloc(:);   jBMvec(cbm+1:cbm+nbm) = jBMloc(:);
+              BMvec(cbm+1:cbm+nbm) = Bloc(:);
+              cbm = cbm+nbm;
+
+              % condensation term coupling mortar bubble with multiplier
+              Lloc = Lloc - Mbloc*(invKbb)*Mbloc'; 
 
               % sort out gauss points already used
               w = w(~id);
@@ -142,29 +192,31 @@ classdef MeshGlueBubbleStabilization < MeshGlue
               break
             end
           end
+
           % Dbloc is diagonal with entries that are all equal. we can cheaply
-          % store it for future computations
+          % store it for future computations in case of non linear material
           obj.Dbubble(i) = Dbloc(1,1);
+
           % slave inner condensation contribution
           cellId = obj.mesh.f2c{2}(is);
-          [dofRow,dofCol,Kub,Kbb] = computeLocalStiffBubble(poro,cellId,dt);
-          [jKloc,iKloc] = meshgrid(dofCol,dofRow);
+          [dofRow,dofCol,Kub,Kbb] = computeLocalStiffBubble(poroSlave,cellId,dt);
+          [jKloc,iKMloc] = meshgrid(dofCol,dofRow);
           % extract only active bubble dofs
-          faceId = dofId(obj.localFaceIndex(i),3);
+          faceId = dofId(obj.localFaceIndex{2}(is),3);
           Kub = Kub(:,faceId);
           Kbb = Kbb(faceId,faceId);
           invKbb = inv(Kbb);
           KuuLoc = -Kub*(invKbb)*Kub';
-          nk = numel(KuuLoc);
-          iKvec(ck+1:ck+nk) = iKloc(:);   jKvec(ck+1:ck+nk) = jKloc(:);
-          Kvec(ck+1:ck+nk) = KuuLoc(:);
+          nks = numel(KuuLoc);
+          iKSvec(cks+1:cks+nks) = iKMloc(:);   jKSvec(cks+1:cks+nks) = jKloc(:);
+          KSvec(cks+1:cks+nks) = KuuLoc(:);
 
-          % condensation term coupling displacement with multipliers
+          % condensation term coupling slave displacement with multipliers
           Bloc = -Dbloc*(invKbb)*Kub';
-          [jBloc,iBloc] = meshgrid(dofRow,dofId(i,3));
-          nb = numel(Bloc);
-          iBvec(cb+1:cb+nb) = iBloc(:);   jBvec(cb+1:cb+nb) = jBloc(:);
-          Bvec(cb+1:cb+nb) = Bloc(:);
+          [jBMloc,iBMloc] = meshgrid(dofRow,dofId(i,3));
+          nbs = numel(Bloc);
+          iBSvec(cbs+1:cbs+nbs) = iBMloc(:);   jBSvec(cbs+1:cbs+nbs) = jBMloc(:);
+          BSvec(cbs+1:cbs+nbs) = Bloc(:);
 
           % Mortar Dslave matrix
           dofSlave = obj.dofm(2).getLocalDoF(nodeSlave,fld(2));
@@ -173,8 +225,8 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           iDvec(cd+1:cd+nd) = iDloc(:);   jDvec(cd+1:cd+nd) = jDloc(:);
           Dvec(cd+1:cd+nd) = Dloc(:);
 
-          % multipliers condensation
-          Lloc = - Dbloc*(invKbb)*Dbloc';
+          % multipliers condensation (includes also master contribution)
+          Lloc = -Dbloc*(invKbb)*Dbloc'; % + Lloc;
           [jLloc,iLloc] = meshgrid(dofId(i,3),dofId(i,3));
           nl = numel(Lloc);
           iLvec(cl+1:cl+nl) = iLloc(:);   jLvec(cl+1:cl+nl) = jLloc(:);
@@ -182,9 +234,9 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
           % update counters
           cd = cd+nd;
-          ck = ck+nk;
+          cks = cks+nks;
           cl = cl+nl;
-          cb = cb+nb;
+          cbs = cbs+nbs;
 
           % track element not fully projected
           if ~all(id)
@@ -194,15 +246,19 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
         % cut master index vectors for sparse matrix assembly
         iMvec = iMvec(1:cm); jMvec = jMvec(1:cm); Mvec = Mvec(1:cm);
+        iBMvec = iBMvec(1:cbm); jBMvec = jBMvec(1:cbm); BMvec = BMvec(1:cbm);
 
         % assemble mortar matrices in sparse format
-        obj.Jmaster{1} = sparse(iMvec,jMvec,-Mvec,nDofMult,nDofMaster);
-        obj.Jslave{1} = sparse(iDvec,jDvec,Dvec,nDofMult,nDofSlave)+...
-          sparse(iBvec,jBvec,Bvec,nDofMult,nDofSlave);
+        obj.Jmaster{1} = sparse(iMvec,jMvec,-Mvec,nDofMult,nDofMaster); %+ ...
+           sparse(iBMvec,jBMvec,BMvec,nDofMult,nDofMaster);
+        obj.Jslave{1} = sparse(iDvec,jDvec,Dvec,nDofMult,nDofSlave) + ...
+          sparse(iBSvec,jBSvec,BSvec,nDofMult,nDofSlave);
         obj.Jmult{1} = sparse(iLvec,jLvec,Lvec,nDofMult,nDofMult);
         %       % apply condensation to slave inner block
-        Jcondensation = sparse(iKvec,jKvec,Kvec,nDofSlave,nDofSlave);
-        poro.J = poro.J + Jcondensation;
+        JcondSlave = sparse(iKSvec,jKSvec,KSvec,nDofSlave,nDofSlave);
+        JcondMaster = sparse(iKMvec,jKMvec,KMvec,nDofMaster,nDofMaster);
+        poroSlave.J = poroSlave.J + JcondSlave;
+        %poroMaster.J = poroMaster.J + JcondMaster;
       end
     end
 
@@ -231,7 +287,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
       for i = 1:obj.mesh.nEl(2)
 
         % get index of surface and neighbor cell
-        surf = obj.mesh.getSlaveCells(i);
+        surf = obj.mesh.getActiveCells(2,i);
         el = obj.mesh.f2c{2}(surf);
 
          l = solv.cell2stress(el);  
@@ -253,7 +309,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
             % the last input is the time increment. consider adding it as a
             % property of State.m
             [~,~,Kub,Kbb,Bb] = computeLocalStiffBubble(solv,el,0,'Bb');
-            faceId = dofId(obj.localFaceIndex(i),3);
+            faceId = dofId(obj.localFaceIndex{2}(surf),3);
             Kub = Kub(:,faceId);
             Kbb = Kbb(faceId,faceId);
             % get bubble dof
@@ -277,10 +333,10 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
     function setFaces(obj)
       % associate the slave element to the local index on the parent cell
-      nElSlave = obj.mesh.nEl(2);
-      obj.localFaceIndex = zeros(nElSlave,1);
-      msh = obj.solvers(2).grid.topology;
-      mapf2c = obj.mesh.f2c{2};
+      nElM = obj.solvers(1).grid.topology.nSurfaces;
+      nElS = obj.solvers(2).grid.topology.nSurfaces;
+      obj.localFaceIndex = {zeros(nElM,1),...
+        zeros(nElS,1)};
       faceNodes = [
         1 2 3 4;
         1 4 5 8;
@@ -289,16 +345,20 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         3 4 7 8;
         5 6 7 8
         ];
-      for f = 1:nElSlave
-        % get global nodes of the cell
-        nodeC = msh.cells(mapf2c(f),:);
-        nodeF = obj.mesh.msh(2).surfaces(f,:);
-        nodeF = obj.mesh.local2glob{2}(nodeF);
-        cellNodes = sort(find(ismember(nodeC,nodeF)));
-        % 
-        % Face ID lookup using row-wise comparison
-        faceID = find(all(bsxfun(@eq, faceNodes, cellNodes), 2), 1);
-        obj.localFaceIndex(f) = faceID;
+      for i = 1:2
+        msh = obj.solvers(i).grid.topology;
+        mapf2c = obj.mesh.f2c{i};
+        for f = obj.mesh.getActiveCells(i)
+          % get global nodes of the cell
+          nodeC = msh.cells(mapf2c(f),:);
+          nodeF = obj.mesh.msh(i).surfaces(f,:);
+          nodeF = obj.mesh.local2glob{i}(nodeF);
+          cellNodes = sort(find(ismember(nodeC,nodeF)));
+          %
+          % Face ID lookup using row-wise comparison
+          faceID = find(all(bsxfun(@eq, faceNodes, cellNodes), 2), 1);
+          obj.localFaceIndex{i}(f) = faceID;
+        end
       end
     end
 

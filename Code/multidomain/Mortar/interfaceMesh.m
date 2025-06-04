@@ -2,7 +2,7 @@ classdef interfaceMesh < handle
   % Manager for topological information and operation on interfaces between
   % meshes
 
-  properties (Access = private)
+  properties (Access = public)
     activeCells
   end
 
@@ -42,16 +42,17 @@ classdef interfaceMesh < handle
       cs = ContactSearching(obj.msh(1),obj.msh(2));
       obj.elemConnectivity = cs.elemConnectivity;
       obj.activeCells{2} = find(any(obj.elemConnectivity,1));
-      obj.activeCells{1} = find(any(obj.elemConnectivity,2));
+      obj.activeCells{1} = reshape(find(any(obj.elemConnectivity,2)),1,[]);
       obj.nEl(2) = numel(obj.activeCells{2});
       obj.nEl(1) = sum(any(obj.elemConnectivity,2));
     end
 
-    function list = getSlaveCells(obj,id)
-      if nargin == 1
-        list = obj.activeCells{2};
-      elseif nargin == 2
-        list = obj.activeCells{2}(id);
+    function list = getActiveCells(obj,side,id)
+      % side: 1 -> master side:2 -> slave
+      if nargin == 2
+        list = obj.activeCells{side};
+      elseif nargin == 3
+        list = obj.activeCells{side}(id);
       else
         error('Too many input arguments')
       end
