@@ -2,20 +2,21 @@ classdef Triangle < handle
    % TRIANGLE element class
 
    properties (Access = private)
-      mesh
-      coordLoc = [-1 -1;
-         1 -1;
-         1  1;
-         -1  1;]
-      GaussPts
-      N1
-      J1
-      detJ
+     mesh
+     GaussPts
+     N1
+     J1
+     detJ
    end
 
-   properties (Access = public)
-      cellCentroid;
+   properties (Constant)
+     centroid = [1/3,1/3];
+     coordLoc = [0 0; 1 0; 0 1];
    end
+
+%    properties (Access = public)
+%       cellCentroid;
+%    end
 
    methods (Access = public)
       % Class constructor method

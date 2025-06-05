@@ -7,6 +7,18 @@ classdef Hexahedron < handle
     %     cellCentroid
   end
 
+  properties (Constant)
+    centroid = [0,0,0]
+    coordLoc = [-1 -1 -1;
+      1 -1 -1;
+      1  1 -1;
+      -1  1 -1;
+      -1 -1  1;
+      1 -1  1;
+      1  1  1;
+      -1  1  1]
+  end
+
   properties (Access = private)   % PRIVATE
     %
     % NODE ORDERING ASSUMPTION (same as Gmsh output):
@@ -34,14 +46,6 @@ classdef Hexahedron < handle
     % 5: 3-4-7-8
     % 6: 5-6-7-8
 
-    coordLoc = [-1 -1 -1;
-      1 -1 -1;
-      1  1 -1;
-      -1  1 -1;
-      -1 -1  1;
-      1 -1  1;
-      1  1  1;
-      -1  1  1]
     GaussPts
     J1
     mesh

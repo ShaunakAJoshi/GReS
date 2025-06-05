@@ -6,7 +6,16 @@
 %     volNod
 %     cellCentroid
   end
-  
+
+  properties (Constant)
+    centroid = [0,0]
+    coordLoc = [-1 -1;
+      1 -1;
+      1  1;
+      -1  1;]
+
+  end
+
   properties (Access = private)   % PRIVATE
 %
 % NODE ORDERING ASSUMPTION (same as Gmsh output):
@@ -22,12 +31,7 @@
 % 1-----------2    
 
 
-      
-
-    coordLoc = [-1 -1;
-                 1 -1;
-                 1  1;
-                -1  1;]
+    
     GaussPts
     J1
     mesh
@@ -44,48 +48,34 @@
     function obj = Quadrilateral(msh,GPoints)
        obj.setQuad(msh,GPoints);
     end
-       
 
+      
 
-    function [outVar1,outVar2] = getDerBasisFAndDet(obj,el,flOut)   % mat,dJWeighed
+    function [outVar1,outVar2] = getDerBasisFAndDet(obj,in)   % mat,dJWeighed
       %       findJacAndDet(obj,el);  % OUTPUT: J and detJ
-      % Find the Jacobian matrix of the isoparametric map and the geometric
-      % map
-      % if nDim = 2, outVar2 is the norm of cross product (the determinant
-      % would be 0)
-      % if nDim = 3, outVar2 is the standard jacobian determinant
-      % Possible ways of calling this function are:
-      %    1) [mat,dJWeighed] = getDerBasisFAndDet(obj,el,1)
-      %    2) mat = getDerBasisFAndDet(obj,el,2)
-      %    3) dJWeighed = getDerBasisFAndDet(obj,el,3)
-      coord = obj.mesh.coordinates(obj.mesh.surfaces(el,:),1:obj.mesh.nDim);
-      obj.J = pagemtimes(obj.J1,coord);
-      if flOut == 3 || flOut == 1
-        %         obj.detJ = arrayfun(@(x) det(obj.J(:,:,x)),1:obj.GaussPts.nNode);
-        if obj.mesh.nDim == 3
-          for i=1:obj.GaussPts.nNode
-            obj.detJ(i) = norm(cross(obj.J(1,:,i),obj.J(2,:,i)),2);
-          end
-        elseif obj.mesh.nDim == 2
-          for i=1:obj.GaussPts.nNode
-            % we still use detJ with abuse of notation
-            obj.detJ(i) = det(obj.J(:,:,i));
-          end
-        end
-        if flOut == 1
-          outVar2 = obj.detJ.*(obj.GaussPts.weight)';
-        elseif flOut == 3
+      % way to call this method: if el is a scalar (element idx) the 3D
+      % coordinates are retrieved by the corresponding mesh object. Only
+      % the determinant is returned
+      % if in is not scalar, it is a 4x2 list of 2 coordinates, the
+      % gradient matrix and the determinant are returned
+
+      if isscalar(in)
+        % 3D setting
+        coord = obj.mesh.coordinates(obj.mesh.surfaces(in,:),1:obj.mesh.nDim);
+        obj.J = pagemtimes(obj.J1,coord);
+        for i = 1:obj.GaussPts.nNode
+          obj.detJ(i) = norm(cross(obj.J(1,:,i),obj.J(2,:,i)),2);
           outVar1 = obj.detJ.*(obj.GaussPts.weight)';
         end
-      end
-      if flOut == 2 || flOut == 1
-        %         invJTmp = arrayfun(@(x) inv(obj.J(:,:,x)),1:obj.GaussPts.nNode,'UniformOutput',false);
-        %         obj.J = reshape(cell2mat(invJTmp),obj.mesh.nDim,obj.mesh.nDim,obj.GaussPts.nNode); %possibly we can overwrite J
-        %         clear invJTmp
+      else
+        % 2D setting: in is a given list of x-y coordinates
+        obj.J = pagemtimes(obj.J1,in);
         for i=1:obj.GaussPts.nNode
           obj.J(:,:,i) = inv(obj.J(:,:,i));
+          obj.detJ(i) = det(obj.J(:,:,i));
         end
         outVar1 = pagemtimes(obj.J,obj.J1);
+        outVar2 = obj.detJ.*(obj.GaussPts.weight)';
       end
     end
 
@@ -203,38 +193,61 @@
 
   methods (Access = private)
 
-    function findLocDerBasisF(obj)
+    function findLocDerBasisF(obj,varargin)
       % Compute derivatives in the reference space for all Gauss points
       obj.J1 = zeros(2,obj.mesh.surfaceNumVerts(1),obj.GaussPts.nNode);
       %
       % d(N)/d\csi
-      d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
+      if isempty(varargin)
+        d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
           (1+obj.coordLoc(j,2).*obj.GaussPts.coord(i,2)), ...
           (1:obj.GaussPts.nNode)',1:obj.mesh.surfaceNumVerts(1));
-      %
-      % d(N)/d\eta
-      d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
+        %
+        % d(N)/d\eta
+        d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
           (1+obj.coordLoc(j,1).*obj.GaussPts.coord(i,1)), ...
           (1:obj.GaussPts.nNode)',1:obj.mesh.surfaceNumVerts(1));
-      % d2 = 1/8.*coord_loc(:,2).*(1+coord_loc(:,1).*pti_G(1)).*(1+coord_loc(:,3).*pti_G(3));
-      %
-      obj.J1(1,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d1';
-      obj.J1(2,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d2';
-      
+        % d2 = 1/8.*coord_loc(:,2).*(1+coord_loc(:,1).*pti_G(1)).*(1+coord_loc(:,3).*pti_G(3));
+        %
+        obj.J1(1,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d1';
+        obj.J1(2,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d2';
+      else
+        refCoord = varargin{1};
+        d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
+          (1+obj.coordLoc(j,2).*refCoord(i,2)), ...
+          (1:size(refCoord,1))',1:obj.mesh.surfaceNumVerts(1));
+        %
+        % d(N)/d\eta
+        d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
+          (1+obj.coordLoc(j,1).*refCoord(i,1)), ...
+          (1:size(refCoord,1))',1:obj.mesh.surfaceNumVerts(1));
+        % d2 = 1/8.*coord_loc(:,2).*(1+coord_loc(:,1).*pti_G(1)).*(1+coord_loc(:,3).*pti_G(3));
+        %
+        obj.J1(1,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d1';
+        obj.J1(2,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d2';
+      end
     end
     
 
 
     function findLocBasisF(obj, varargin)
-
       % Find the value the basis functions take at the Gauss points
-      obj.N1 = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*obj.GaussPts.coord(i,1)).* ...
-                     (1+obj.coordLoc(j,2).*obj.GaussPts.coord(i,2)), ...
-                     (1:obj.GaussPts.nNode)',1:obj.mesh.surfaceNumVerts(1));
-      if obj.GaussPts.nNode == 1
+      if isempty(varargin)
+        obj.N1 = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*obj.GaussPts.coord(i,1)).* ...
+          (1+obj.coordLoc(j,2).*obj.GaussPts.coord(i,2)), ...
+          (1:obj.GaussPts.nNode)',1:obj.mesh.surfaceNumVerts(1));
+        if obj.GaussPts.nNode == 1
           obj.N1 = obj.N1';
+        end
+      else
+        % compute basis at given reference point (xi,eta)
+        refCoord = varargin{1};
+        bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*refCoord(i,1)).* ...
+          (1+obj.coordLoc(j,2).*refCoord(i,2)), ...
+          (1:size(refCoord,1))',1:obj.mesh.surfaceNumVerts(1));
       end
     end
+
 
     function findLocBubbleBasisF(obj)
       % Find the value the basis functions take at the Gauss points

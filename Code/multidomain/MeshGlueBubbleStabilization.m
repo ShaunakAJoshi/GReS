@@ -94,7 +94,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           end
           Lloc = zeros(3,3);
           %Compute Mortar Slave quantities
-          w = elemSlave.getDerBasisFAndDet(is,3);
+          w = elemSlave.getDerBasisFAndDet(is);
           posGP = getGPointsLocation(elemSlave,is);
           nodeSlave = obj.mesh.local2glob{2}(obj.mesh.msh(2).surfaces(is,:));
           Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
@@ -103,6 +103,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           Dloc = zeros(3,3*size(Nslave,2));
           for im = masterElems'
             nodeMaster = obj.mesh.local2glob{1}(obj.mesh.msh(1).surfaces(im,:));
+            obj.quadrature.segmentBasedCouple(is,im);
             [Nm,id,NbubbleMaster] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
             if any(id)
               % get basis function matrices
@@ -226,7 +227,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           Dvec(cd+1:cd+nd) = Dloc(:);
 
           % multipliers condensation (includes also master contribution)
-          Lloc = -Dbloc*(invKbb)*Dbloc'; % + Lloc;
+          Lloc = -Dbloc*(invKbb)*Dbloc'; %+ Lloc;
           [jLloc,iLloc] = meshgrid(dofId(i,3),dofId(i,3));
           nl = numel(Lloc);
           iLvec(cl+1:cl+nl) = iLloc(:);   jLvec(cl+1:cl+nl) = jLloc(:);
@@ -256,7 +257,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         obj.Jmult{1} = sparse(iLvec,jLvec,Lvec,nDofMult,nDofMult);
         %       % apply condensation to slave inner block
         JcondSlave = sparse(iKSvec,jKSvec,KSvec,nDofSlave,nDofSlave);
-        JcondMaster = sparse(iKMvec,jKMvec,KMvec,nDofMaster,nDofMaster);
+        %JcondMaster = sparse(iKMvec,jKMvec,KMvec,nDofMaster,nDofMaster);
         poroSlave.J = poroSlave.J + JcondSlave;
         %poroMaster.J = poroMaster.J + JcondMaster;
       end

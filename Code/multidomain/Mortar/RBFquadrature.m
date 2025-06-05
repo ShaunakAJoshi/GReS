@@ -1,4 +1,4 @@
-classdef RBF < handle
+classdef RBFquadrature < handle
   % Radial Basis Function class
   % Used to interpolate master basis functions into the slave side
 
@@ -12,7 +12,7 @@ classdef RBF < handle
   end
 
   methods
-    function obj = RBF(mortar,nInt)
+    function obj = RBFquadrature(mortar,nInt)
       %
       obj.mortar = mortar;
       obj.nInt = nInt;

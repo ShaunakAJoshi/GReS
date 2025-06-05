@@ -17,9 +17,11 @@ classdef interfaceMesh < handle
     cellType
     nEdges
     e2n
+    n2e
     e2f
     f2c
     f2e
+    avgNodNormal    % average nodal normal for master and slave side
   end
   
   methods
@@ -36,6 +38,7 @@ classdef interfaceMesh < handle
       setupEdgeTopology(obj,1);
       setupEdgeTopology(obj,2);
       obj.buildFace2CellMap([mshMaster mshSlave]);
+      obj.computeAverageNodalNormal();
     end
 
     function getConnectivityMatrix(obj)
@@ -128,6 +131,15 @@ classdef interfaceMesh < handle
 
       % Build e2f mapping (each edge can be shared by up to 2 faces)
       obj.e2f{sideID} = accumarray([N', i(j)], id(j,1), [obj.nEdges(sideID), 2]);
+
+      allEdges = obj.e2n{sideID};
+      maxNode = max(allEdges(:));
+      obj.n2e{sideID} = cell(maxNode, 1);
+      for e = 1:size(allEdges,1)
+        nodes = allEdges(e,:);
+        obj.n2e{sideID}{nodes(1)}(end+1) = e;
+        obj.n2e{sideID}{nodes(2)}(end+1) = e;
+      end
     end
 
     %
@@ -206,6 +218,31 @@ classdef interfaceMesh < handle
         end
       end
     end
+
+    function computeAverageNodalNormal(obj)
+      for side = 1:2
+        avNorm = zeros(obj.msh(side).nNodes,3);
+        coord = obj.msh(side).coordinates;
+        topol = obj.msh(side).surfaces;
+        nv = obj.msh(side).surfaceNumVerts;
+        for el = 1:obj.msh(side).nSurfaces
+          nVert = nv(el);
+          coordLoc = coord(topol(el,[nVert,1:nVert,1]),:);
+          % get edges direction according to predefined node ordering
+          dn = diff(coordLoc,1);
+          for i = 1:nv(el)
+            nLoc = cross(dn(i,:),dn(i+1,:));
+            avNorm(topol(el,i),:) = avNorm(topol(el,i),:) + nLoc;
+          end
+        end
+        % normalize matrix
+        normN = sqrt(sum(avNorm.^2,2));
+        obj.avgNodNormal{side} = avNorm./(normN);
+      end
+    end
+
+
   end
+
 end
 

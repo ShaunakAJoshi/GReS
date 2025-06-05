@@ -11,7 +11,9 @@ classdef Elements < handle
     nNodesElem = [4, 8, 6, 5]
 
     % Geometric properties
-    cellCentroid
+    centroid
+    coordLoc
+    
     vol
 
     % 3D element handlers
@@ -132,5 +134,22 @@ classdef Elements < handle
         repelem(1 ./ obj.mesh.cellNumVerts(idTetra), obj.mesh.cellNumVerts(idTetra)), ...
         length(idTetra), obj.mesh.nNodes) * obj.mesh.coordinates;
     end
+  end
+
+  methods (Static)
+
+    function centroidCoord = getElemCentroid(vtkType)
+      switch vtkType
+        case 5
+          centroidCoord = Triangle.centroid;
+        case 9
+          centroidCoord = Quadrilateral.centroid;
+        case 12
+          centroidCoord = Hexahedron.centroid;
+        otherwise
+          error('centroid retrieving for element vtk type %i not yet implemented',vtkType)
+      end
+    end
+
   end
 end

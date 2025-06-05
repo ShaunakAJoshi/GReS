@@ -27,6 +27,8 @@ classdef Mesh < handle
     cellNumVerts
     % Centroid coordinates of each cell
     cellCentroid
+    % Centroid coordinates of each cell
+    surfaceCentroid
     % Surface to node mapping:
     % 2D elements' nodes sequences
     surfaces
@@ -200,6 +202,7 @@ classdef Mesh < handle
       obj.cellTag = elems(ID,2);
       obj.nCells = length(obj.cellTag);
       obj.cellCentroid = obj.getCellCentroids();
+      obj.surfaceCentroid = obj.getSurfaceCentroids();
       if all(obj.cellTag==0)
          obj.cellTag = obj.cellTag + 1;
          obj.nCellTag = 1;
@@ -390,6 +393,7 @@ classdef Mesh < handle
         surfMesh.surfaceVTKType = obj.surfaceVTKType(obj.surfaceTag == surfTag);
         surfMesh.surfaceNumVerts = obj.surfaceNumVerts(obj.surfaceTag == surfTag);
         surfMesh.nDim = 3;
+        surfMesh.surfaceCentroid = surfMesh.getSurfaceCentroids();
     end
 
     function centroids = getCellCentroids(obj)
@@ -398,6 +402,14 @@ classdef Mesh < handle
           coord = obj.coordinates(obj.cells(i,:),:);
           centroids(i,:) = sum(coord,1)/size(coord,1);
        end
+    end
+
+    function centroids = getSurfaceCentroids(obj)
+      centroids = zeros(obj.nSurfaces,3);
+      for i = 1:obj.nSurfaces
+        coord = obj.coordinates(obj.surfaces(i,:),:);
+        centroids(i,:) = sum(coord,1)/size(coord,1);
+      end
     end
 
     function addSurface(obj,id,topol)

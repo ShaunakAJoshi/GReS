@@ -33,9 +33,11 @@ classdef Mortar < handle
       obj.nGP = inputStruct.nGP;
       switch inputStruct.Quadrature.typeAttribute
         case 'RBF'
-          obj.quadrature = RBF(obj,inputStruct.Quadrature.nIntAttribute);
+          obj.quadrature = RBFquadrature(obj,inputStruct.Quadrature.nIntAttribute);
         case 'ElementBased'
           % Element based will be implemented in the future
+        case 'SegmentBased'
+          obj.quadrature = SegmentBasedQuadrature(obj);
       end
       setPrintUtils(obj,inputStruct,domains(2).OutState);
     end

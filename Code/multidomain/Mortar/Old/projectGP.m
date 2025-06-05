@@ -1,6 +1,8 @@
 function [xiMaster] = projectGP(coord,topolM,topolS,elM,elS,xi,n,xInt)
 % Project a Gauss Point on the slave onto the master side
 
+% Reference: Farah PHD thesis
+
 % elM: master element onto which project
 % elS: index of the slave element, origin of the projection
 % xi: reference coordinate of the Gauss Points to project

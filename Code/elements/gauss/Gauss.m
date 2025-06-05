@@ -43,7 +43,7 @@ classdef Gauss < handle
               obj.weight = obj.weight1D;
               obj.nNode = obj.nNode1D;
             case 2
-              t = [ 0 0; 1 0; 0 1]; % reference triangle
+              t = [0 0; 1 0; 0 1]; % reference triangle
               g = quadtriangle(obj.nNode1D,'Domain',t); % external lib
               obj.coord = g.Points;
               obj.weight = g.Weights;
