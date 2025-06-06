@@ -291,6 +291,11 @@ classdef DoFManager < handle
          nc = obj.nComp(fldId);
          numDoF = nc*numEnts;
       end
+
+      function scheme = getScheme(obj,fld)
+        fldId = obj.getFieldId(fld);
+        scheme = obj.fields(fldId).scheme;
+      end
    end
 
    methods (Access = private)

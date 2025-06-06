@@ -30,11 +30,8 @@ fileName = 'materialsListElastic.dat';
 % Create an object of the Materials class and read the materials file
 mat = Materials(model,fileName);
 
-% Define Gauss points
-GaussPts = Gauss(12,2,3);
-
 % Create an object of the "Elements" class and process the element properties
-elems = Elements(topology,GaussPts);
+elems = Elements(topology,1,2);
 
 % Create an object of the "Faces" class and process the face properties
 faces = Faces(model, topology);
@@ -47,7 +44,7 @@ DoFfileName = 'dof.dat';
 dofmanager = DoFManager(topology, model, DoFfileName);
 
 % Create object handling construction of Jacobian and rhs of the model
-linSyst = Discretizer(model,simParam,dofmanager,grid,mat,GaussPts);
+linSyst = Discretizer(model,simParam,dofmanager,grid,mat);
 
 % Build a structure storing variable fields at each time step
 linSyst.setState();

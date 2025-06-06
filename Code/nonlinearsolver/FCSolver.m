@@ -27,8 +27,8 @@ classdef FCSolver < handle
   end
   
   methods (Access = public)
-      function obj = FCSolver(symmod,simParam,dofManager,grid,mat,bc,prtUtil,linSyst,varargin)
-      obj.setNonLinearSolver(symmod,simParam,dofManager,grid,mat,bc,prtUtil,linSyst,varargin);
+      function obj = FCSolver(symmod,simParam,dofManager,grid,mat,bc,prtUtil,linSyst)
+      obj.setNonLinearSolver(symmod,simParam,dofManager,grid,mat,bc,prtUtil,linSyst);
     end
 
    function [simStat] = NonLinearLoop(obj)
@@ -127,7 +127,7 @@ classdef FCSolver < handle
   end
   
   methods (Access = private)
-     function setNonLinearSolver(obj,symmod,simParam,dofManager,grid,mat,bc,prtUtil,linearSyst,data)
+     function setNonLinearSolver(obj,symmod,simParam,dofManager,grid,mat,bc,prtUtil,linearSyst)
         obj.model = symmod;
         obj.simParameters = simParam;
         obj.dofManager = dofManager;
@@ -140,9 +140,6 @@ classdef FCSolver < handle
         obj.stateTmp = linearSyst.state;
         obj.statek = copy(obj.stateTmp);
         obj.linSyst = linearSyst;
-        if ~isempty(data)
-           obj.GaussPts = data{1};
-        end
      end
     function [t, dt] = updateTime(obj,conv,dt)
         if obj.printUtil.modTime

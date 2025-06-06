@@ -29,6 +29,10 @@ classdef Mesh < handle
     cellCentroid
     % Centroid coordinates of each cell
     surfaceCentroid
+    % volume of cells
+    cellVolume
+    % area of surfaces
+    surfaceArea
     % Surface to node mapping:
     % 2D elements' nodes sequences
     surfaces
@@ -201,8 +205,6 @@ classdef Mesh < handle
       obj.cellVTKType = elems(ID,1);
       obj.cellTag = elems(ID,2);
       obj.nCells = length(obj.cellTag);
-      obj.cellCentroid = obj.getCellCentroids();
-      obj.surfaceCentroid = obj.getSurfaceCentroids();
       if all(obj.cellTag==0)
          obj.cellTag = obj.cellTag + 1;
          obj.nCellTag = 1;
@@ -368,14 +370,9 @@ classdef Mesh < handle
         % Function to build a 2D mesh object based on the surfaceTag of a 3D
         % mesh
         % initialize Mesh object
+        id = obj.surfaceTag == surfTag;
         surfMesh = Mesh();
-        surfTopol = obj.surfaces(obj.surfaceTag == surfTag,:);
-        switch obj.surfaceVTKType(1)
-           case 5
-              nN = 3;
-           case 9
-              nN = 4;
-        end
+        surfTopol = obj.surfaces(id,:);
         % renumber the nodes starting from 1;
         surfTopol = surfTopol(:);
         % ordered list of unique nodes in the topology matrix
@@ -384,33 +381,35 @@ classdef Mesh < handle
         for i = 1:length(surfTopol)
             surfTopol(i) = mapping(surfTopol(i));
         end
-        surfMesh.surfaces = (reshape(surfTopol, [], nN));
+        surfMesh.surfaceNumVerts = obj.surfaceNumVerts(id);
+        nNmax = max(surfMesh.surfaceNumVerts);
+        surfMesh.surfaces = (reshape(surfTopol, [], nNmax));
         surfMesh.coordinates = obj.coordinates(surfOrd,:);
         surfMesh.nNodes = length(surfMesh.coordinates);
         surfMesh.nSurfaces = length(surfMesh.surfaces);
         surfMesh.surfaceTag = repmat(surfTag, surfMesh.nSurfaces,1);
         surfMesh.nSurfaceTag = 1;
-        surfMesh.surfaceVTKType = obj.surfaceVTKType(obj.surfaceTag == surfTag);
-        surfMesh.surfaceNumVerts = obj.surfaceNumVerts(obj.surfaceTag == surfTag);
+        surfMesh.surfaceVTKType = obj.surfaceVTKType(id);
         surfMesh.nDim = 3;
-        surfMesh.surfaceCentroid = surfMesh.getSurfaceCentroids();
+        surfMesh.surfaceCentroid = obj.surfaceCentroid(id,:);
+        surfMesh.surfaceArea = obj.surfaceArea(id);
     end
 
-    function centroids = getCellCentroids(obj)
-       centroids = zeros(obj.nCells,3);
-       for i = 1:obj.nCells
-          coord = obj.coordinates(obj.cells(i,:),:);
-          centroids(i,:) = sum(coord,1)/size(coord,1);
-       end
-    end
-
-    function centroids = getSurfaceCentroids(obj)
-      centroids = zeros(obj.nSurfaces,3);
-      for i = 1:obj.nSurfaces
-        coord = obj.coordinates(obj.surfaces(i,:),:);
-        centroids(i,:) = sum(coord,1)/size(coord,1);
-      end
-    end
+%     function centroids = getCellCentroids(obj)
+%        centroids = zeros(obj.nCells,3);
+%        for i = 1:obj.nCells
+%           coord = obj.coordinates(obj.cells(i,:),:);
+%           centroids(i,:) = sum(coord,1)/size(coord,1);
+%        end
+%     end
+% 
+%     function centroids = getSurfaceCentroids(obj)
+%       centroids = zeros(obj.nSurfaces,3);
+%       for i = 1:obj.nSurfaces
+%         coord = obj.coordinates(obj.surfaces(i,:),:);
+%         centroids(i,:) = sum(coord,1)/size(coord,1);
+%       end
+%     end
 
     function addSurface(obj,id,topol)
        % add a surface to mesh object given the surface topology

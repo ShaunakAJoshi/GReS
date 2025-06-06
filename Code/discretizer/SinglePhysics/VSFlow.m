@@ -11,9 +11,9 @@ classdef VSFlow < SPFlow
     end
 
     methods (Access = public)
-        function obj = VSFlow(symmod,params,dofManager,grid,mat,state,data)
+        function obj = VSFlow(symmod,params,dofManager,grid,mat,state)
             % initialize as SPFlow class
-            obj@SPFlow(symmod,params,dofManager,grid,mat,data,state,'VSFlow');
+            obj@SPFlow(symmod,params,dofManager,grid,mat,state,'VSFlow');
         end
 
         function computeMat(obj,stateOld,dt)

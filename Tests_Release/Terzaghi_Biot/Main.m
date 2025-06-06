@@ -11,7 +11,7 @@ scriptDir = fileparts(scriptFullPath);
 cd(scriptDir);
 
 % Set physical models 
-model = ModelType(["SinglePhaseFlow_FVTPFA","Poromechanics_FEM"]);
+model = ModelType(["SinglePhaseFlow_FEM","Poromechanics_FEM"]);
 
 % Set parameters of the simulation
 fileName = "simParam.dat";
@@ -21,7 +21,7 @@ simParam = SimulationParameters(fileName,model);
 topology = Mesh();
 
 % Set the mesh input file name
-fileName = 'Mesh/Column.msh';
+fileName = 'Mesh/Column_tetra.msh';
 % Import the mesh data into the Mesh object
 topology.importGMSHmesh(fileName);
 
@@ -29,11 +29,11 @@ topology.importGMSHmesh(fileName);
 fileName = 'materialsList.dat';
 mat = Materials(model,fileName);
 
-% Create object handling gauss point integration
-GaussPts = Gauss(12,2,3);
 
 % Create an object of the "Elements" class and process the element properties
-elems = Elements(topology,GaussPts);
+interpolationOrder = 1;
+gaussOrder = 1;
+elems = Elements(topology,interpolationOrder,gaussOrder);
 
 %calling analytical solution script
 Terzaghi_analytical(topology, mat, 10)
@@ -49,13 +49,13 @@ grid = struct('topology',topology,'cells',elems,'faces',faces);
 dofmanager = DoFManager(topology,model);
 
 % Create object handling construction of Jacobian and rhs of the model
-linSyst = Discretizer(model,simParam,dofmanager,grid,mat,GaussPts);
+linSyst = Discretizer(model,simParam,dofmanager,grid,mat);
 
 % Build a structure storing variable fields at each time step
 linSyst.setState();
 
 % Create and set the print utility
-printUtils = OutState(model,topology,'outTime.dat','folderName','Output_Terzaghi','flagMatFile',true);
+printUtils = OutState(model,topology,'outTime.dat','folderName','Output_Terzaghi_tetra','flagMatFile',true);
 
 
 % Write BC files programmatically with function utility 
@@ -82,7 +82,7 @@ printState(printUtils,linSyst);
 % customize the solution scheme. 
 % Here, a built-in fully implict solution scheme is adopted with class
 % FCSolver. This could be simply be replaced by a user defined function
-Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst,GaussPts);
+Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst);
 %
 % Solve the problem
 [simState] = Solver.NonLinearLoop();
@@ -112,8 +112,8 @@ nodesU = nodesU(ind);
 if isFEMBased(model,'Flow')
     nodesP = nodesU;
 else
-    nodesP = find(elems.cellCentroid(:,1) + elems.cellCentroid(:,2) < 0.51);
-    [~,ind] = sort(elems.cellCentroid(nodesP,3));
+    nodesP = find(topology.cellCentroid(:,1) + topology.cellCentroid(:,2) < 0.51);
+    [~,ind] = sort(topology.cellCentroid(nodesP,3));
     nodesP = nodesP(ind);
 end
 
@@ -129,7 +129,7 @@ p0 = max(press(:,1));
 
 %Plotting solution
 if isFVTPFABased(model,'Flow')
-    ptsY = elems.cellCentroid(nodesP,3);
+    ptsY = topology.cellCentroid(nodesP,3);
 else
     ptsY = topology.coordinates(nodesP,3);
 end

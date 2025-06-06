@@ -14,13 +14,12 @@ classdef SinglePhysics < handle
       elements
       faces
       material
-      GaussPts
       state
       fldId
    end
    
    methods
-      function obj = SinglePhysics(fld,symmod,params,dofManager,grid,mat,state,data)
+      function obj = SinglePhysics(fld,symmod,params,dofManager,grid,mat,state)
          obj.field = fld;
          obj.model = symmod;
          obj.simParams = params;
@@ -31,10 +30,6 @@ classdef SinglePhysics < handle
          obj.material = mat;
          obj.state = state;
          obj.fldId = obj.dofm.getFieldId(fld);
-         % obj.field = 
-         if ~isempty(data)
-            obj.GaussPts = data{1};
-         end
       end
 
       function applyNeuBC(obj,dofs,vals)

@@ -6,8 +6,8 @@ classdef Boundaries < handle
     db
     dof
   end
-  
-    properties (Access = private)
+
+  properties (Access = private)
     model
     grid
   end
@@ -25,7 +25,7 @@ classdef Boundaries < handle
       obj.computeBoundaryProperties(model,grid);
       linkBoundSurf2TPFAFace(model,obj,grid);
     end
-    
+
     function delete(obj)
       remove(obj.db,keys(obj.db));
       obj.db = [];
@@ -41,199 +41,211 @@ classdef Boundaries < handle
         error('Boundary condition %s not present', identifier);
       end
     end
-    
+
     function vals = getVals(obj, identifier, t)
       vals = obj.getData(identifier).data.getValues(t);
     end
- 
+
     function cond = getCond(obj, identifier)
       cond = obj.getData(identifier).cond;
     end
-    
+
     function name = getName(obj, identifier)
       name = obj.getData(identifier).data.name;
     end
 
     function type = getType(obj, identifier)
-       if ~strcmp(obj.getCond(identifier),'VolumeForce')
-          type = obj.getData(identifier).type;
-       else
-          type = 'VolumeForce';
-       end
+      if ~strcmp(obj.getCond(identifier),'VolumeForce')
+        type = obj.getData(identifier).type;
+      else
+        type = 'VolumeForce';
+      end
     end
 
     function physics = getPhysics(obj, identifier)
       physics = obj.getData(identifier).physics;
     end
-   
+
     function dofs = getCompEntities(obj,identifier,ents)
-       % get component dof of Dirichlet BC loaded entities
-       nEnts = getNumbLoadedEntities(obj,identifier);
-       % component multiplication of BC entities
-       dim = length(nEnts);
-       i1 = 1;
-       dofs = zeros(numel(ents),1);
-       for i = 1 : dim
-          i2 = i1 + nEnts(i);
-          dofs(i1:i2-1) = dim*(ents(i1:i2-1)-1) + i;
-          i1 = i2;
-       end
+      % get component dof of Dirichlet BC loaded entities
+      nEnts = getNumbLoadedEntities(obj,identifier);
+      % component multiplication of BC entities
+      dim = length(nEnts);
+      i1 = 1;
+      dofs = zeros(numel(ents),1);
+      for i = 1 : dim
+        i2 = i1 + nEnts(i);
+        dofs(i1:i2-1) = dim*(ents(i1:i2-1)-1) + i;
+        i1 = i2;
+      end
     end
 
     function ents = getEntities(obj,identifier)
-       ents = obj.getData(identifier).data.entities;
+      ents = obj.getData(identifier).data.entities;
     end
-    
-     function ents = getLoadedEntities(obj, identifier)
-        % return loaded entities for Volume or Surface BCs
-        ents = obj.getData(identifier).loadedEnts;
-     end
 
-     function nEnts = getNumbEntities(obj,identifier)
-        nEnts = obj.getData(identifier).data.nEntities;
-     end
+    function ents = getLoadedEntities(obj, identifier)
+      % return loaded entities for Volume or Surface BCs
+      ents = obj.getData(identifier).loadedEnts;
+    end
 
-     function ents = getNumbLoadedEntities(obj, identifier)
-        bc = obj.getData(identifier);
-        if isfield(bc,'nloadedEnts')
-           % Surface BC
-           ents = bc.nloadedEnts;
-        else
-           % Node BC
-           ents = bc.data.nEntities;
-        end
-     end
-    
+    function nEnts = getNumbEntities(obj,identifier)
+      nEnts = obj.getData(identifier).data.nEntities;
+    end
+
+    function ents = getNumbLoadedEntities(obj, identifier)
+      bc = obj.getData(identifier);
+      if isfield(bc,'nloadedEnts')
+        % Surface BC
+        ents = bc.nloadedEnts;
+      else
+        % Node BC
+        ents = bc.data.nEntities;
+      end
+    end
+
     function infl = getEntitiesInfluence(obj, identifier)
       infl = obj.getData(identifier).entitiesInfl;
     end
-    
+
     function direction = getDirection(obj, identifier)
       direction = obj.getData(identifier).direction;
     end
-    
+
     function setDofs(obj, identifier, list)
       obj.getData(identifier).data.entities = list;
     end
-    
-    function computeBoundaryProperties(obj,model,grid)
+
+    function computeBoundaryProperties(obj, model, grid)
       keys = obj.db.keys;
-      for i = 1 : length(keys)
-        if strcmp(obj.getCond(keys{i}), 'VolumeForce') && ...
-            isFEMBased(model,obj.getPhysics(keys{i})) 
-          dofs = obj.getEntities(keys{i});
-          tmpMat = grid.topology.cells(dofs,:)';
-          [loadedEnts] = unique(tmpMat(tmpMat ~= 0));
-          ptrHexa = grid.topology.cellVTKType(dofs) == 12;
-          ptrTetra = grid.topology.cellVTKType(dofs) == 10;
+
+      for i = 1:length(keys)
+        key = keys{i};
+        cond = obj.getCond(key);
+        phys = obj.getPhysics(key);
+        isFEM = isFEMBased(model, phys);
+
+        if strcmp(cond, 'VolumeForce') && isFEM
+          % --- Volume Force Contribution ---
+          dofs = obj.getEntities(key);
+          tmpMat = grid.topology.cells(dofs, :)';
+          loadedEnts = unique(tmpMat(tmpMat ~= 0));
+
+          % Identify element types
+          vtkType = grid.topology.cellVTKType(dofs);
+          ptrHexa = vtkType == 12;
+          ptrTetra = vtkType == 10;
+
           nHexa = nnz(ptrHexa);
           nTetra = nnz(ptrTetra);
-          rowID = zeros(8*nHexa+4*nTetra,1);
-          colID = zeros(8*nHexa+4*nTetra,1);
-          nodeVol = zeros(8*nHexa+4*nTetra,1);
+
+          % Preallocate
+          rowID = zeros(8*nHexa + 4*nTetra, 1);
+          colID = zeros(size(rowID));
+          nodeVol = zeros(size(rowID));
+
           ptr = 0;
-          if any(ptrHexa)
+          if nHexa > 0
             nodeVol(ptr+1:ptr+8*nHexa) = grid.cells.hexa.findNodeVolume(dofs(ptrHexa)');
-            topolHexa = tmpMat(:,ptrHexa);
-            [~,rowID(ptr+1:ptr+8*nHexa)] = ismember(topolHexa(topolHexa ~= 0),loadedEnts);
-            colID(ptr+1:ptr+8*nHexa) = repelem(find(ptrHexa),8);
+            topolHexa = tmpMat(:, ptrHexa);
+            [~, rowID(ptr+1:ptr+8*nHexa)] = ismember(topolHexa(topolHexa ~= 0), loadedEnts);
+            colID(ptr+1:ptr+8*nHexa) = repelem(find(ptrHexa), 8);
             ptr = ptr + 8*nHexa;
-            clear topolHexa
           end
-          if any(ptrTetra)
-            nodeVol(ptr+1:ptr+4*nTetra) = 0.25*repelem(grid.cells.vol(dofs(ptrTetra)),4);
-            topolTetra = tmpMat(:,ptrTetra);
-            [~,rowID(ptr+1:ptr+4*nTetra)] = ismember(topolTetra(topolTetra ~= 0),loadedEnts);
-            colID(ptr+1:ptr+4*nTetra) = repelem(find(ptrTetra),4);
-            clear topolTetra
+
+          if nTetra > 0
+            nodeVol(ptr+1:ptr+4*nTetra) = 0.25 * repelem(grid.cells.vol(dofs(ptrTetra)), 4);
+            topolTetra = tmpMat(:, ptrTetra);
+            [~, rowID(ptr+1:ptr+4*nTetra)] = ismember(topolTetra(topolTetra ~= 0), loadedEnts);
+            colID(ptr+1:ptr+4*nTetra) = repelem(find(ptrTetra), 4);
           end
-          nodeVolume = sparse(rowID,colID,nodeVol,length(loadedEnts),length(dofs));
-          tmpDbEntry = obj.getData(keys{i});
-          tmpDbEntry.entitiesInfl = nodeVolume;
-          tmpDbEntry.loadedEnts = loadedEnts;
-          obj.db(keys{i}) = tmpDbEntry;
-        elseif strcmp(obj.getCond(keys{i}), 'SurfBC') && ...
-          isFEMBased(model,obj.getPhysics(keys{i})) && ...
-          strcmp(obj.getType(keys{i}),'Neu')
-          dofs = obj.getEntities(keys{i});
-          tmpMat = grid.topology.surfaces(dofs,:)';
-          [loadedEnts] = unique(tmpMat(tmpMat ~= 0));
-          ptrTri = grid.topology.surfaceVTKType(dofs) == 5;
-          ptrQuad = grid.topology.surfaceVTKType(dofs) == 9;
+
+          nodeVolume = sparse(rowID, colID, nodeVol, length(loadedEnts), length(dofs));
+
+          entry = obj.getData(key);
+          entry.entitiesInfl = nodeVolume;
+          entry.loadedEnts = loadedEnts;
+          obj.db(key) = entry;
+
+        elseif strcmp(cond, 'SurfBC') && isFEM && strcmp(obj.getType(key), 'Neu')
+          % --- Neumann Surface Contribution ---
+          dofs = obj.getEntities(key);
+          tmpMat = grid.topology.surfaces(dofs, :)';
+          loadedEnts = unique(tmpMat(tmpMat ~= 0));
+
+          vtkType = grid.topology.surfaceVTKType(dofs);
+          ptrQuad = vtkType == 9;
+          ptrTri  = vtkType == 5;
+
           nQuad = nnz(ptrQuad);
-          nTri = nnz(ptrTri);
-          rowID = zeros(4*nQuad+3*nTri,1);
-          colID = zeros(4*nQuad+3*nTri,1);
-          areaSurf = zeros(4*nQuad+3*nTri,1);
+          nTri  = nnz(ptrTri);
+
+          rowID = zeros(4*nQuad + 3*nTri, 1);
+          colID = zeros(size(rowID));
+          areaSurf = zeros(size(rowID));
+
           ptr = 0;
-          if any(ptrQuad)
-            areaSurf(ptr+1:ptr+4*nQuad) = 0.25*repelem(grid.faces.computeAreaQuad(dofs(ptrQuad)),4);
-            topolQuad = tmpMat(:,ptrQuad);
-            [~,rowID(ptr+1:ptr+4*nQuad)] = ismember(topolQuad(topolQuad ~= 0),loadedEnts);
-            colID(ptr+1:ptr+4*nQuad) = repelem(find(ptrQuad),4);
+          if nQuad > 0
+            areaSurf(ptr+1:ptr+4*nQuad) = 0.25 * repelem(grid.faces.computeAreaQuad(dofs(ptrQuad)), 4);
+            topolQuad = tmpMat(:, ptrQuad);
+            [~, rowID(ptr+1:ptr+4*nQuad)] = ismember(topolQuad(topolQuad ~= 0), loadedEnts);
+            colID(ptr+1:ptr+4*nQuad) = repelem(find(ptrQuad), 4);
             ptr = ptr + 4*nQuad;
-            clear topolQuad
           end
-          if any(ptrTri)
-            areaSurf(ptr+1:ptr+3*nTri) = 1/3*repelem(grid.faces.computeAreaTri(dofs(ptrTri)),3);
-            topolTri = tmpMat(:,ptrTri);
-            [~,rowID(ptr+1:ptr+3*nTri)] = ismember(topolTri(topolTri ~= 0),loadedEnts);
-            colID(ptr+1:ptr+3*nTri) = repelem(find(ptrTri),3);
-            clear topolTri
+
+          if nTri > 0
+            areaSurf(ptr+1:ptr+3*nTri) = (1/3) * repelem(grid.faces.computeAreaTri(dofs(ptrTri)), 3);
+            topolTri = tmpMat(:, ptrTri);
+            [~, rowID(ptr+1:ptr+3*nTri)] = ismember(topolTri(topolTri ~= 0), loadedEnts);
+            colID(ptr+1:ptr+3*nTri) = repelem(find(ptrTri), 3);
           end
-          nodeArea = sparse(rowID,colID,areaSurf,length(loadedEnts),length(dofs));
-          %
-          %this instructions will be later moved in the general
-          %getDofs method
-%           if strcmp(obj.getPhysics(keys{i}),'Poro')
-%             direction = obj.getDirection(keys{i});
-%             switch direction
-%               case 'x'
-%                 loadedEnts = 3*loadedEnts - 2;
-%               case 'y'
-%                 loadedEnts = 3*loadedEnts - 1;
-%               case 'z'
-%                 loadedEnts = 3*loadedEnts;
-%             end
-%           end
-          tmpDbEntry = obj.getData(keys{i});
-          tmpDbEntry.entitiesInfl = nodeArea;
-          tmpDbEntry.loadedEnts = loadedEnts;
-          obj.db(keys{i}) = tmpDbEntry;
-        elseif strcmp(obj.getCond(keys{i}), 'SurfBC') && ...
-          isFEMBased(model,obj.getPhysics(keys{i})) && ...
-          strcmp(obj.getType(keys{i}),'Dir')
-          dofs = obj.getEntities(keys{i});
-          nEnts = obj.getData(keys{i}).data.nEntities;
+
+          nodeArea = sparse(rowID, colID, areaSurf, length(loadedEnts), length(dofs));
+
+          entry = obj.getData(key);
+          entry.entitiesInfl = nodeArea;
+          entry.loadedEnts = loadedEnts;
+          obj.db(key) = entry;
+
+        elseif strcmp(cond, 'SurfBC') && isFEM && strcmp(obj.getType(key), 'Dir')
+          % --- Dirichlet Surface Contribution ---
+          dofs = obj.getEntities(key);
+          nEnts = obj.getData(key).data.nEntities;
           comps = length(nEnts);
-          nLoadEnts = zeros(comps,1);
-          i1 = 1; j1 = 1;
-          nodes = []; sid = [];
-          for ic = 1: comps
-              i2 = i1+nEnts(ic);
-              surfs = (grid.topology.surfaces(dofs(i1:i2-1),:))';
-              [nod, ind, ~] = unique(surfs,'last');
-              nLoadEnts(ic) = length(nod);
-              j2 = j1 + nLoadEnts(ic);
-              [~, s] = ind2sub(size(surfs),ind);
-              sid(j1:j2-1,1) = s + i1-1;
-              nodes(j1:j2-1,1) = nod;
-              i1 = i2;
-              j1 = j2;
-              %               i2 = i1 + nEnts(i);
-              % ents(i1:i2-1) = comps*(ents(i1:i2-1)-1)+i;
-              % i1 = i2;
+
+          nodes = [];
+          sid = [];
+          i1 = 1;
+          j1 = 1;
+          nLoadEnts = zeros(comps, 1);
+
+          for ic = 1:comps
+            i2 = i1 + nEnts(ic);
+            surfs = grid.topology.surfaces(dofs(i1:i2-1), :)';
+            [nod, ind] = unique(surfs, 'last');
+            nLoadEnts(ic) = length(nod);
+            j2 = j1 + nLoadEnts(ic);
+
+            [~, s] = ind2sub(size(surfs), ind);
+            sid(j1:j2-1) = s + i1 - 1;
+            nodes(j1:j2-1) = nod;
+
+            i1 = i2;
+            j1 = j2;
           end
+
           nnod = length(nodes);
-          mapNodSurf = sparse(1:nnod,sid,ones(nnod,1));
-          tmpDbEntry = obj.getData(keys{i});
-          tmpDbEntry.entitiesInfl = mapNodSurf;
-          tmpDbEntry.loadedEnts = nodes;
-          tmpDbEntry.nloadedEnts = nLoadEnts;
-          obj.db(keys{i}) = tmpDbEntry;
+          mapNodSurf = sparse(1:nnod, sid, 1, nnod, length(dofs));
+
+          entry = obj.getData(key);
+          entry.entitiesInfl = mapNodSurf;
+          entry.loadedEnts = nodes;
+          entry.nloadedEnts = nLoadEnts;
+          obj.db(key) = entry;
         end
       end
     end
+
   end
 
   methods (Access = private)

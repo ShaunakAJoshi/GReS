@@ -18,14 +18,14 @@ classdef Discretizer < handle
    end
 
    methods (Access = public)
-      function obj = Discretizer(symmod,simParams,dofManager,grid,mat,varargin)
+      function obj = Discretizer(symmod,simParams,dofManager,grid,mat)
          %UNTITLED Construct an instance of this class
          %   Detailed explanation goes here
          obj.mod = symmod;
          obj.dofm = dofManager;
          obj.grid = grid;
          obj.solver = containers.Map('KeyType','double','ValueType','any');
-         obj.setDiscretizer(symmod,simParams,dofManager,grid,mat,varargin);
+         obj.setDiscretizer(symmod,simParams,dofManager,grid,mat);
          obj.checkTimeDependence(symmod,mat,simParams);
       end
       
@@ -175,7 +175,7 @@ classdef Discretizer < handle
    end
 
    methods(Access = private)
-      function setDiscretizer(obj,symmod,params,dofManager,grid,mat,data)
+      function setDiscretizer(obj,symmod,params,dofManager,grid,mat)
         flds = getFieldList(obj.dofm);
         nF = numel(flds);
         % loop over all fields and define corresponding models
@@ -186,7 +186,7 @@ classdef Discretizer < handle
         for i = 1:nF
             for j = i:nF
                k = k+1;
-               addPhysics(obj,k,flds(i),flds(j),symmod,params,dofManager,grid,mat,stat,data);
+               addPhysics(obj,k,flds(i),flds(j),symmod,params,dofManager,grid,mat,stat);
             end
         end
         obj.state = stat;
@@ -211,7 +211,7 @@ classdef Discretizer < handle
          end
       end
 
-      function addPhysics(obj,id,f1,f2,mod,parm,dof,grid,mat,state,data)
+      function addPhysics(obj,id,f1,f2,mod,parm,dof,grid,mat,state)
          % Add new key to solver database
          % Prepare input fields for solver definition
          if ~isCoupled(obj,f1,f2)
@@ -221,15 +221,15 @@ classdef Discretizer < handle
          f = join(f,'_');
          switch f{:}
            case 'SinglePhaseFlow_SinglePhaseFlow'
-               obj.solver(id) = SPFlow(mod,parm,dof,grid,mat,state,data);
+               obj.solver(id) = SPFlow(mod,parm,dof,grid,mat,state);
             case 'Poromechanics_Poromechanics'
-               obj.solver(id) = Poromechanics(mod,parm,dof,grid,mat,state,data);
+               obj.solver(id) = Poromechanics(mod,parm,dof,grid,mat,state);
            case 'Poromechanics_SinglePhaseFlow'
                assert(isSinglePhaseFlow(mod),['Coupling between' ...
                   'poromechanics and unsaturated flow is not yet implemented']);
-               obj.solver(id) = Biot(mod,parm,dof,grid,mat,state,data);
+               obj.solver(id) = Biot(mod,parm,dof,grid,mat,state);
            case 'VariablySaturatedFlow_VaraiablySaturatedFlow'
-               obj.solver(id) = VSFlow(mod,parm,dof,grid,mat,state,data);
+               obj.solver(id) = VSFlow(mod,parm,dof,grid,mat,state);
             otherwise
                error('A physical module coupling %s with %s is not available!',f1,f2)
          end

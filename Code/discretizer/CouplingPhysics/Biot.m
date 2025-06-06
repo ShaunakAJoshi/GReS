@@ -6,21 +6,19 @@ classdef Biot < CouplingPhysics
 
     properties
         Q
-        flowScheme   % Discretization scheme used for Flow
-        indBtetra
-        indBhexa
+        flowModel   % Discretization scheme used for Flow
+        flowScheme
     end
 
     methods (Access = public)
-        function obj = Biot(symmod,params,dofManager,grid,mat,state,data)
-            obj@CouplingPhysics('Poromechanics','SinglePhaseFlow',symmod,params,dofManager,grid,mat,state,data);
+        function obj = Biot(symmod,params,dofManager,grid,mat,state)
+            obj@CouplingPhysics('Poromechanics','SinglePhaseFlow',symmod,params,dofManager,grid,mat,state);
             if isSinglePhaseFlow(obj.model)
-                obj.flowScheme = 'SinglePhaseFlow';
+                obj.flowModel = 'SinglePhaseFlow';
             elseif isVariabSatFlow(obj.model)
-                obj.flowScheme = 'VaraiblySsaturatedFlow';
+                obj.flowModel = 'VaraiblySsaturatedFlow';
             end
-            obj.indBtetra = Poromechanics.setStrainMat(4);
-            obj.indBhexa = Poromechanics.setStrainMat(8*obj.GaussPts.nNode);
+            obj.flowScheme = obj.dofm.getScheme(obj.fields(2));
             %
         end
 
@@ -28,11 +26,7 @@ classdef Biot < CouplingPhysics
            dt = varargin{2};
            % call method according to the discretization technique chosen
            if isempty(obj.J{1}) || ~isLinear(obj)
-              if isFEMBased(obj.model, 'Flow')
-                 computeMatFEM_FEM(obj);
-              elseif isFVTPFABased(obj.model,'Flow')
-                 computeMatFEM_FV(obj);
-              end
+              computeMatBiot(obj)
            end
            % J{1}: momentum balance   J{2}: mass balance equations
            obj.J{1} = -obj.simParams.theta*obj.Q;
@@ -40,94 +34,51 @@ classdef Biot < CouplingPhysics
         end
 
 
-        function computeMatFEM_FEM(obj)
+        function computeMatBiot(obj)
             % get domain ID with active Poro and Flow field
             subCells = obj.dofm.getFieldCells(obj.fields);
             nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
-            iiVec = zeros((obj.mesh.nDim*obj.elements.nNodesElem.^2)*nSubCellsByType,1);
-            jjVec = zeros((obj.mesh.nDim*obj.elements.nNodesElem.^2)*nSubCellsByType,1);
-            Qvec = zeros((obj.mesh.nDim*obj.elements.nNodesElem.^2)*nSubCellsByType,1);
+            switch obj.flowScheme
+              case 'FEM'
+                nEntries = (obj.mesh.nDim*obj.elements.nNodesElem.^2)*nSubCellsByType;
+              case 'FV'
+                nEntries = (obj.mesh.nDim*obj.elements.nNodesElem)*nSubCellsByType;
+            end
+            [iiVec,jjVec,Qvec] = deal(zeros(nEntries,1));
             nDoF1 = obj.dofm.getNumDoF(obj.fields{1});
             nDoF2 = obj.dofm.getNumDoF(obj.fields{2});
             %
             l1 = 0;
-            if nSubCellsByType(2) > 0
-                N1 = obj.elements.hexa.getBasisFinGPoints();
-            end
             for el=subCells'
                 % Get the right material stiffness for each element
                 biot = obj.material.getMaterial(obj.mesh.cellTag(el)).PorousRock.getBiotCoefficient();
-                switch obj.mesh.cellVTKType(el)
-                    case 10 %Tetrahedrons, direct integration
-                        vol = findVolume(obj.elements.tetra,el);
-                        der = getDerBasisF(obj.elements.tetra,el);
-                        Qloc = biot*0.25*repelem(der(:),1,4)*vol;
-                        s1 = obj.elements.nNodesElem(1).^2*obj.mesh.nDim;
-                    case 12 %Hexahedrons, Gauss integration
-                        [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
-                        nG = obj.GaussPts.nNode;
-                        iN = zeros(6,8,nG); %matrix product i*N
-                        B = zeros(6,8*obj.mesh.nDim,obj.GaussPts.nNode);
-                        B(obj.indBhexa(:,2)) = N(obj.indBhexa(:,1));
-                        iN(1,:,:) = reshape(N1',1,8,nG);
-                        iN(2:3,:,:) = repmat(iN(1,:,:),2,1,1);
-                        Qs = biot*pagemtimes(B,'ctranspose',iN,'none');
-                        Qs = Qs.*reshape(dJWeighed,1,1,[]);
-                        Qloc = sum(Qs,3);
-                        clear Qs;
-                        s1 = obj.elements.nNodesElem(2)^2*obj.mesh.nDim;
-                end
-                %assembly Coupling Matrix
+                elem = getElement(obj.elements,obj.mesh.cellVTKType(el));
+                nG = elem.GaussPts.nNode;
                 nodes = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
+                [N,dJWeighed] = getDerBasisFAndDet(elem,el,1);
+                iN = zeros(6,elem.nNode,nG); %matrix product i*N
+                B = zeros(6,elem.nNode*obj.mesh.nDim,nG);
+                B(elem.indB(:,2)) = N(elem.indB(:,1));
+                Nref = getBasisFinGPoints(elem);
+                % kronecker delta in tensor form
                 dofrow = getLocalDoF(obj.dofm,nodes,obj.fldId(1));
-                dofcol = getLocalDoF(obj.dofm,nodes,obj.fldId(2));
-                [jjloc,iiloc] = meshgrid(dofcol,dofrow);
-                iiVec(l1+1:l1+s1) = iiloc(:);
-                jjVec(l1+1:l1+s1) = jjloc(:);
-                Qvec(l1+1:l1+s1) = Qloc(:);
-                l1 = l1+s1;
-            end
-            obj.Q = sparse(iiVec, jjVec, Qvec, nDoF1, nDoF2);
-        end
-
-        function computeMatFEM_FV(obj)
-            % get domain ID with active Poro and Flow field
-            subCells = obj.dofm.getFieldCells(obj.fields);
-            nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
-            iiVec = zeros((obj.mesh.nDim*obj.elements.nNodesElem)*nSubCellsByType,1);
-            jjVec = zeros((obj.mesh.nDim*obj.elements.nNodesElem)*nSubCellsByType,1);
-            Qvec = zeros((obj.mesh.nDim*obj.elements.nNodesElem)*nSubCellsByType,1);
-            nDoF1 = obj.dofm.getNumDoF(obj.fields{1});
-            nDoF2 = obj.dofm.getNumDoF(obj.fields{2});
-            nCompPoro = obj.dofm.getDoFperEnt(obj.fields{1});
-            %
-            l1 = 0;
-            if nSubCellsByType(2) > 0
-                N1 = obj.elements.hexa.getBasisFinGPoints();
-            end
-            for el=subCells'
-                % Get the right material stiffness for each element
-                biot = obj.material.getMaterial(obj.mesh.cellTag(el)).PorousRock.getBiotCoefficient();
-                switch obj.mesh.cellVTKType(el)
-                    case 10 %Tetrahedrons, direct integration
-                        error('TPFA-FV not implemented for Tetrahedrons')
-                    case 12 %Hexahedrons, Gauss integration
-                        [N,dJWeighed] = getDerBasisFAndDet(obj.elements.hexa,el,1);
-                        nG = obj.GaussPts.nNode;
-                        %iN = zeros(6,8,nG); %matrix product i*N
-                        B = zeros(6,8*obj.mesh.nDim,nG);
-                        B(obj.indBhexa(:,2)) = N(obj.indBhexa(:,1));
-                        kron = repmat([1;1;1;0;0;0],1,1,8);
-                        Qs = biot*pagemtimes(B,'ctranspose',kron,'none');
-                        Qs = Qs.*reshape(dJWeighed,1,1,[]);
-                        Qloc = sum(Qs,3);
-                        clear Qs;
-                        s1 = obj.elements.nNodesElem(2)*obj.mesh.nDim;
+                kron = [1;1;1;0;0;0];
+                switch obj.flowScheme
+                  case 'FEM'
+                    Np = reshape(Nref',1,elem.nNode,nG);
+                    kron = repmat(kron,1,1,nG);
+                    iN = pagemtimes(kron,Np);
+                    dofcol = getLocalDoF(obj.dofm,nodes,obj.fldId(2));
+                  case 'FV'
+                    iN = repmat(kron,1,1,nG);
+                    dofcol = getLocalDoF(obj.dofm,el,obj.fldId(2));
                 end
-                %
+                Qs = biot*pagemtimes(B,'ctranspose',iN,'none');
+                Qs = Qs.*reshape(dJWeighed,1,1,[]);
+                Qloc = sum(Qs,3);
+                clear Qs;
+                s1 = numel(Qloc);
                 %assembly Coupling Matrix
-                dofrow = getLocalDoF(obj.dofm,obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el)),obj.fields{1});
-                dofcol = getLocalDoF(obj.dofm,el,obj.fields{2});
                 [jjloc,iiloc] = meshgrid(dofcol,dofrow);
                 iiVec(l1+1:l1+s1) = iiloc(:);
                 jjVec(l1+1:l1+s1) = jjloc(:);

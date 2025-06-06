@@ -17,7 +17,7 @@ classdef CouplingPhysics < handle
    end
    
    methods
-      function obj = CouplingPhysics(field1,field2,symmod,params,dofManager,grid,mat,state,data)
+      function obj = CouplingPhysics(field1,field2,symmod,params,dofManager,grid,mat,state)
          obj.fields = {field1,field2};
          obj.model = symmod;
          obj.simParams = params;
@@ -30,9 +30,6 @@ classdef CouplingPhysics < handle
          obj.fldId = zeros(2,1);
          obj.fldId(1) = obj.dofm.getFieldId(field1);
          obj.fldId(2) = obj.dofm.getFieldId(field2);
-         if ~isempty(data)
-            obj.GaussPts = data{1};
-         end
       end
       
       function applyDirBC(obj,field,dofs,varargin)
