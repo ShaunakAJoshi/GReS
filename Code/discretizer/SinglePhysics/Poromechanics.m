@@ -1,7 +1,6 @@
 classdef Poromechanics < SinglePhysics
 
   properties        
-    nEntryKLoc      % Entries of local stiffness matrix per 3D elem type
     fInt            % internal forces
     cell2stress     % map cell ID to position in stress/strain matrix
   end
@@ -42,9 +41,7 @@ classdef Poromechanics < SinglePhysics
     function computeStiffMat(obj,LocalAssembler)
       % general sparse assembly loop over elements for Poromechanics
       subCells = obj.dofm.getFieldCells(obj.field);
-      nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),...
-        obj.elements.vtk3DTypeList);
-      n = obj.nEntryKLoc*nSubCellsByType;
+      n = sum((obj.mesh.nDim^2)*(obj.mesh.cellNumVerts(subCells)).^2);
       [iiVec,jjVec,matVec] = deal(zeros(n,1));
       l1 = 0;
       l2 = 0;
@@ -359,7 +356,6 @@ classdef Poromechanics < SinglePhysics
     end
 
     function setPoromechanics(obj)
-      obj.nEntryKLoc = (obj.mesh.nDim^2)*(obj.elements.nNodesElem).^2;
       obj.cell2stress = zeros(obj.mesh.nCells,1);
     end
   end

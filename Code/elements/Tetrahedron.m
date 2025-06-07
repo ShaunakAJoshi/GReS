@@ -83,6 +83,11 @@ classdef Tetrahedron < FiniteElementLagrangian
           cellCentroid(i,:) = sum(coordMat,1)/obj.nNode;
         end
       end
+
+      function volNod = findNodeVolume(obj,el)
+        volNod = 0.25*obj.mesh.cellVolume(el);
+        volNod = repelem(volNod,obj.nNode);
+      end
       %     end
   end
 

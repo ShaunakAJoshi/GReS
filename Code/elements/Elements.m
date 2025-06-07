@@ -119,25 +119,71 @@ classdef Elements < handle
 
   methods (Access = public)
     % these methods must are mandatory in each finite element class
-    function element = getElement(obj,vtkType)
-      element = obj.elems{obj.mapVTK2elem(vtkType)};
+    function element = getElement(obj,vtkId)
+      element = obj.elems{obj.mapVTK2elem(vtkId)};
     end
 
-    function N = getNumbCellData(obj)
+    function element = getElementByID(obj,id)
+      vtkId = obj.mesh.cellVTKType(id);
+      element = obj.elems{obj.mapVTK2elem(vtkId)};
+    end
+
+    function areaNod = findNodeArea(obj,el)
+      i = obj.mesh.surfaceVTKType(el);
+      areaNod = findNodeArea(getElement(obj,i),el);
+    end
+
+    function volNod = findNodeVolume(obj,el)
+      i = obj.mesh.cellVTKType(el);
+      volNod = findNodeVolume(getElement(obj,i),el);
+    end
+
+    function N = getNumbCellData(obj,varargin)
       % return total number of gauss point in mesh
       % useful to initialize stress/strain variables
       N = 0;
       k = 0;
-      for i = obj.vtk3DTypeList
+      if ~isempty(varargin)
+        assert(nargin==2,'Wrong number of input arguments');
+        elemList = varargin{1};
+      end
+      for vtkID = obj.vtk3DTypeList
         k = k+1;
-        elem = getElement(obj,i);
+        elem = getElement(obj,vtkID);
         if ~isempty(elem)
           ng = elem.GaussPts.nNode;
-          nc = obj.nCellsByType(k);
+          if isempty(varargin)
+            nc = obj.nCellsByType(k);
+          else
+            nc = sum(obj.mesh.cellVTKType(elemList) == vtkID);
+          end
           N = N + ng*nc;
         end
       end
-    end 
-  end  
+    end
+
+
+%     function N = getNumbNodeData(obj,varargin)
+%       % return number of nodes for each cell in input
+%       N = 0;
+%       k = 0;
+%       if ~isempty(varargin)
+%         assert(nargin==2,'Wrong number of input arguments');
+%         elemList = varargin{1};
+%       end
+%       for vtkID = obj.vtk3DTypeList
+%         k = k+1;
+%         elem = getElement(obj,vtkID);
+%         if ~isempty(elem)
+%           if isempty(varargin)
+%             nc = obj.nCellsByType(k);
+%           else
+%             nc = sum(obj.mesh.cellVTKType(elemList) == vtkID);
+%           end
+%           N = N + elem.nNode*nc;
+%         end
+%       end
+%     end
+  end
 
 end

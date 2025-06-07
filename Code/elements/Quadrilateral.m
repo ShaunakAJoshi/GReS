@@ -84,14 +84,9 @@ classdef Quadrilateral < FiniteElementLagrangian
 
 
 
-    function nodeArea = findNodeArea(obj,idQuad)
-      nodeArea = zeros(4*length(idQuad),1);
-      ptr = 0;
-      for el = idQuad
-        dJWeighed = obj.getDerBasisFAndDet(el,3);
-        nodeArea(ptr+1:ptr+4) = obj.Nref'*dJWeighed';
-        ptr = ptr + 4;
-      end
+    function nodeArea = findNodeArea(obj,el)
+        dJWeighed = obj.getDerBasisFAndDet(el);
+        nodeArea = obj.Nref'*dJWeighed';
     end
 
 

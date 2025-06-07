@@ -108,6 +108,11 @@ classdef Triangle < FiniteElementLagrangian
       end
     end
 
+    function areaNod = findNodeArea(obj,el)
+      areaNod = (1/obj.nNode)*obj.mesh.surfaceArea(el);
+      areaNod = repelem(areaNod,obj.nNode);
+    end
+
     function n_a = computeAreaNod(obj,surfMsh)
       % compute area associated to each node of a surface mesh
       n_a = zeros(max(surfMsh.surfaces,[],'all'),1);

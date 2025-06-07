@@ -7,6 +7,6 @@ writeBCfiles(strcat(foldName,'/neuPorotop'),'SurfBC','Neu',{'Poromechanics','z'}
 writeBCfiles(strcat(foldName,'/dirPoroLatY'),'NodeBC','Dir',{'Poromechanics','y'},'LatFixedY',0,0,msh,3);
 writeBCfiles(strcat(foldName,'/dirPoroLatX'),'NodeBC','Dir',{'Poromechanics','x'},'LatFixedX',0,0,msh,4);
 % Bottom fixed
-writeBCfiles(strcat(foldName,'/dirPoroBottom'),'NodeBC','Dir',{'Poromechanics','x','y','z'},'BotFixed',0,0,msh,1);
+writeBCfiles(strcat(foldName,'/dirPoroBottom'),'SurfBC','Dir',{'Poromechanics','x','y','z'},'BotFixed',0,0,msh,1);
 end
 

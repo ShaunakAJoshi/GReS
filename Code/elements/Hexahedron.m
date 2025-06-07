@@ -126,14 +126,9 @@ classdef Hexahedron < FiniteElementLagrangian
       end
     end
 
-    function nodeVol = findNodeVolume(obj,idHexa)
-      nodeVol = zeros(8*length(idHexa),1);
-      ptr = 0;
-      for el = idHexa
-        dJWeighed = obj.getDerBasisFAndDet(el,3);
-        nodeVol(ptr+1:ptr+8) = obj.Nref'*dJWeighed';
-        ptr = ptr + 8;
-      end
+    function nodeVol = findNodeVolume(obj,el)
+      dJWeighed = obj.getDerBasisFAndDet(el,3);
+      nodeVol = obj.Nref'*dJWeighed';
     end
 
     function gPCoordinates = getGPointsLocation(obj,el)
