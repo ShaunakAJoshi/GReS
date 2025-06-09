@@ -250,7 +250,7 @@ classdef SPFlow < SinglePhysics
                   switch obj.mesh.cellVTKType(el)
                      case 10 % Tetrahedra
                         N = obj.elements.tetra.getDerBasisF(el);
-                        rhsLoc = (N'*permMat(:,3))*obj.elements.vol(el)*gamma;
+                        rhsLoc = (N'*permMat(:,3))*obj.mesh.cellVolume(el)*gamma;
                      case 12 % Hexa
                         [N,dJWeighed] = obj.elements.hexa.getDerBasisFAndDet(el,1);
                         fs = pagemtimes(N,'ctranspose',permMat(:,3),'none');
@@ -312,7 +312,7 @@ classdef SPFlow < SinglePhysics
              v = bc.getVals(id,t);
              if isFVTPFABased(obj.model,'Flow')
                ents = bc.getEntities(id);
-               vals = v.*obj.elements.vol(ents);
+               vals = v.*obj.mesh.cellVolume(ents);
              elseif isFEMBased(obj.model,'Flow')
                ents = bc.getLoadedEntities(id);
                entitiesInfl = bc.getEntitiesInfluence(id);

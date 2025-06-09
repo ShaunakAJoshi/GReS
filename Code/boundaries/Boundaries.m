@@ -146,7 +146,7 @@ classdef Boundaries < handle
               tmpMat = msh.cells(ents_i, :)';
               nEntries = sum(msh.cellNumVerts(ents_i));
             else
-              tmpMat = msh.surfaces(ents, :)';
+              tmpMat = msh.surfaces(ents_i, :)';
               nEntries = sum(msh.surfaceNumVerts(ents_i));
             end
 
@@ -161,7 +161,7 @@ classdef Boundaries < handle
               el = ents_i(j);
               if strcmp(cond,'VolumeForce')
                 nodInf = findNodeVolume(elem,el);
-                nodes = msh.surfaces(el,:);
+                nodes = msh.cells(el,:);
               else
                 nodInf = findNodeArea(elem,el);
                 nodes = msh.surfaces(el,:);

@@ -9,7 +9,7 @@ warning('off','MATLAB:nearlySingularMatrix');
 
 % List the physical models activated in the simulation and their
 % discretization scheme
-model = ModelType(["SinglePhaseFlow_FEM","Poromechanics_FEM"]);
+model = ModelType(["SinglePhaseFlow_FVTPFA","Poromechanics_FEM"]);
 
 % Create object containing simulation parameters
 fileName = "simParam.dat";
@@ -63,7 +63,7 @@ end
 bound = Boundaries(fileName,model,grid);
 
 % perform a fully coupled simulation
-solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst,GaussPts);
+solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst);
 [simState] = solver.NonLinearLoop();
 profile viewer
 % Finalize the print utility
@@ -94,13 +94,13 @@ vertNod = find(tmpNod == 4);
 
 
 %find elemes in vertical symmetry axis
-tmp1 = elems.cellCentroid(:,1)<450.1;
-tmp2 = elems.cellCentroid(:,1)>449.9;
-tmp3 = elems.cellCentroid(:,2)<550.1;
-tmp4 = elems.cellCentroid(:,2)>449.9;
+tmp1 = topology.cellCentroid(:,1)<450.1;
+tmp2 = topology.cellCentroid(:,1)>449.9;
+tmp3 = topology.cellCentroid(:,2)<550.1;
+tmp4 = topology.cellCentroid(:,2)>449.9;
 tmpEl = tmp1+tmp2+tmp3+tmp4;
 vertEl = find(tmpEl == 4);
-[vertElZ,indEl] = sort(elems.cellCentroid(vertEl,3));
+[vertElZ,indEl] = sort(topology.cellCentroid(vertEl,3));
 
 timesInd = [2;3;4];
 time_string = "Year  " + expTime(timesInd);
