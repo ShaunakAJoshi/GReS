@@ -30,23 +30,29 @@ classdef Elements < handle
   end
 
   methods (Access = public)
-    function obj = Elements(mesh,interpOrd,gaussOrd)
+    function obj = Elements(mesh,interpOrd,nGaussPt)
         obj.mesh = mesh;
-        setElementData(obj,mesh,interpOrd,gaussOrd);
+        if nargin < 2
+          interpOrd = 1;
+          nGaussPt = 1;
+        elseif nargin < 3
+          nGaussPt = 1;
+        end
+        setElementData(obj,mesh,interpOrd,nGaussPt);
     end
 
 
-    function createElement(obj,id,msh,i,g)
+    function createElement(obj,id,msh,io,ng)
       k = obj.mapVTK2elem(id);
       switch id
         case 12
-          obj.elems{k} = Hexahedron(msh,i,g);
+          obj.elems{k} = Hexahedron(io,ng,msh);
         case 10
-          obj.elems{k} = Tetrahedron(msh,i,g);
+          obj.elems{k} = Tetrahedron(io,ng,msh);
         case 9
-          obj.elems{k} = Quadrilateral(msh,i,g);
+          obj.elems{k} = Quadrilateral(io,ng,msh);
         case 5
-          obj.elems{k} = Triangle(msh,i,g);
+          obj.elems{k} = Triangle(io,ng,msh);
         otherwise
           error('Finite element of vtk type %i not yet implemented \n',id)
       end

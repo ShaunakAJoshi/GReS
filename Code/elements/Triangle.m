@@ -23,7 +23,7 @@ classdef Triangle < FiniteElementLagrangian
     end
 
     function dN = computeDerBasisF(obj,varargin)
-      dN = obj.J1;
+      dN = obj.Jref;
     end
 
      function [outVar1,outVar2] = getDerBasisFAndDet(obj,in)   % mat,dJWeighed
@@ -43,14 +43,17 @@ classdef Triangle < FiniteElementLagrangian
         end
         outVar1 = obj.detJ.*(obj.GaussPts.weight)';
       else
-        % 2D setting: in is a given list of x-y coordinates
+        % 2D setting: 'in' is a given list of x-y coordinates
         J = pagemtimes(obj.Jref,in);
-        for i=1:obj.GaussPts.nNode
-          J(:,:,i) = inv(J(:,:,i));
-          obj.detJ(i) = det(J(:,:,i));
+        J = inv(J);
+        obj.detJ = det(J);
+        % jacobian is constant in a simplex
+        if nargout == 2
+          outVar1 = pagemtimes(J,obj.Jref);
+          outVar2 = obj.detJ.*(obj.GaussPts.weight)';
+        else
+          outVar1 = obj.detJ*(obj.GaussPts.weight)';
         end
-        outVar1 = pagemtimes(J,obj.Jref);
-        outVar2 = obj.detJ.*(obj.GaussPts.weight)';
       end
     end
 
@@ -58,26 +61,35 @@ classdef Triangle < FiniteElementLagrangian
       N1Mat = obj.Nref;
     end
 
-    function N = computeBasisF(obj, list)
+    function N = computeBasisF(obj,coordList)
       % Find the value the basis functions take at some  reference points defined in
       % a list
-      if size(list,1) > 1
-        N = zeros(size(list,1),3);
-        N(:,1) = 1-list(:,1)-list(:,2);
-        N(:,2) = list(:,1);
-        N(:,3) = list(:,2);
+      if size(coordList,1) > 1
+        N = zeros(size(coordList,1),3);
+        N(:,1) = 1-coordList(:,1)-coordList(:,2);
+        N(:,2) = coordList(:,1);
+        N(:,3) = coordList(:,2);
       else
         N = zeros(1,3);
-        N(1) = 1-list(1)-list(2);
-        N(2) = list(1);
-        N(3) = list(2);
+        N(1) = 1-coordList(1)-coordList(2);
+        N(2) = coordList(1);
+        N(3) = coordList(2);
       end
     end
 
-    function gPCoordinates = getGPointsLocation(obj,el)
+    function Nb = computeBubbleBasisF(obj,coordList)
+      Nb = arrayfun(@(i) (1-coordList(i,1)-coordList(i,2)).*coordList(i,1).*coordList(i,2));
+      Nb = Nb';
+    end
+
+    function gPCoordinates = getGPointsLocation(obj,in)
       % Get the location of the Gauss points in the element in the physical
       % space
-      gPCoordinates = obj.N1*obj.mesh.coordinates(obj.mesh.surfaces(el,:),:);
+      if isscalar(in)
+        gPCoordinates = obj.Nref*obj.mesh.coordinates(obj.mesh.surfaces(in,:),:);
+      else
+        gPCoordinates = obj.Nref*in;
+      end
     end
 
     function [area,cellCentroid] = findAreaAndCentroid(obj,idTri)
@@ -97,9 +109,10 @@ classdef Triangle < FiniteElementLagrangian
     end
 
     function n = computeNormal(obj,idTri)
-      % compute normal vector of cell idQuad
+      % compute normal vector of a cell in specific location of the element
       n = zeros(length(idTri),3);
       for el = idTri
+        % normal is connstant for triangles
         nodeCoord = obj.mesh.coordinates(obj.mesh.surfaces(el,:),:);
         v1 = nodeCoord(1,:) - nodeCoord(2,:);
         v2 = nodeCoord(2,:) - nodeCoord(3,:);
@@ -149,11 +162,11 @@ classdef Triangle < FiniteElementLagrangian
 
     function findLocDerBasisF(obj, varargin)
       % Find the value the basis functions take at the Gauss points
-      obj.Jref = [-1 1 0; -1 0 1; 0 0 0];
+      obj.Jref = [-1 1 0; -1 0 1];
     end
 
     function setElement(obj)
-      obj.GaussPts = Gauss(obj.vtkType,obj.gaussOrd);
+      obj.GaussPts = Gauss(obj.vtkType,obj.nGP);
       obj.detJ = zeros(1,obj.GaussPts.nNode);
       findLocBasisF(obj);
       findLocDerBasisF(obj);

@@ -31,7 +31,7 @@ classdef Poromechanics < SinglePhysics
         % recompute matrix if the model is non linear
         assembler = @(elemId,counter) computeLocalStiff(obj,elemId,dt,counter);
         % define size of output matrix
-        computeStiffMat(obj,assembler);
+        computeStiffMat3(obj,assembler);
       end
       if obj.simParams.isTimeDependent
         obj.J = obj.simParams.theta*obj.J;
@@ -67,6 +67,29 @@ classdef Poromechanics < SinglePhysics
       obj.J = sparse(iiVec, jjVec, matVec, Ndof,Ndof);
     end
 
+
+    function computeStiffMat3(obj,assembleKloc)
+      % general sparse assembly loop over elements for Poromechanics
+      subCells = obj.dofm.getFieldCells(obj.field);
+      n = sum((obj.mesh.nDim^2)*(obj.mesh.cellNumVerts(subCells)).^2);
+      l = 0;
+      Ndof = obj.dofm.getNumDoF(obj.field);
+      obj.fInt = zeros(Ndof,1);
+      assembleK = assembler(n,assembleKloc,Ndof,Ndof);
+      % loop over cells
+      for el = subCells'
+        % get dof id and local matrix
+        [dsigma,status] = assembleK.localAssembly(el,l);
+        s = size(dsigma,1);
+        obj.state.data.curr.status(l+1:l+s,:) = status;
+        obj.state.data.curr.stress((l+1):(l+s),:) = dsigma;
+        obj.cell2stress(el) = l;
+        l = l + s;
+      end
+      % populate stiffness matrix
+      obj.J = assembleK.sparseAssembly();
+    end
+
     function [dofr,dofc,KLoc,sigma,status] = computeLocalStiff(obj,elID,dt,l)
       vtkId = obj.mesh.cellVTKType(elID);
       elem = getElement(obj.elements,vtkId);
@@ -93,6 +116,7 @@ classdef Poromechanics < SinglePhysics
       % assemble internal forces
       obj.fInt(dof) = obj.fInt(dof)+fLoc;
     end
+
 
     function [dofr,dofc,Kub,Kbb,varargout] = computeLocalStiffBubble(obj,elID,dt,varargin)
       % compute local stiffness matrix contribution due to bubble basis

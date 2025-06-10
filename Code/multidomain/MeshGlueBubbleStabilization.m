@@ -29,9 +29,6 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         % differently from the base method of the mortar class, here global
         % dof indexing is used for the assembled matrices
 
-        % get element instance for mortar integration
-        elemSlave = getElem(obj,2);
-
         % allocate mortar matrices
         Nm = nnz(obj.mesh.elemConnectivity)*9*obj.mesh.nN(1);
         [iMvec,jMvec,Mvec] = deal(zeros(Nm,1));
@@ -48,22 +45,20 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
         % allocate condensation block for the inner slave domain
         poroSlave = getSolver(obj.solvers(2),obj.physics);
-        subCells = obj.mesh.f2c{2};
+        cellsSlave = obj.mesh.f2c{2};
         mshSlave = obj.solvers(2).grid.topology;
-        nSubCellsByType = histc(mshSlave.cellVTKType(subCells),[10, 12, 13, 14]);
-        nuu = poroSlave.nEntryKLoc*nSubCellsByType;
+        nuu = sum((mshSlave.nDim^2)*(mshSlave.cellNumVerts(cellsSlave)).^2);
         [iKSvec,jKSvec,KSvec] = deal(zeros(nuu,1));
 
         % allocate condensation block for the inner master domain
         poroMaster = getSolver(obj.solvers(1),obj.physics);
-        subCells = obj.mesh.f2c{1};
-        mshSlave = obj.solvers(1).grid.topology;
-        nSubCellsByType = histc(mshSlave.cellVTKType(subCells),[10, 12, 13, 14]);
-        nuu = poroMaster.nEntryKLoc*nSubCellsByType;
+        cellsMaster = obj.mesh.f2c{1};
+        mshMaster = obj.solvers(1).grid.topology;
+        nuu = sum((mshMaster.nDim^2)*(mshMaster.cellNumVerts(cellsMaster)).^2);
         [iKMvec,jKMvec,KMvec] = deal(zeros(nuu,1));
 
         % allocate condensation block for coupling slave dof and multipliers
-        nul = 9*8*obj.mesh.nEl(2);
+        nul = 9*sum(mshMaster.cellNumVerts(cellsMaster));         % to be fixed
         [iBSvec,jBSvec,BSvec] = deal(zeros(nul,1));
 
         % allocate condensation block for multipliers
@@ -88,23 +83,26 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
         for i = 1:obj.mesh.nEl(2)
           is = obj.mesh.getActiveCells(2,i);
+          elemSlave = getElem(obj,2,is);
           masterElems = find(obj.mesh.elemConnectivity(:,is));
           if isempty(masterElems)
             continue
           end
           Lloc = zeros(3,3);
           %Compute Mortar Slave quantities
-          w = elemSlave.getDerBasisFAndDet(is);
-          posGP = getGPointsLocation(elemSlave,is);
+%           w = elemSlave.getDerBasisFAndDet(is);
+%           posGP = getGPointsLocation(elemSlave,is);
           nodeSlave = obj.mesh.local2glob{2}(obj.mesh.msh(2).surfaces(is,:));
-          Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
-          NbubbleSlave = getBubbleBasisFinGPoints(elemSlave);
+%           Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
+%           NbubbleSlave = getBubbleBasisFinGPoints(elemSlave);
           Dbloc = zeros(3,3);
           Dloc = zeros(3,3*size(Nslave,2));
           for im = masterElems'
             nodeMaster = obj.mesh.local2glob{1}(obj.mesh.msh(1).surfaces(im,:));
-            obj.quadrature.segmentBasedCouple(is,im);
-            [Nm,id,NbubbleMaster] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
+            % get building blocks to compute any basis function
+            [Nslave,Nmaster,Nmult,Nbub] = ...
+              getMortarBasisFunctions(obj.quadrature,is,im);
+      
             if any(id)
               % get basis function matrices
               Nm = Nm(id,:);
@@ -113,7 +111,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
               Nbm = NbubbleMaster(id,:);
               Nmult = ones(size(Ns,1),1);
 
-              % assuming poromechanics only
+              % working with 3 dimensional dofs in contact mechanics
               Nm = Discretizer.reshapeBasisF(Nm,3);
               Ns = Discretizer.reshapeBasisF(Ns,3);
               Nbs = Discretizer.reshapeBasisF(Nbs,3);

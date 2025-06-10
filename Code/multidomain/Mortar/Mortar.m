@@ -12,12 +12,12 @@ classdef Mortar < handle
     rhsMaster
     rhsSlave
     rhsMult
-    nGP
     quadrature % integration scheme used for the interface
     % (RBF or ElementBased)
     dofm
     nFld          
     mortarMatrix
+    elements
   end
 
   methods
@@ -30,19 +30,22 @@ classdef Mortar < handle
       obj.mesh = interfaceMesh(domains,surfId);
       obj.dofm = [domains(1).DoFManager;
                         domains(2).DoFManager];
-      obj.nGP = inputStruct.nGP;
       switch inputStruct.Quadrature.typeAttribute
         case 'RBF'
-          obj.quadrature = RBFquadrature(obj,inputStruct.Quadrature.nIntAttribute);
+           nG = inputStruct.Quadrature.nGPAttribute;
+           nInt = inputStruct.Quadrature.nIntAttribute;
+          obj.quadrature = RBFquadrature(obj,nInt);
         case 'ElementBased'
           % Element based will be implemented in the future
         case 'SegmentBased'
-          obj.quadrature = SegmentBasedQuadrature(obj);
+          obj.quadrature = SegmentBasedQuadrature(obj,inputStruct.Quadrature.nGPAttribute);
+          nG = 2;  
       end
+      obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
+        Elements(obj.mesh.msh(2),1,nG)];
       setPrintUtils(obj,inputStruct,domains(2).OutState);
     end
 
- 
     function [r,c,v] = allocateMatrix(obj,sideID)
       nEntries = nnz(obj.mesh.elemConnectivity)...
         *obj.mesh.nN(sideID);
@@ -74,17 +77,12 @@ classdef Mortar < handle
       end
     end
 
-    function elem = getElem(obj,sideID)
+    function elem = getElem(obj,sideID,id)
       % get instance of element class on one the sides of the interface
       % Assumption: same element type in the entire interface
       % get istance of element class based on cell type
-      g = Gauss(obj.mesh.cellType(sideID),obj.nGP,2);
-      elem_tmp = Elements(obj.mesh.msh(sideID),g);
-      if obj.mesh.msh(sideID).surfaceVTKType(1) == 5
-        elem = elem_tmp.tri;
-      elseif obj.mesh.msh(sideID).surfaceVTKType(1) == 9
-        elem = elem_tmp.quad;
-      end
+      type = obj.mesh.msh(sideID).surfaceVTKType(id);
+      elem = obj.elements(sideID).getElement(type);
     end
 
     function mat = getMatrix(obj,sideID,field)

@@ -251,7 +251,7 @@ classdef Hexahedron < FiniteElementLagrangian
     end
 
     function setElement(obj)
-      obj.GaussPts = Gauss(obj.vtkType,obj.gaussOrd);
+      obj.GaussPts = Gauss(obj.vtkType,obj.nGP);
       obj.detJ = zeros(1,obj.GaussPts.nNode);
       findLocBasisF(obj);
       findLocDerBasisF(obj);

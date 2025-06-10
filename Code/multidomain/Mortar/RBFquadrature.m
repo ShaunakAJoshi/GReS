@@ -11,6 +11,16 @@ classdef RBFquadrature < handle
     ptsRBF    % position of interpolation points
   end
 
+  properties
+    % temporary properties for element-based sort out process
+    idSlave = 0
+    tempGPloc
+    tempNs
+    tempNmult
+    tempNbubble
+    suppFlag       
+  end
+
   methods
     function obj = RBFquadrature(mortar,nInt)
       %
@@ -22,9 +32,36 @@ classdef RBFquadrature < handle
   end
   
   methods (Access = public)
-    function [Nm,id,Nb] = getMasterBasisF(obj,idMaster,posGP)
+
+    function [Ns,Nm,Nmult,Nbub] = getMortarBasisFunctions(obj,is,im)
+      elemSlave = obj.mortar.getElem(2,is);
+      if obj.idSlave ~= is
+        % new slave element
+        obj.idSlave = is;
+        obj.tempNs = getBasisFinGPoints(elemSlave);
+        obj.tempNmult = ones(size(obj.tempNs,1),1);
+        obj.tempNbubble = getBubbleBasisFinGPoints(elemSlave);
+        obj.tempGPloc = getGPointsLocation(elemSlave,is);
+      else
+        % old slave element, sort out gp
+        obj.tempNs = obj.tempNs(~obj.suppFlag);
+        obj.tempNmult = obj.tempNmult(~obj.suppFlag);
+        obj.tempNbubble = obj.tempNbubble(~obj.suppFlag);
+        obj.tempGPloc = obj.tempGPloc(~obj.suppFlag);
+      end
+      % get master basis and gp in slave support
+      [Nm,obj.suppFlag] = getMasterBasisF(obj,im);
+      Nm = Nm(obj.suppFlag);
+      % return basis function in active gp
+      Ns = obj.tempNs(obj.suppFlag);
+      Nmult = obj.tempNmult(obj.suppFlag);
+      Nbub = obj.tempNbubble(obj.suppFlag);
+    end
+
+    function [Nm,id,Nb] = getMasterBasisF(obj,idMaster)
       % return interpolated master basis function into slave domain
       tol = 1e-4;
+      posGP = obj.tempGPloc;
       ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
       [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
       Nm = (fiNM*obj.wF(:,repNum(obj.mortar.mesh.nN(1),idMaster)))./(fiNM*obj.w1(:,idMaster));
@@ -37,16 +74,16 @@ classdef RBFquadrature < handle
       end
     end
 
-    function [Nm,id] = getMasterBubbleBasisF(obj,idMaster,posGP)
-      % return interpolated master basis function into slave domain
-      tol = 1e-4;
-      ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
-      [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
-      Nm = (fiNM*obj.wF(:,repNum(obj.mortar.mesh.nN(1),idMaster)))./(fiNM*obj.w1(:,idMaster));
-      Nsupp = Nm(:,[1 2 3]);
-      % automatically detect supports computing interpolant
-      id = all([Nsupp >= 0-tol id1],2);
-    end
+%     function [Nm,id] = getMasterBubbleBasisF(obj,idMaster,posGP)
+%       % return interpolated master basis function into slave domain
+%       tol = 1e-4;
+%       ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
+%       [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
+%       Nm = (fiNM*obj.wF(:,repNum(obj.mortar.mesh.nN(1),idMaster)))./(fiNM*obj.w1(:,idMaster));
+%       Nsupp = Nm(:,[1 2 3]);
+%       % automatically detect supports computing interpolant
+%       id = all([Nsupp >= 0-tol id1],2);
+%     end
   end
 
   methods (Access = private)

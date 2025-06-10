@@ -9,47 +9,47 @@ classdef Gauss < handle
   end
 
   properties (Access = private)
-    order
+    nGP
   end
 
   methods (Access = public)
-    function obj = Gauss(cType,order)
+    function obj = Gauss(cType,nG)
       %UNTITLED Construct an instance of this class
       %   Detailed explanation goes here
       if nargin ~= 2
         error('Incorrect enough input argument in Gauss class');
       end
-      setGaussPoints(obj,cType,order);
+      setGaussPoints(obj,cType,nG);
     end
   end
 
   methods (Access = private)
 
-    function setGaussPoints(obj,cType,order)
-      obj.order = order;
+    function setGaussPoints(obj,cType,nG)
+      obj.nGP = nG;
       %METHOD1 Summary of this method goes here
       %   Detailed explanation goes here
       switch cType
         case 5 % Triangle
-          [c,w] = Gauss.pointsTriangle(order);
+          [c,w] = Gauss.pointsTriangle(nG);
           obj.coord = c;
           obj.weight = w;
           obj.nNode = numel(w);
         case 9 % Quadrilateral
-          [c1,w1] = Gauss.points1D(order);
+          [c1,w1] = Gauss.points1D(nG);
           [y, x] = meshgrid(c1,c1);
           obj.coord = [x(:), y(:)];
           obj.weight = bsxfun(@(a,b) a*b,w1,(w1)');
           obj.weight = obj.weight(:);
           obj.nNode = (numel(w1))^2;
         case 10 % Tetrahedron
-          [c,w] = Gauss.pointsTetra(order);
+          [c,w] = Gauss.pointsTetra(nG);
           obj.coord = c;
           obj.weight = w;
           obj.nNode = numel(w);
         case 12
           % implementing Gauss class for triangles
-          [c1,w1] = Gauss.points1D(order);
+          [c1,w1] = Gauss.points1D(nG);
           [y, x, z] = meshgrid(c1,c1,c1);
           obj.coord = [x(:), y(:), z(:)];
           weightGaussTmp = bsxfun(@(a,b) a*b,w1,(w1)');
@@ -65,14 +65,9 @@ classdef Gauss < handle
 
   methods (Static)
 
-    function [coord1D, weight1D] = points1D(ord)
+    function [coord1D, weight1D] = points1D(nG)
       % get 1D points location for tensor product rule
-      N1D = ceil(ord);
-      if N1D > 6
-        N1D = 16;
-        warning('GP rule automatically set to 16 points rule /n');
-      end
-      switch N1D
+      switch nG
         case 1 % 1 node
           coord1D = 0.0;
           weight1D = 2.0;
@@ -132,20 +127,21 @@ classdef Gauss < handle
           coord1D = [-a; -b; -c; -d; -e; -f; -g; -h; h; g; f; e; d; c; b; a];
           weight1D = [wa; wb; wc; wd; we; wf; wg; wh; wh; wg; wf; we; wd; wc; wb; wa];
         otherwise
-          error('Gauss rule for order %i (%i GP) is not available /n');
+          error(['Gauss rule for %i numb. of GP is not available. Available ' ...
+            'rules for 1,2,3,4,5,6,16 GP /n'],nG);
       end
     end
 
-    function [coord,weight] = pointsTriangle(order)
+    function [coord,weight] = pointsTriangle(nG)
       % get 1D points location for reference triangle
       % from Dunavant, 1984
       parentArea = 0.5;
-      switch order
+      switch nG
         case 1  % Degree 1 exact, 1 point
           coord = [1/3, 1/3];
           weight = 1.0;
 
-        case 2  % Degree 2 exact, 3 points
+        case 3  % Degree 2 exact, 3 points
           coord = [
             0.166666666666667, 0.166666666666667;
             0.666666666666667, 0.166666666666667;
@@ -153,7 +149,7 @@ classdef Gauss < handle
             ];
           weight = repmat(1/3, 3, 1);
 
-        case 3  % Degree 3 exact, 4 points
+        case 4  % Degree 3 exact, 4 points
           coord = [
             1/3, 1/3;
             0.6, 0.2;
@@ -167,7 +163,7 @@ classdef Gauss < handle
             25/48
             ];
 
-        case 4  % Degree 4 exact, 6 points
+        case 6  % Degree 4 exact, 6 points
           coord = [
             0.445948490915965, 0.445948490915965;
             0.445948490915965, 0.108103018168070;
@@ -185,7 +181,7 @@ classdef Gauss < handle
             0.109951743655322
             ];
 
-        case 5  % Degree 5 exact, 7 points
+        case 7  % Degree 5 exact, 7 points
           coord = [
             1/3, 1/3;
             0.470142064105115, 0.470142064105115;
@@ -205,7 +201,7 @@ classdef Gauss < handle
             0.125939180544827
             ];
 
-        case 6  % Degree 6 exact, 12 points
+        case 12  % Degree 6 exact, 12 points
           coord = [
             0.249286745170910, 0.249286745170910;
             0.249286745170910, 0.501426509658179;
@@ -240,25 +236,25 @@ classdef Gauss < handle
             0.082851075618374
             ];
         otherwise
-          error(['Unsupported order for triangle quadrature.' ...
-            'Available polynomial order are from 1 to 6.']);
+          error(['Unsupported number of gauss points for triangle quadrature.' ...
+            'Available gauss  are from 1,3,4,6,7,12.']);
       end
       weight = parentArea*weight;        
     end
 
-    function [coord, weight] = pointsTetra(order)
+    function [coord, weight] = pointsTetra(nG)
       % Return Gauss integration points and weights for the reference tetrahedron
       % Reference tetrahedron: vertices at (0,0,0), (1,0,0), (0,1,0), (0,0,1)
       % Coordinates are in Cartesian coordinates
       % Weights are scaled by 1/6 (volume of reference tetrahedron)
 
       parentVolume = 1/6;
-      switch order
+      switch nG
         case 1  % Degree 1 exact (1 point)
           coord = [1/4, 1/4, 1/4];   % Centroid
           weight = 1;
 
-        case 2  % Degree 2 exact (4 points)
+        case 4  % Degree 2 exact (4 points)
           a = 0.58541020;
           b = 0.13819660;
           coord = [
@@ -269,7 +265,7 @@ classdef Gauss < handle
             ];
           weight = repmat(1/24, 4, 1);
 
-        case 3  % Degree 3 exact (5 points)
+        case 5  % Degree 3 exact (5 points)
           coord = [
             1/4, 1/4, 1/4;
             1/2, 1/6, 1/6;
@@ -285,7 +281,7 @@ classdef Gauss < handle
             3/40
             ];
 
-        case 4  % Degree 4 exact (11 points) — Keast rule
+        case 11  % Degree 4 exact (11 points) — Keast rule
           % 1 point at center
           coord1 = [1/4, 1/4, 1/4];
           w1 = (-74 / 5625);
@@ -327,7 +323,7 @@ classdef Gauss < handle
 
         otherwise
           error(['Unsupported order for tetrahedral quadrature.' ...
-            'Available polynomial order are from 1 to 4.']);
+            'Available number of GP are from 1,4,5,11.']);
       end
       weight = weight * parentVolume;        % refernce volume scaling
     end

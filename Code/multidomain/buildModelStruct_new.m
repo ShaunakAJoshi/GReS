@@ -23,13 +23,10 @@ function modStr = getModelStruct(str,simParam)
   else
     dof = DoFManager(topology,model,str.DoFManager);
   end
-
-  if isfield(str,'Gauss')
-    gType = str.Gauss.cellTypeAttribute;
-    gNPoints = str.Gauss.numbPointsAttribute;
-    gDim = str.Gauss.gridDimensionAttribute;
-    gauss = Gauss(gType,gNPoints,gDim);
-    elems = Elements(topology,gauss);
+  
+  gNPoints = str.Gauss;
+  if ~ismissing(gNPoints)
+    elems = Elements(topology,1,gNPoints);
   else
     elems = Elements(topology);
   end
@@ -47,11 +44,8 @@ function modStr = getModelStruct(str,simParam)
   % output manager
   printUtils = OutState(model,topology,str.OutState,"folderName",name);
 
-  if isfield(str,'Gauss')
-    linSyst = Discretizer(model,simParam,dof,grid,material,gauss);
-  else
-    linSyst = Discretizer(model,simParam,dof,grid,material);
-  end
+  linSyst = Discretizer(model,simParam,dof,grid,material);
+
   linSyst.setState();
 
   modStr = struct( ...

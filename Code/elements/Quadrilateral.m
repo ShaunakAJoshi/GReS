@@ -20,7 +20,7 @@ classdef Quadrilateral < FiniteElementLagrangian
       1  1;
       -1  1;]
     vtkType = 9
-    nNode = 1
+    nNode = 4
     nFace = 1
   end
 
@@ -78,7 +78,7 @@ classdef Quadrilateral < FiniteElementLagrangian
         area(i) = sum(dJWeighed);
         assert(area(i)>0,'Volume less than 0');
         gPCoordinates = getGPointsLocation(obj,el);
-        cellCentroid(i,:) = obj.detJ * gPCoordinates/area(i);
+        cellCentroid(i,:) = dJWeighed * gPCoordinates/area(i);
       end
     end
 
@@ -91,16 +91,15 @@ classdef Quadrilateral < FiniteElementLagrangian
 
 
 
-    function n = computeNormal(obj,idQuad)
-      % compute normal vector of cell idQuad
-      n = zeros(length(idQuad),3);
-      for el = idQuad
-        nodeCoord = obj.mesh.coordinates(obj.mesh.surfaces(el,:),:);
-        v1 = nodeCoord(1,:) - nodeCoord(2,:);
-        v2 = nodeCoord(2,:) - nodeCoord(3,:);
-        n(el,:) = cross(v1,v2);
-        n(el,:) = n(el,:)/norm(n(el,:));
-      end
+    function n = computeNormal(obj,idQuad,pos)
+      % compute normal vector of quadrilatral in specific reference point
+      assert(isscalar(idQuad),'Input id must be a scalar positive integer')
+
+      dN = computeDerBasisF(obj,pos);
+      nodeCoord = obj.mesh.coordinates(obj.mesh.surfaces(idQuad,:),:);
+      tang = dN*nodeCoord;
+      crossTang = cross(tang(1,:)',tang(2,:)');
+      n = crossTang/norm(crossTang);
     end
 
 
@@ -123,21 +122,21 @@ classdef Quadrilateral < FiniteElementLagrangian
     end
 
 
-    function N = computeBasisF(obj, coord)
+    function N = computeBasisF(obj, coordList)
       % Find the value the basis functions take at some  reference points
       % whose 2D coordinates are store in coord
-      N = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*coord(i,1)).* ...
-        (1+obj.coordLoc(j,2).*coord(i,2)), ...
-        (1:size(coord,1))',1:obj.mesh.surfaceNumVerts(1));
-      if size(N,2) ~= obj.mesh.surfaceNumVerts(1)
+      N = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*coordList(i,1)).* ...
+        (1+obj.coordLoc(j,2).*coordList(i,2)), ...
+        (1:size(coordList,1))',1:obj.mesh.surfaceNumVerts(1));
+      if size(N,2) ~= obj.nNode
         N = N';
       end
     end
 
-    function N = computeBubbleBasisF(obj, coord)
+    function N = computeBubbleBasisF(obj, coordList)
       % Find the value the bubble basis functions take at some  reference
       % points whose 2D coordinates are store in coord
-      N = arrayfun(@(i) (1-coord(i,1)^2).*(1-coord(i,2)^2),(1:size(coord,1)));
+      N = arrayfun(@(i) (1-coordList(i,1)^2).*(1-coordList(i,2)^2),(1:size(coordList,1)));
       N = N';
     end
 
@@ -150,16 +149,16 @@ classdef Quadrilateral < FiniteElementLagrangian
 
 
     function dN = computeDerBasisF(obj, list)
-      % Compute derivatives in the reference space for all Gauss points
+      % Compute derivatives in the reference space for input list of points
       % d(N)/d\csi
       d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
         (1+obj.coordLoc(j,2).*list(i,2)), ...
-        (1:size(list,1)),1:obj.mesh.surfaceNumVerts(1));
+        (1:size(list,1)),1:obj.nNode);
       %
       % d(N)/d\eta
       d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
         (1+obj.coordLoc(j,1).*list(i,1)), ...
-        (1:size(list,1)),1:obj.mesh.surfaceNumVerts(1));
+        (1:size(list,1)),1:obj.nNode);
       %
       dN = [d1';d2'];
     end
@@ -168,7 +167,7 @@ classdef Quadrilateral < FiniteElementLagrangian
 
   methods (Access = protected)
     function setElement(obj)
-      obj.GaussPts = Gauss(obj.vtkType,obj.gaussOrd);
+      obj.GaussPts = Gauss(obj.vtkType,obj.nGP);
       obj.detJ = zeros(1,obj.GaussPts.nNode);
       findLocBasisF(obj);
       findLocDerBasisF(obj);
