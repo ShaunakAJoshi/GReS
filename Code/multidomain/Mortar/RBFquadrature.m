@@ -9,12 +9,14 @@ classdef RBFquadrature < handle
     w1        % weight of rescaling RBF
     wB        % weight of RBF for bubble basis functions
     ptsRBF    % position of interpolation points
+    vecPts    % pointer of each element to location in ptsRBF
   end
 
   properties
     % temporary properties for element-based sort out process
     idSlave = 0
     tempGPloc
+    tempdJw
     tempNs
     tempNmult
     tempNbubble
@@ -33,46 +35,93 @@ classdef RBFquadrature < handle
   
   methods (Access = public)
 
-    function [Ns,Nm,Nmult,Nbub] = getMortarBasisFunctions(obj,is,im)
+    function [Ns,Nm,Nmult,NbubSlave,NbubMaster] = getMortarBasisFunctions(obj,is,im)
+
       elemSlave = obj.mortar.getElem(2,is);
+
       if obj.idSlave ~= is
         % new slave element
         obj.idSlave = is;
+        obj.tempdJw = getDerBasisFAndDet(elemSlave,is);
         obj.tempNs = getBasisFinGPoints(elemSlave);
         obj.tempNmult = ones(size(obj.tempNs,1),1);
-        obj.tempNbubble = getBubbleBasisFinGPoints(elemSlave);
         obj.tempGPloc = getGPointsLocation(elemSlave,is);
+        if nargout > 3
+          obj.tempNbubble = getBubbleBasisFinGPoints(elemSlave);
+        end
       else
         % old slave element, sort out gp
-        obj.tempNs = obj.tempNs(~obj.suppFlag);
-        obj.tempNmult = obj.tempNmult(~obj.suppFlag);
-        obj.tempNbubble = obj.tempNbubble(~obj.suppFlag);
-        obj.tempGPloc = obj.tempGPloc(~obj.suppFlag);
+        if all(obj.suppFlag)
+          % gp already projected on all previous elements
+          [Ns,Nm,Nmult,NbubSlave,NbubMaster] = deal([]);
+          return
+        end
+
+        obj.tempNs = obj.tempNs(~obj.suppFlag,:);
+        obj.tempNmult = obj.tempNmult(~obj.suppFlag,:);
+        if nargout > 3
+          obj.tempNbubble = obj.tempNbubble(~obj.suppFlag,:);
+        end
+        obj.tempGPloc = obj.tempGPloc(~obj.suppFlag,:);
+        obj.tempdJw = obj.tempdJw(~obj.suppFlag);
       end
+
       % get master basis and gp in slave support
-      [Nm,obj.suppFlag] = getMasterBasisF(obj,im);
-      Nm = Nm(obj.suppFlag);
+      if nargout < 5
+        [Nm,obj.suppFlag] = getMasterBasisF(obj,im);
+      else
+        [Nm,obj.suppFlag,NbubMaster] = getMasterBasisF(obj,im);
+        NbubMaster = NbubMaster(obj.suppFlag,:);
+      end
+
+      if ~any(obj.suppFlag)
+        % no detected intersection
+        [Ns,Nm,Nmult,NbubSlave,NbubMaster] = deal([]);
+        return
+      end
+
+      Nm = Nm(obj.suppFlag,:);
+
       % return basis function in active gp
-      Ns = obj.tempNs(obj.suppFlag);
-      Nmult = obj.tempNmult(obj.suppFlag);
-      Nbub = obj.tempNbubble(obj.suppFlag);
+      Ns = obj.tempNs(obj.suppFlag,:);
+      Nmult = obj.tempNmult(obj.suppFlag,:);
+      if nargout > 3
+        NbubSlave = obj.tempNbubble(obj.suppFlag,:);
+      end
     end
 
     function [Nm,id,Nb] = getMasterBasisF(obj,idMaster)
       % return interpolated master basis function into slave domain
       tol = 1e-4;
       posGP = obj.tempGPloc;
-      ptsInt = obj.ptsRBF(:,repNum(3,idMaster));
+      v = obj.vecPts(idMaster,:);
+      nN = getElem(obj.mortar,1,idMaster).nNode;
+      ptsInt = obj.ptsRBF(1:v(2),3*v(3)-[2 1 0]);
       [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
-      Nm = (fiNM*obj.wF(:,repNum(obj.mortar.mesh.nN(1),idMaster)))./(fiNM*obj.w1(:,idMaster));
+      Nm = (fiNM*obj.wF(:,v(1)+1:v(1)+nN))./(fiNM*obj.w1(:,v(3)));
       Nsupp = Nm(:,[1 2 3]);
       % automatically detect supports computing interpolant
       id = all([Nsupp >= 0-tol id1],2);
       if nargout > 2
         % interpolated bubble basis function
-        Nb = (fiNM*obj.wB(:,idMaster))./(fiNM*obj.w1(:,idMaster));
+        Nb = (fiNM*obj.wB(:,v(3)))./(fiNM*obj.w1(:,v(3)));
       end
     end
+
+    function mat = integrate(obj,func,varargin)
+      % check input
+      assert(nargin(func)==numel(varargin),['Number of specified input (%i)' ...
+        'not matching the integrand input (%i)'],numel(varargin),nargin(func));
+      size3 = cellfun(@(x) size(x, 3), varargin);
+      if ~all(size3 == size3(1))
+        error('All inputs must have the same size along dimension 3.');
+      end
+      dJWeighed = obj.tempdJw(obj.suppFlag);
+      mat = func(varargin{:});
+      mat = mat.*reshape(dJWeighed,1,1,[]);
+      mat = sum(mat,3);
+    end
+
 
 %     function [Nm,id] = getMasterBubbleBasisF(obj,idMaster,posGP)
 %       % return interpolated master basis function into slave domain
@@ -89,26 +138,47 @@ classdef RBFquadrature < handle
   methods (Access = private)
     %
     function getWeights(obj)
-      switch obj.mortar.mesh.cellType(1)
-        case 10
-          numPts = sum(1:obj.nInt);
-        case 12
-          numPts = (obj.nInt)^2;
+
+      elem = obj.mortar.elements(1);
+      msh = obj.mortar.mesh.msh(1);
+
+      cells = obj.mortar.mesh.getActiveCells(1);
+
+      obj.vecPts = zeros(max(cells),3);
+
+      numPtsQ = (obj.nInt)^2;
+      numPtsT = sum(1:obj.nInt);
+      if isempty(getElement(elem,9))
+        numPts = numPtsT;
+      else
+        numPts = numPtsQ;
       end
-      weighF = zeros(numPts,obj.mortar.mesh.nEl(1)*obj.mortar.mesh.nN(1));
+      
+      N = sum(msh.surfaceNumVerts(cells));
+     
+      weighF = zeros(numPts,N);
       weigh1 = zeros(numPts,obj.mortar.mesh.nEl(1));
       weighB = weigh1;
       pts = zeros(numPts,obj.mortar.mesh.nEl(1)*3);
+
+      k = 0;
       for i = 1:obj.mortar.mesh.nEl(1)
-        [f, ptsInt] = computeMortarBasisF(obj,i);
-        bf = computeMortarBubbleBasisF(obj);
+        im = obj.mortar.mesh.activeCells{1}(i);
+        [f, ptsInt] = computeMortarBasisF(obj,im);
+        nptInt = size(ptsInt,1);
+        bf = computeMortarBubbleBasisF(obj,im);
         fiMM = obj.computeRBFfiMM(ptsInt);
         % solve local system to get weight of interpolant
         warning('off','MATLAB:nearlySingularMatrix')
-        weighF(:,repNum(obj.mortar.mesh.nN(1),i)) = fiMM\f;
-        weigh1(:,i) = fiMM\ones(size(ptsInt,1),1);
-        weighB(:,i) = fiMM\bf;
-        pts(:,repNum(3,i)) = ptsInt;
+        nN = getElem(obj.mortar,1,im).nNode;
+        weighF(1:nptInt,k+1:k+nN) = fiMM\f;
+        weigh1(1:nptInt,i) = fiMM\ones(size(ptsInt,1),1);
+        weighB(1:nptInt,i) = fiMM\bf;
+        pts(1:nptInt,[3*i-2 3*i-1 3*i]) = ptsInt;
+        obj.vecPts(im,1) = k;
+        obj.vecPts(im,2) = nptInt;
+        obj.vecPts(im,3) = i;
+        k = k+nN;
       end
       obj.wF = weighF;
       obj.w1 = weigh1;
@@ -137,24 +207,24 @@ classdef RBFquadrature < handle
       % integration points in the real space
       surfNodes = obj.mortar.mesh.msh(1).surfaces(id,:);
       coord = obj.mortar.mesh.msh(1).coordinates(surfNodes,:);
-      elem = obj.mortar.getElem(1);
+      elem = obj.mortar.getElem(1,id);
       % place interpolation points in a regular grid
-      intPts = getInterpolationPoints(obj);
+      intPts = getInterpolationPoints(obj,elem);
       bf = computeBasisF(elem,intPts);
       % get coords of interpolation points in the real space
       pos = bf*coord;
     end
 
-    function bf = computeMortarBubbleBasisF(obj)
+    function bf = computeMortarBubbleBasisF(obj,id)
       % place interpolation points in a regular grid
-      intPts = getInterpolationPoints(obj);
-      elem = obj.mortar.getElem(1);
+       elem = obj.mortar.getElem(1,id);
+      intPts = getInterpolationPoints(obj,elem);
       bf = computeBubbleBasisF(elem,intPts);
     end
 
-    function intPts = getInterpolationPoints(obj)
-      switch obj.mortar.mesh.cellType(1)
-        case 10
+    function intPts = getInterpolationPoints(obj,elem)
+      switch class(elem)
+        case 'Triangle'
           % uniform grid in triangle
           intPts = zeros(sum(1:obj.nInt),2);
           p = linspace(0,1,obj.nInt);
@@ -166,7 +236,7 @@ classdef RBFquadrature < handle
             k = k-1;
           end
           intPts(:,2) = repelem(p,obj.nInt:-1:1);
-        case 12
+        case 'Quadrilateral'
           intPts = linspace(-1,1, obj.nInt);
           [y, x] = meshgrid(intPts, intPts);
           intPts = [x(:), y(:)];

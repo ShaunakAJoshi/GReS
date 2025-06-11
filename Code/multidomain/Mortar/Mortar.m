@@ -32,17 +32,19 @@ classdef Mortar < handle
                         domains(2).DoFManager];
       switch inputStruct.Quadrature.typeAttribute
         case 'RBF'
-           nG = inputStruct.Quadrature.nGPAttribute;
-           nInt = inputStruct.Quadrature.nIntAttribute;
+          nG = inputStruct.Quadrature.nGPAttribute;
+          nInt = inputStruct.Quadrature.nIntAttribute;
+          obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
+            Elements(obj.mesh.msh(2),1,nG)];
           obj.quadrature = RBFquadrature(obj,nInt);
         case 'ElementBased'
           % Element based will be implemented in the future
         case 'SegmentBased'
           obj.quadrature = SegmentBasedQuadrature(obj,inputStruct.Quadrature.nGPAttribute);
-          nG = 2;  
+          nG = 2; % dummy nG for elements deifnition
+          obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
+            Elements(obj.mesh.msh(2),1,nG)];
       end
-      obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
-        Elements(obj.mesh.msh(2),1,nG)];
       setPrintUtils(obj,inputStruct,domains(2).OutState);
     end
 
@@ -170,7 +172,6 @@ classdef Mortar < handle
       end
     end
 
-
     function sideStr = getSide(obj,idDomain)
       % get side of the interface 'master' or 'slave' based on the
       % domain input id
@@ -253,7 +254,7 @@ classdef Mortar < handle
 
   methods (Static)
     function [interfaceStruct,modelStruct] = buildInterfaceStruct(fileName,modelStruct)
-
+      fprintf('Mortar initialization... \n')
       % read interface file and construct array of MeshGlue objects
       interfStr = readstruct(fileName);
       interfStr = interfStr.Interface;
@@ -282,7 +283,34 @@ classdef Mortar < handle
         addInterface(modelStruct(idMaster).Discretizer,i);
         addInterface(modelStruct(idSlave).Discretizer,i);
       end
+      fprintf('Done Mortar initialization. \n')
     end
+
+    function varargout = reshapeBasisFunctions(nc,varargin)
+      assert(numel(varargin)==nargout);
+      varargout = cell(1,nargout);
+      for i = 1:numel(varargin)
+        varargout{i} = Mortar.reshapeBasisF(varargin{i},nc);
+      end
+    end
+
+
+    function Nout = reshapeBasisF(basis,nc)
+      % reshape basis functions to obtain displacement shape function
+      % input: nG x nN matrix
+      % output: 3 x nN x nG
+      [ng,nn,nt] = size(basis);
+      Nout = zeros(nc,nc*nn,ng,nt);
+      for i = 1:nt
+        % index pattern for matrix reshaping
+        ind = repmat(linspace(1,nc^2,nc),1,nn)+(nc^2)*repelem(0:nn-1,1,nc);
+        N = zeros(nc*nn,ng); % initialize single page
+        N(ind(1:nc*nn),:) = repelem(basis(:,:,i)',nc,1);
+        Nout(:,:,:,i) = reshape(N,[nc,nn*nc,ng]); % reshaped 3D matrix
+      end
+    end
+
+
   end
 end
 

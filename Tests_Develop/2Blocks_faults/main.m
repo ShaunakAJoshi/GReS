@@ -53,7 +53,7 @@ solver.NonLinearLoop();
 solver.finalizeOutput();
 
 %% plot profiles of multipliers along vertical axis (avoid opening paraview)
-plotStep(solver.results,1);
+plotStep(solver.results,6);
 
 
 

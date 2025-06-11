@@ -6,7 +6,8 @@
     <Slave id="2" surfaceTag="1" />
     <Type> MeshTying </Type>
     <Stabilization> Bubble </Stabilization>
-    <Quadrature type = "SegmentBased" nGP="7"/>
+    <Quadrature type = "RBF" nGP="16" nInt = "6"/>
+    <!--<Quadrature type = "SegmentBased" nGP="7"/>-->
     <Physics> Poromechanics </Physics>
     <Print name = "verticalFault"/>
   </Interface>

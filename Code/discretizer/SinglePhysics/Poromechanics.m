@@ -118,33 +118,35 @@ classdef Poromechanics < SinglePhysics
     end
 
 
-    function [dofr,dofc,Kub,Kbb,varargout] = computeLocalStiffBubble(obj,elID,dt,varargin)
+    function [dofr,dofc,Kub,Kbb,varargout] = computeLocalStiffBubble(obj,el,dt,varargin)
       % compute local stiffness matrix contribution due to bubble basis
       % functions
-      % the method return Kub and Kbb.
+      % the method return Kub and Kbb for later use
+      % faceId: local index of face holding bubble dof
       % assumption: the grid consist only of tetra or hexa, not mixed.
       % the unstabilized stiffness has been already assembled
-      vtkId = obj.mesh.cellVTKType(elID);
+      vtkId = obj.mesh.cellVTKType(el);
       elem = getElement(obj.elements,vtkId);
       nG = elem.GaussPts.nNode;
-      l = obj.cell2stress(elID);      % get index to access stress and strain matrix
-      [Nu,dJWeighed] = getDerBasisFAndDet(elem,elID,1);
-      Nb = getDerBubbleBasisFAndDet(elem,elID,2);
+      l = obj.cell2stress(el);      % get index to access stress and strain matrix
+      [Nu,dJWeighed] = getDerBasisFAndDet(elem,el,1);
+      Nb = getDerBubbleBasisFAndDet(elem,el,2);
       % get strain matrices
       Bu = zeros(6,elem.nNode*obj.mesh.nDim,nG);
       Bu(elem.indB(:,2)) = Nu(elem.indB(:,1));
       Bb = zeros(6,elem.nFace*obj.mesh.nDim,nG);
       Bb(elem.indBbubble(:,2)) = Nb(elem.indBbubble(:,1));
-      [D, ~, ~] = obj.material.updateMaterial(obj.mesh.cellTag(elID), ...
+      [D, ~, ~] = obj.material.updateMaterial(obj.mesh.cellTag(el), ...
         obj.state.data.conv.stress(l+1:l+nG,:), ...
         obj.state.data.curr.strain(l+1:l+nG,:), ...
-        dt,obj.state.data.conv.status(l+1:l+nG,:), elID, obj.state.t);
+        dt,obj.state.data.conv.status(l+1:l+nG,:), el, obj.state.t);
       Kub = Poromechanics.computeKloc(Bu,D,Bb,dJWeighed);
       Kbb = Poromechanics.computeKloc(Bb,D,Bb,dJWeighed);
+
       % important: right hand side in the unstabilized block already
       % considers the bubble contribution due to enhanced strain
       % get global DoF
-      nodes = obj.mesh.cells(elID,1:obj.mesh.cellNumVerts(elID));
+      nodes = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
       dof = obj.dofm.getLocalDoF(nodes,obj.fldId);
       dofr = dof; dofc = dof;
       % get variable output from matrix

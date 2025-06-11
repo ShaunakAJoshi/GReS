@@ -306,7 +306,7 @@ classdef MultidomainFCSolver < handle
         discr = obj.domains(iD).Discretizer;
         J(f+1:f+obj.nfldDom(iD),f+1:f+obj.nfldDom(iD)) = ...
           discr.assembleJacobian();
-        for iF = 1:obj.nfldDom
+        for iF = 1:obj.nfldDom(iD)
           for iI = discr.interfaceList
             pos = find(strcmp(obj.interfaces{iI}.physics,discr.fields(iF)));
             jj = obj.systSize(2)+obj.nfldInt(iI)-obj.nfldInt(1)+pos;

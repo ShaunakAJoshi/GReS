@@ -130,6 +130,8 @@ classdef MeshGlue < Mortar
 
   methods (Access = private)
 
+
+
     function initializeJacobianAndRhs(obj)
       [obj.Jmaster,obj.Jslave,obj.Jmult] = deal(cell(obj.nFld,1));
       [obj.rhsMaster,obj.rhsSlave, obj.iniMultipliers] = deal(cell(obj.nFld,1));
@@ -176,6 +178,24 @@ classdef MeshGlue < Mortar
   end
 
   methods (Access = public)
+
+    function [dofr,dofc,mat] = computeLocMaster(obj,imult,im,Nmult,Nmaster)
+      mat = obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
+        Nmult,Nmaster);
+      nodeMaster = obj.mesh.local2glob{1}(obj.mesh.msh(1).surfaces(im,:));
+      fld = obj.dofm(1).getFieldId(obj.physics);
+      dofc = obj.dofm(1).getLocalDoF(nodeMaster,fld);
+      dofr = dofId(imult,3);
+    end
+
+    function [dofr,dofc,mat] = computeLocSlave(obj,imult,is,mat)
+      nodeSlave = obj.mesh.local2glob{2}(obj.mesh.msh(2).surfaces(is,:));
+      fld = obj.dofm(2).getFieldId(obj.physics);
+      dofc = obj.dofm(2).getLocalDoF(nodeSlave,fld);
+      dofr = dofId(imult,3);
+    end
+
+
     function [cellStr,pointStr] = buildPrintStruct(obj,fldId,fac)
 
       fieldName = obj.physics(fldId);

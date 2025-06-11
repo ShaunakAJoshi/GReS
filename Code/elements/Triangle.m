@@ -45,10 +45,12 @@ classdef Triangle < FiniteElementLagrangian
       else
         % 2D setting: 'in' is a given list of x-y coordinates
         J = pagemtimes(obj.Jref,in);
-        J = inv(J);
         obj.detJ = det(J);
         % jacobian is constant in a simplex
         if nargout == 2
+          for i=1:obj.GaussPts.nNode
+            J(:,:,i) = inv(J(:,:,i));
+          end
           outVar1 = pagemtimes(J,obj.Jref);
           outVar2 = obj.detJ.*(obj.GaussPts.weight)';
         else
