@@ -1,5 +1,5 @@
 classdef assembler < handle
-  % General class for assembling sparse matrices
+  % General class for assembling sparse matrices in FEM
 
   properties
     computeLocal          % function handle of local matrix computation
@@ -7,8 +7,8 @@ classdef assembler < handle
     jVec                  % array of column indices for sparse assembly
     valsVec               % array of values for sparse assembly
     count = 0             % counter for sparse assembly
-    Nrows                 % number of rows for sparse matrix
-    Ncols                 % number of columns of sparse matrix
+    Nrows                 % number of rows 
+    Ncols                 % number of columns 
   end
 
   methods

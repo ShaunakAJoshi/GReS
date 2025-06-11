@@ -36,6 +36,10 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         mshSlave = obj.solvers(2).grid.topology;
         cellsSlave = obj.mesh.f2c{2};
         nus = sum(9*(mshSlave.cellNumVerts(cellsSlave)).^2);
+        mshMaster = obj.solvers(1).grid.topology;
+        masterFlag = false(obj.solvers(1).grid.topology.nSurfaces,1);
+        cellsMaster = obj.mesh.f2c{1};
+        num = sum(9*(mshMaster.cellNumVerts(cellsMaster)).^2);
         nul = 9*sum(mshSlave.cellNumVerts(cellsSlave));
         nl = 9*obj.mesh.nEl(2);
 
@@ -49,17 +53,18 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           computeLocMaster(obj,imult,imaster,Nmult,Nmaster);
         locD = @(imult,islave,Dloc) ...
           computeLocSlave(obj,imult,islave,Dloc);
-        cond = @(A,B,C,dofr,dofc)  obj.computeCondensationMat(A,B,C,dofr,dofc);
+        cond = @(mat,dofr,dofc)  obj.computeCondensationMat(mat,dofr,dofc);
 
         asbM = assembler(nm,locM,nDofMult,nDofMaster);
         asbD = assembler(ns,locD,nDofMult,nDofSlave);
-        %asbKm = assembler(nm,cond,nDofMaster,nDofMaster); 
         asbKs = assembler(nus,cond,nDofSlave,nDofSlave);
         asbLag = assembler(nl,cond,nDofMult,nDofMult);
-        %absMb = assembler(nm,cond,nDofMult,nDofMult);
-        asbDlag = assembler(nul,cond,nDofMult,nDofSlave);
+        asbDcond = assembler(nul,cond,nDofMult,nDofSlave);
+        asbMcond = assembler(nm,cond,nDofMult,nDofMaster);
+        asbKm = assembler(num,cond,nDofMaster,nDofMaster);
 
         poroSlave = getSolver(obj.solvers(2),obj.physics);
+        poroMaster = getSolver(obj.solvers(1),obj.physics);
 
         for i = 1:obj.mesh.nEl(2)
           is = obj.mesh.getActiveCells(2,i);
@@ -72,10 +77,11 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         
           Dloc = zeros(3,3*getElem(obj,2,is).nNode);
           Dbloc = zeros(3,3);
+          Lloc = zeros(3,3);
 
           for im = masterElems'
 
-            [Nslave,Nmaster,Nmult,Nbslave] = ...
+            [Nslave,Nmaster,Nmult,Nbslave,Nbmaster] = ...
               getMortarBasisFunctions(obj.quadrature,is,im);
 
             if isempty(Nmaster)
@@ -84,9 +90,29 @@ classdef MeshGlueBubbleStabilization < MeshGlue
               continue
             end
 
-            [Nslave,Nmaster,Nmult,Nbslave] = obj.reshapeBasisFunctions(3,Nslave,Nmaster,Nmult,Nbslave);
+            [Nslave,Nmaster,Nmult,Nbslave,Nbmaster] = ...
+              obj.reshapeBasisFunctions(3,Nslave,Nmaster,Nmult,Nbslave,Nbmaster);
 
             asbM.localAssembly(i,im,-Nmult,Nmaster);
+
+            % assemble master condensation contribution
+            cellId = obj.mesh.f2c{1}(im);
+            [dofRow,dofCol,Kub,Kbb] = computeLocalStiffBubble(poroMaster,cellId,dt);
+            faceId = dofId(obj.localFaceIndex{1}(im),3);
+            Kub = Kub(:,faceId);
+            Kbb = Kbb(faceId,faceId);
+            invKbb = inv(Kbb);
+
+            if ~masterFlag(im)
+              asbKm.localAssembly(-Kub*invKbb*Kub',dofRow,dofCol);
+              masterFlag(im) = true;
+            end
+
+            Mb = obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
+              Nmult,Nbmaster); 
+            asbMcond.localAssembly( Mb*(invKbb)*Kub',dofMult,dofRow);
+
+            Lloc = Lloc - Mb*invKbb*Mb';
 
             Dloc = Dloc + ...
               obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
@@ -108,16 +134,17 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           
           % assemble local stabilization contribution
           asbD.localAssembly(i,is,Dloc);
-          asbKs.localAssembly(-Kub,invKbb,Kub',dofRow,dofCol);
-          asbLag.localAssembly(-Dbloc,invKbb,Dbloc',dofMult,dofMult);
-          asbDlag.localAssembly(-Dbloc,invKbb,Kub',dofMult,dofRow);
+          asbKs.localAssembly(-Kub*invKbb*Kub',dofRow,dofCol);
+          asbLag.localAssembly(Lloc-Dbloc*invKbb*Dbloc',dofMult,dofMult);
+          asbDcond.localAssembly(-Dbloc*invKbb*Kub',dofMult,dofRow);
         end
 
         % assemble mortar matrices in sparse format
-        obj.Jmaster{1} = asbM.sparseAssembly();
-        obj.Jslave{1} = asbD.sparseAssembly() + asbDlag.sparseAssembly();
+        obj.Jmaster{1} = asbM.sparseAssembly() - asbMcond.sparseAssembly();
+        obj.Jslave{1} = asbD.sparseAssembly() + asbDcond.sparseAssembly();
         obj.Jmult{1} = asbLag.sparseAssembly(); 
         poroSlave.J = poroSlave.J + asbKs.sparseAssembly();
+        poroMaster.J = poroMaster.J + asbKm.sparseAssembly();
         fprintf('Done computing mortar matirces. Elapsed time: %1.4f \n',toc)
       end
     end
@@ -443,9 +470,10 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
 
   methods (Static)
-    function [dofr,dofc,matLoc] = computeCondensationMat(B1,B2,B3,dofr,dofc)
+    function [dofr,dofc,matLoc] = computeCondensationMat(matLoc,dofr,dofc)
       % compute local static condensation contribution
-      matLoc = B1*B2*B3;
+      % do nothing
+      return
     end
   end
 end
