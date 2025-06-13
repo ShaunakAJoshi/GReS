@@ -12,7 +12,7 @@ classdef RBFquadrature < handle
     vecPts    % pointer of each element to location in ptsRBF
   end
 
-  properties
+  properties (Access = private)
     % temporary properties for element-based sort out process
     idSlave = 0
     tempGPloc
@@ -171,9 +171,10 @@ classdef RBFquadrature < handle
         % solve local system to get weight of interpolant
         warning('off','MATLAB:nearlySingularMatrix')
         nN = getElem(obj.mortar,1,im).nNode;
-        weighF(1:nptInt,k+1:k+nN) = fiMM\f;
-        weigh1(1:nptInt,i) = fiMM\ones(size(ptsInt,1),1);
-        weighB(1:nptInt,i) = fiMM\bf;
+        x = fiMM\[f ones(size(ptsInt,1),1) bf];
+        weighF(1:nptInt,k+1:k+nN) = x(:,1:nN);
+        weigh1(1:nptInt,i) = x(:,end-1);
+        weighB(1:nptInt,i) = x(:,end);
         pts(1:nptInt,[3*i-2 3*i-1 3*i]) = ptsInt;
         obj.vecPts(im,1) = k;
         obj.vecPts(im,2) = nptInt;

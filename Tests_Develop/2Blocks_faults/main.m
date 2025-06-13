@@ -5,6 +5,7 @@ close all
 coes = 0;
 phi = 30; % degrees
 
+profile on
 
 scriptFullPath = mfilename('fullpath');
 % Extract the directory of the script
@@ -22,6 +23,13 @@ meshLeftFile = 'Mesh/LeftBlock_hexa.msh';
 meshRightFile = 'Mesh/RightBlock_hexa.msh';
 %domainFile = 'Domains/domains_hexa_P0.dat';
 
+% run geo files
+mshLeft = 'Mesh/LeftBlockHexa.geo';
+mshRight = 'Mesh/RightBlockHexa.geo';
+cmd = sprintf('gmsh - %s',mshLeft);
+[status, result] = system(cmd);
+cmd = sprintf('gmsh - %s',mshRight);
+[status, result] = system(cmd);
 
 % mshTest = Mesh();
 % mshTest.importMesh('Mesh/RightBlockHexa.vtk');
@@ -52,6 +60,7 @@ solver = MultidomainFCSolver(simParam,domains,interfaces);
 solver.NonLinearLoop();
 solver.finalizeOutput();
 
+profile viewer
 %% plot profiles of multipliers along vertical axis (avoid opening paraview)
 plotStep(solver.results,1);
 

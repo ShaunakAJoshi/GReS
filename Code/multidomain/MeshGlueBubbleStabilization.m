@@ -103,14 +103,14 @@ classdef MeshGlueBubbleStabilization < MeshGlue
             Kbb = Kbb(faceId,faceId);
             invKbb = inv(Kbb);
 
+            Mb = obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
+              Nmult,Nbmaster);
+            asbMcond.localAssembly(-Mb*(invKbb)*Kub',dofMult,dofRow);
+
             if ~masterFlag(im)
               asbKm.localAssembly(-Kub*invKbb*Kub',dofRow,dofCol);
               masterFlag(im) = true;
             end
-
-            Mb = obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
-              Nmult,Nbmaster); 
-            asbMcond.localAssembly( Mb*(invKbb)*Kub',dofMult,dofRow);
 
             Lloc = Lloc - Mb*invKbb*Mb';
 
@@ -135,16 +135,16 @@ classdef MeshGlueBubbleStabilization < MeshGlue
           % assemble local stabilization contribution
           asbD.localAssembly(i,is,Dloc);
           asbKs.localAssembly(-Kub*invKbb*Kub',dofRow,dofCol);
-          asbLag.localAssembly(Lloc-Dbloc*invKbb*Dbloc',dofMult,dofMult);
+          asbLag.localAssembly(-Dbloc*invKbb*Dbloc',dofMult,dofMult);
           asbDcond.localAssembly(-Dbloc*invKbb*Kub',dofMult,dofRow);
         end
 
         % assemble mortar matrices in sparse format
-        obj.Jmaster{1} = asbM.sparseAssembly() - asbMcond.sparseAssembly();
+        obj.Jmaster{1} = asbM.sparseAssembly(); + asbMcond.sparseAssembly();
         obj.Jslave{1} = asbD.sparseAssembly() + asbDcond.sparseAssembly();
         obj.Jmult{1} = asbLag.sparseAssembly(); 
         poroSlave.J = poroSlave.J + asbKs.sparseAssembly();
-        poroMaster.J = poroMaster.J + asbKm.sparseAssembly();
+        %poroMaster.J = poroMaster.J + asbKm.sparseAssembly();
         fprintf('Done computing mortar matirces. Elapsed time: %1.4f \n',toc)
       end
     end

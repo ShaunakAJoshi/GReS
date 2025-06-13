@@ -13,6 +13,7 @@ classdef Mortar < handle
     rhsSlave
     rhsMult
     quadrature % integration scheme used for the interface
+    quadrature2
     % (RBF or ElementBased)
     dofm
     nFld          
@@ -38,7 +39,11 @@ classdef Mortar < handle
             Elements(obj.mesh.msh(2),1,nG)];
           obj.quadrature = RBFquadrature(obj,nInt);
         case 'ElementBased'
-          % Element based will be implemented in the future
+           nG = inputStruct.Quadrature.nGPAttribute;
+          obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
+            Elements(obj.mesh.msh(2),1,nG)];
+          obj.quadrature = ElementBasedQuadrature(obj);
+          obj.quadrature2 = RBFquadrature(obj,6);
         case 'SegmentBased'
           obj.quadrature = SegmentBasedQuadrature(obj,inputStruct.Quadrature.nGPAttribute);
           nG = 2; % dummy nG for elements deifnition
