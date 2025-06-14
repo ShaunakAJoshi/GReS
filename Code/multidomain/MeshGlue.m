@@ -86,11 +86,11 @@ classdef MeshGlue < Mortar
         return
       end
       computeMortarMatrices(obj);
-      for i = 1:obj.nFld
-        % map local mortar matrices to global indices
-        obj.Jmaster{i} = obj.getMatrix(1,obj.physics(i));
-        obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
-      end
+%       for i = 1:obj.nFld
+%         % map local mortar matrices to global indices
+%         obj.Jmaster{i} = obj.getMatrix(1,obj.physics(i));
+%         obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
+%       end
     end
 
     function computeRhs(obj)

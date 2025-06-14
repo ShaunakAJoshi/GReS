@@ -105,16 +105,34 @@ classdef Mortar < handle
       mat = sparse(i(:),j(:),vals(:),nr,nc); % minus sign!
     end
 
-    function computeMortarMatrices(obj)
-      if isempty(obj.mortarMatrix) % compute only once
-        elemSlave = getElem(obj,2);
-        [imVec,jmVec,MVec] = allocateMatrix(obj,1);
-        [idVec,jdVec,DVec] = allocateMatrix(obj,2);
-        % Ns: basis function matrix on slave side
-        % Nm: basis function matrix on master side
-        % Nmult: basis function matrix for multipliers
-        cs = 0; % slave matrix entry counter
-        cm = 0; % master matrix entry counter
+    function computeMortarMatrices(obj,~)
+      % assumption: each element has only one bubble face
+      if isempty(obj.Jmaster{:})
+        % loop over slave faces and:
+        % 1) compute Aub, Abu and Abb local matrix from the neighbor cell
+        % 2) compute local M, D and Db
+        % 3) assemble static condensation blocks and Jmult
+
+        % differently from the base method of the mortar class, here global
+        % dof indexing is used for the assembled matrices
+
+        % get number of index entries for sparse matrix
+        nm = nnz(obj.mesh.elemConnectivity)*9*obj.mesh.nN(1);
+        ns = obj.mesh.nEl(2)*9*obj.mesh.nN(2);
+
+        % get number of dofs for each block
+        nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
+        nDofSlave = obj.dofm(2).getNumDoF(obj.physics);
+        nDofMult = obj.mesh.nEl(2)*obj.dofm(2).getDoFperEnt(obj.physics);
+
+        % define matrix assemblers
+        locM = @(imult,imaster,Nmult,Nmaster) ...
+          computeLocMaster(obj,imult,imaster,Nmult,Nmaster);
+        locD = @(imult,islave,Dloc) ...
+          computeLocSlave(obj,imult,islave,Dloc);
+
+        asbM = assembler(nm,locM,nDofMult,nDofMaster);
+        asbD = assembler(ns,locD,nDofMult,nDofSlave);
 
         for i = 1:obj.mesh.nEl(2)
           is = obj.mesh.getActiveCells(2,i);
@@ -122,58 +140,35 @@ classdef Mortar < handle
           if isempty(masterElems)
             continue
           end
-          %Compute Slave quantities
-          dJWeighed = elemSlave.getDerBasisFAndDet(is,3);
-          posGP = getGPointsLocation(elemSlave,is);
-          nSlave = obj.mesh.msh(2).surfaces(is,:);
-          Nslave = getBasisFinGPoints(elemSlave); % Get slave basis functions
+
+          Dloc = zeros(3,3*getElem(obj,2,is).nNode);
+
           for im = masterElems'
-            nMaster = obj.mesh.msh(1).surfaces(im,:);
-            [Nm,id] = obj.quadrature.getMasterBasisF(im,posGP); % compute interpolated master basis function
-            if any(id)
-              % get basis function matrices
-              Nm = Nm(id,:);
-              Ns = Nslave(id,:);
-              Nmult = ones(size(Ns,1),1);
-              Nm = Discretizer.reshapeBasisF(Nm,1);
-              Ns = Discretizer.reshapeBasisF(Ns,1);
-              Nmult = Discretizer.reshapeBasisF(Nmult,1);
 
-              % compute slave mortar matrix
-              Dloc = pagemtimes(Nmult,'transpose',Ns,'none');
-              [idVec,jdVec,DVec,cs] = Discretizer.computeLocalMatrix( ...
-                Dloc,idVec,jdVec,DVec,cs,dJWeighed(id),i,nSlave);
+            [Nslave,Nmaster,Nmult,Nbslave,Nbmaster] = ...
+              getMortarBasisFunctions(obj.quadrature,is,im);
 
-              % compute master mortar matrix
-              Mloc = pagemtimes(Nmult,'transpose',Nm,'none');
-              [imVec,jmVec,MVec,cm] = Discretizer.computeLocalMatrix( ...
-                Mloc,imVec,jmVec,MVec,cm,dJWeighed(id),i,nMaster);
-
-              % sort out gauss points already ised
-              dJWeighed = dJWeighed(~id);
-              posGP = posGP(~id,:);
-              Nslave = Nslave(~id,:);
-            else
-              % pair of elements does not share support. update connectivity
-              % matrix
+            if isempty(Nmaster)
+              % refine connectivity matrix
               obj.mesh.elemConnectivity(im,is) = 0;
+              continue
             end
+
+            [Nslave,Nmaster,Nmult] = ...
+              obj.reshapeBasisFunctions(3,Nslave,Nmaster,Nmult);
+
+            asbM.localAssembly(i,im,-Nmult,Nmaster);
+
+            Dloc = Dloc + ...
+              obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
+              Nmult,Nslave);
           end
-          if ~all(id)
-            % track element not fully projected
-            fprintf('%i GP not sorted for slave elem numb %i \n',sum(id),is);
-          end
+
+          asbD.localAssembly(i,is,Dloc);
         end
 
-        % cut vectors for sparse matrix assembly
-        imVec = imVec(1:cm); jmVec = jmVec(1:cm); MVec = MVec(1:cm);
-        idVec = idVec(1:cs); jdVec = jdVec(1:cs); DVec = DVec(1:cs);
-
-        % assemble mortar matrices in sparse format
-        obj.mortarMatrix{1} = -sparse(imVec,jmVec,MVec,...
-          obj.mesh.nEl(2),obj.mesh.msh(1).nNodes);
-        obj.mortarMatrix{2} = sparse(idVec,jdVec,DVec,...
-          obj.mesh.nEl(2),obj.mesh.msh(2).nNodes);
+        obj.Jmaster{1} = asbM.sparseAssembly();
+        obj.Jslave{1} = asbD.sparseAssembly();
       end
     end
 
@@ -271,12 +266,17 @@ classdef Mortar < handle
         type = interfStr(i).Type;
         switch type
           case 'MeshTying'
-            if strcmp(interfStr.Stabilization,'Jump')
+            if strcmp(interfStr.Stabilization.typeAttribute,'Jump')
               interfaceStruct{i} = MeshGlueJumpStabilization(i,interfStr(i), ...
                 modelStruct([idMaster,idSlave]));
             elseif strcmp(interfStr.Stabilization,'Bubble')
               interfaceStruct{i} = MeshGlueBubbleStabilization(i,interfStr(i), ...
                 modelStruct([idMaster,idSlave]));
+            elseif (~isfield(interfaceStruct,"Stabilization"))
+              % standard mesh tying with dual multipliers
+              interfaceStruct{i} = MeshGlue(i,interfStr(i),modelStruct([idMaster,idSlave]));
+            else
+              error('Invalid input argument for interface %i',i)
             end
           case 'Fault'
             % not yet implemented!

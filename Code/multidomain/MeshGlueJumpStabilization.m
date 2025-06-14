@@ -1,14 +1,19 @@
 classdef MeshGlueJumpStabilization < MeshGlue
   % Mesh glue class implementing pressure jump stabilization
 
-  properties
-    Property1
+  properties (Access = private)
+    scale
   end
 
   methods (Access = public)
     function obj = MeshGlueJumpStabilization(id,inputStruct,domains)
       obj@MeshGlue(id,inputStruct,domains);
-      computeMortarMatrices(obj);
+      if isfield(inputStruct.Stabilization,"scaleAttribute")
+        obj.scale = inputStruct.Stabilization.scaleAttribute;
+      else 
+        obj.scale = 1.0;
+      end
+%       computeMortarMatrices(obj);
     end
 
     function computeMat(obj,dt)
@@ -107,26 +112,25 @@ classdef MeshGlueJumpStabilization < MeshGlue
       % input: nm/ns local master/slave node indices
       % fs: local slave faces indices
 
-      nc = obj.dofm(1).getDoFperEnt(field);
-
-      % get local mortar matrices
-      Dloc = obj.mortarMatrix{2}(fs,ns);
-      Mloc = obj.mortarMatrix{1}(fs,nm);
-      V = [Dloc, -Mloc];              % minus sign!
-      V = Discretizer.expandMat(V,nc);
-
       % get slave and master dof to access jacobian
       fldM = getFieldId(obj.dofm(1),field);
       fldS = getFieldId(obj.dofm(2),field);
       dofS = obj.dofm(2).getLocalDoF(obj.mesh.local2glob{2}(ns),fldS);
       dofM = obj.dofm(1).getLocalDoF(obj.mesh.local2glob{1}(nm),fldM);
 
+
+      % get local mortar matrices
+      Dloc = obj.Jslave{1}(dofId(fs,3),dofS);
+      Mloc = obj.Jmaster{1}(dofId(fs,3),dofM);
+      V = [Dloc, Mloc];              % minus sign!
+      %V = Discretizer.expandMat(V,nc);
+
       % get local jacobian
       Km = getSolver(obj.solvers(1),field).J(dofM,dofM);
       Ks = getSolver(obj.solvers(2),field).J(dofS,dofS);
       Kloc = diag([1./diag(Ks);1./diag(Km)]);
 
-      S = V*(Kloc*V');  % compute Schur complement
+      S = obj.scale*V*(Kloc*V');  % compute Schur complement
     end
 
   end

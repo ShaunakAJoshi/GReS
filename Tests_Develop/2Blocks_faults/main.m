@@ -4,9 +4,7 @@ close all
 % fault material parameters
 coes = 0;
 phi = 30; % degrees
-
-profile on
-
+ 
 scriptFullPath = mfilename('fullpath');
 % Extract the directory of the script
 scriptDir = fileparts(scriptFullPath);
@@ -60,9 +58,8 @@ solver = MultidomainFCSolver(simParam,domains,interfaces);
 solver.NonLinearLoop();
 solver.finalizeOutput();
 
-profile viewer
 %% plot profiles of multipliers along vertical axis (avoid opening paraview)
-plotStep(solver.results,1);
+plotStep(solver.results,6);
 
 
 

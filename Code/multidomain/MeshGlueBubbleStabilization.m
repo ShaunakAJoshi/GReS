@@ -20,8 +20,6 @@ classdef MeshGlueBubbleStabilization < MeshGlue
     function computeMortarMatricesTest(obj,dt)
       % assumption: each element has only one bubble face
       if isempty(obj.Jmaster{:})
-        fprintf('Computing mortar matrices...')
-        tic
         % loop over slave faces and:
         % 1) compute Aub, Abu and Abb local matrix from the neighbor cell
         % 2) compute local M, D and Db
@@ -42,6 +40,9 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         num = sum(9*(mshMaster.cellNumVerts(cellsMaster)).^2);
         nul = 9*sum(mshSlave.cellNumVerts(cellsSlave));
         nl = 9*obj.mesh.nEl(2);
+        nmb = nnz(obj.mesh.elemConnectivity)*9;
+        nkb = 9*obj.mesh.nEl(1);
+        nkub = 9*sum(mshMaster.cellNumVerts(cellsMaster))*obj.mesh.nEl(1);
 
         % get number of dofs for each block
         nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
@@ -62,6 +63,10 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         asbDcond = assembler(nul,cond,nDofMult,nDofSlave);
         asbMcond = assembler(nm,cond,nDofMult,nDofMaster);
         asbKm = assembler(num,cond,nDofMaster,nDofMaster);
+        nMsurf = obj.mesh.msh(1).nSurfaces;
+        asbMb = assembler(nmb,cond,nDofMult,3*nMsurf);
+        asbKbb = assembler(nkb,cond,3*nMsurf,3*nMsurf);
+        asbKub = assembler(nkub,cond,nDofMaster,3*nMsurf);
 
         poroSlave = getSolver(obj.solvers(2),obj.physics);
         poroMaster = getSolver(obj.solvers(1),obj.physics);
@@ -77,7 +82,7 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         
           Dloc = zeros(3,3*getElem(obj,2,is).nNode);
           Dbloc = zeros(3,3);
-          Lloc = zeros(3,3);
+          %Lloc = zeros(3,3);
 
           for im = masterElems'
 
@@ -105,14 +110,17 @@ classdef MeshGlueBubbleStabilization < MeshGlue
 
             Mb = obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
               Nmult,Nbmaster);
-            asbMcond.localAssembly(-Mb*(invKbb)*Kub',dofMult,dofRow);
+            asbMcond.localAssembly(+Mb*(invKbb)*Kub',dofMult,dofRow);
+            asbMb.localAssembly(Mb,dofMult,dofId(im,3));            
 
             if ~masterFlag(im)
               asbKm.localAssembly(-Kub*invKbb*Kub',dofRow,dofCol);
               masterFlag(im) = true;
+              asbKbb.localAssembly(invKbb,dofId(im,3),dofId(im,3));
+              asbKub.localAssembly(Kub,dofRow,dofId(im,3));
             end
 
-            Lloc = Lloc - Mb*invKbb*Mb';
+            %Lloc = Lloc - Mb*invKbb*Mb';
 
             Dloc = Dloc + ...
               obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
@@ -140,12 +148,17 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         end
 
         % assemble mortar matrices in sparse format
-        obj.Jmaster{1} = asbM.sparseAssembly(); + asbMcond.sparseAssembly();
+        Mb = asbMb.sparseAssembly();
+        invKbb = asbKbb.sparseAssembly();
+        Kub = asbKub.sparseAssembly();
+        multMasterCond = -Mb*invKbb*Mb';
+        KubCond = Mb*invKbb*Kub';
+
+        obj.Jmaster{1} = asbM.sparseAssembly() + KubCond;
         obj.Jslave{1} = asbD.sparseAssembly() + asbDcond.sparseAssembly();
-        obj.Jmult{1} = asbLag.sparseAssembly(); 
+        obj.Jmult{1} = asbLag.sparseAssembly() + multMasterCond; 
         poroSlave.J = poroSlave.J + asbKs.sparseAssembly();
-        %poroMaster.J = poroMaster.J + asbKm.sparseAssembly();
-        fprintf('Done computing mortar matirces. Elapsed time: %1.4f \n',toc)
+        poroMaster.J = poroMaster.J + asbKm.sparseAssembly();
       end
     end
 
