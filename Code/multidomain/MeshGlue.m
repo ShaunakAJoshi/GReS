@@ -4,8 +4,6 @@ classdef MeshGlue < Mortar
   % different physics can be tyied at once
 
   properties (Access = private)
-    mortar
-    out
     dofCount
   end
 
@@ -24,6 +22,9 @@ classdef MeshGlue < Mortar
         'Missing Physics field for interface %i',id);
       obj.physics = split(inputStruct.Physics);
       obj.nFld = numel(obj.physics);
+            assert(isfield(inputStruct,"Multiplier"),['XML:erorr' ...
+              ''])
+        obj.multiplierType = inputStruct.Multiplier.typeAttribute;
       initializeJacobianAndRhs(obj);
       isFldMaster = isField(obj.dofm(1),obj.physics);
       isFldSlave = isField(obj.dofm(2),obj.physics);
@@ -86,11 +87,11 @@ classdef MeshGlue < Mortar
         return
       end
       computeMortarMatrices(obj);
-%       for i = 1:obj.nFld
-%         % map local mortar matrices to global indices
-%         obj.Jmaster{i} = obj.getMatrix(1,obj.physics(i));
-%         obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
-%       end
+      %       for i = 1:obj.nFld
+      %         % map local mortar matrices to global indices
+      %         obj.Jmaster{i} = obj.getMatrix(1,obj.physics(i));
+      %         obj.Jslave{i} = obj.getMatrix(2,obj.physics(i));
+      %       end
     end
 
     function computeRhs(obj)
@@ -101,7 +102,7 @@ classdef MeshGlue < Mortar
       end
     end
 
-    function applyBCmaster(obj,bound,bc,t,state)
+    function applyBCmaster(obj,bound,bc,t)
       physic = bound.getPhysics(bc);
       [bcEnts,~] = getBC(obj.solvers(1).getSolver(physic),bound,bc,t);
       i = strcmp(obj.physics,physic);
@@ -109,9 +110,10 @@ classdef MeshGlue < Mortar
       obj.Jmaster{i}(:,bcEnts) = 0;
     end
 
-    function applyBCslave(obj,bound,bc,t,state)
+    function applyBCslave(obj,bound,bc,t)
       physic = bound.getPhysics(bc);
       [bcEnts,~] = getBC(obj.solvers(2).getSolver(physic),bound,bc,t);
+      bcEnts = removeSlaveBCdofs(obj,physic,bcEnts);
       i = strcmp(obj.physics,physic);
       obj.rhsSlave{i}(bcEnts) = 0;
       obj.Jslave{i}(:,bcEnts) = 0;
@@ -119,8 +121,7 @@ classdef MeshGlue < Mortar
 
     function updateState(obj,du)
       for i = 1:obj.nFld
-        ncomp = obj.dofm(1).getDoFperEnt(obj.physics(i));
-        actMult = dofId(getActiveCells(obj.mesh,2),ncomp);
+        actMult = getMultiplierDoF(obj);
         n = numel(actMult);
         obj.multipliers(i).curr(actMult) = obj.multipliers(i).curr(actMult) + du(1:n);
         du = du(n+1:end);
@@ -130,19 +131,16 @@ classdef MeshGlue < Mortar
 
   methods (Access = private)
 
-
-
     function initializeJacobianAndRhs(obj)
       [obj.Jmaster,obj.Jslave,obj.Jmult] = deal(cell(obj.nFld,1));
       [obj.rhsMaster,obj.rhsSlave, obj.iniMultipliers] = deal(cell(obj.nFld,1));
       obj.multipliers = repmat(struct('prev',[],'curr',[]),obj.nFld,1);
       obj.totMult = 0;
-      nSurfSlave = obj.mesh.msh(2).nSurfaces;
+
       for i = 1:obj.nFld
-        ncomp = obj.dofm(1).getDoFperEnt(obj.physics(i));
         nDofMaster = getNumDoF(obj.dofm(1),obj.physics(i));
         nDofSlave = getNumDoF(obj.dofm(2),obj.physics(i));
-        nDofMult = ncomp*nSurfSlave;
+        nDofMult = getNumbMultipliers(obj);
         obj.rhsMaster{i} = zeros(nDofMaster,1);
         obj.rhsSlave{i} = zeros(nDofSlave,1);
         obj.rhsMult{i} = zeros(nDofMult,1);
@@ -154,7 +152,7 @@ classdef MeshGlue < Mortar
     end
 
     function computeRhsMaster(obj,i)
-      actMult = dofId(getActiveCells(obj.mesh,2),3);
+      actMult = getMultiplierDoF(obj);
       obj.rhsMaster{i} = ...
         obj.Jmaster{i}'*(obj.multipliers(i).curr(actMult)-obj.iniMultipliers{i}(actMult));
       var = getState(obj.solvers(1).getSolver(obj.physics(i)));
@@ -163,7 +161,7 @@ classdef MeshGlue < Mortar
     end
 
     function computeRhsSlave(obj,i)
-      actMult = dofId(getActiveCells(obj.mesh,2),3);
+      actMult = getMultiplierDoF(obj);
       multIncrement = obj.multipliers(i).curr(actMult)-obj.iniMultipliers{i}(actMult);
       obj.rhsSlave{i} = ...
         obj.Jslave{i}'*multIncrement;
@@ -185,14 +183,18 @@ classdef MeshGlue < Mortar
       nodeMaster = obj.mesh.local2glob{1}(obj.mesh.msh(1).surfaces(im,:));
       fld = obj.dofm(1).getFieldId(obj.physics);
       dofc = obj.dofm(1).getLocalDoF(nodeMaster,fld);
-      dofr = dofId(imult,3);
+      dofr = getMultiplierDoF(obj,imult);
     end
 
     function [dofr,dofc,mat] = computeLocSlave(obj,imult,is,mat)
+      if strcmp(obj.multiplierType,'dual')
+        % lump local D matrix
+        mat = diag(sum(mat,2));
+      end
       nodeSlave = obj.mesh.local2glob{2}(obj.mesh.msh(2).surfaces(is,:));
       fld = obj.dofm(2).getFieldId(obj.physics);
       dofc = obj.dofm(2).getLocalDoF(nodeSlave,fld);
-      dofr = dofId(imult,3);
+      dofr = getMultiplierDoF(obj,imult);
     end
 
 
@@ -240,7 +242,100 @@ classdef MeshGlue < Mortar
       out = all(cellfun(@(x) ~isempty(x), [obj.Jmaster(:); obj.Jslave(:)]));
     end
 
-  end
+    function Nmult = computeMultiplierBasisF(obj,el,NslaveIn)
+      elem = obj.getElem(2,el);
+      switch obj.multiplierType
+        case 'P0'
+          Nmult = ones(elem.GaussPts.nNode,1);
+        case 'standard'
+          Nmult = NslaveIn;
+        case 'dual'
+          Ns = getBasisFinGPoints(elem);
+          gpW = getDerBasisFAndDet(elem,el);
+          M = Ns'*(Ns.*gpW');
+          D = diag(Ns'*gpW');
+          A = M\D;
+          Nmult = NslaveIn*A;
+      end
+    end
 
+    function nDofs = getNumbMultipliers(obj)
+      nc = obj.dofm(2).getDoFperEnt(obj.physics);
+      switch obj.multiplierType
+        case 'P0'
+          nDofs = nc*obj.mesh.nEl(2);
+        case {'dual','standard'}
+          nDofs = nc*obj.mesh.msh(2).nNodes;
+      end
+    end
+
+    function dofs = getMultiplierDoF(obj,id)
+
+      nc = obj.dofm(2).getDoFperEnt(obj.physics);
+
+      if nargin > 1
+        if strcmp(obj.multiplierType,'P0')
+          dofs = dofId(id,nc);
+        else
+          is = obj.mesh.activeCells{2}(id);
+          nodes = obj.mesh.msh(2).surfaces(is,:);
+          dofs = dofId(nodes,nc);
+        end
+      else
+        if strcmp(obj.multiplierType,'P0')
+          dofs = dofId(getActiveCells(obj.mesh,2),3);
+        else
+          dofs = 1:nc*obj.mesh.msh(2).nNodes;
+        end
+      end
+    end
+
+    function E = computeMortarOperator(obj)
+      % provide mortar interpolation operator for nodal multipliers
+
+      assert(strcmp(obj.multiplierType,'dual'),['Mortar operator is avalilable' ...
+        'with dual multipliers only']);
+
+      E = obj.Jmaster{1}./(1./diag(obj.Jslave{1}));
+
+    end
+
+    function [bcDofs,bcVals] = removeSlaveBCdofs(obj,bcPhysics,bcData,domId)
+      % this method updates the list of bc dofs and values removing dofs on
+      % the slave interface (only for nodal multipliers)
+      % this avoid overconstraint and solvability issues
+
+      % bcData: nDofBC x 2 matrix.
+      % first column -> dofs
+      % second columns -> vals (optional)
+
+      bcDofs = bcData(:,1);
+      if size(bcData,2) > 1
+        bcVals = bcData(:,2);
+      else
+        bcVals = [];
+      end
+
+      if strcmp(obj.multiplierType,'P0')
+        return
+      end
+
+      if nargin > 3
+        if strcmp(getSide(obj,domId),'master')
+          return
+        end
+      end
+
+      % get list of nodal slave dofs in the interface
+      nodSlave = obj.mesh.local2glob{2};
+      fldId = obj.dofm(2).getFieldId(bcPhysics);
+      dofSlave = getLocalDoF(obj.dofm(2),nodSlave,fldId);
+      isBCdof = ismember(bcData(:,1),dofSlave);
+      bcDofs = bcDofs(~isBCdof);
+      if ~isempty(bcVals)
+        bcVals = bcVals(~isBCdof);
+      end
+    end
+  end
 end
 

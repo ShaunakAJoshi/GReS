@@ -13,7 +13,7 @@ classdef MeshGlueJumpStabilization < MeshGlue
       else 
         obj.scale = 1.0;
       end
-%       computeMortarMatrices(obj);
+      obj.multiplierType = 'P0';
     end
 
     function computeMat(obj,dt)
@@ -87,6 +87,12 @@ classdef MeshGlueJumpStabilization < MeshGlue
         % compute local schur complement approximation
         S = computeSchurLocal(obj,nM,nS,fS,fld);
         S = [mean(S(1:3:end));mean(S(2:3:end));mean(S(3:3:end))];
+
+        % apply scaling due to relative grid size
+        Am = mean(obj.mesh.msh(1).surfaceArea(fM));
+        As = mean(obj.mesh.msh(2).surfaceArea(fS));
+        %S = (Am/As)*S;
+
         % assemble stabilization matrix component
         for iesLoc = ieS'
           f = obj.mesh.e2f{2}(iesLoc,:);

@@ -39,7 +39,7 @@ classdef ElementBasedQuadrature < handle
         obj.idSlave = is;
         obj.tempdJw = getDerBasisFAndDet(elemSlave,is);
         obj.tempNs = getBasisFinGPoints(elemSlave);
-        obj.tempNmult = ones(size(obj.tempNs,1),1);
+        obj.tempNmult = computeMultiplierBasisF(obj.mortar,is,obj.tempNs);
         obj.tempGPloc = elemSlave.GaussPts.coord;
         obj.suppFlag = false(size(obj.tempNs,1),1);
         if nargout > 3

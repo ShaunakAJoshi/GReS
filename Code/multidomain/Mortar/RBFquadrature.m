@@ -44,7 +44,7 @@ classdef RBFquadrature < handle
         obj.idSlave = is;
         obj.tempdJw = getDerBasisFAndDet(elemSlave,is);
         obj.tempNs = getBasisFinGPoints(elemSlave);
-        obj.tempNmult = ones(size(obj.tempNs,1),1);
+        obj.tempNmult = computeMultiplierBasisF(obj.mortar,is,obj.tempNs);
         obj.tempGPloc = getGPointsLocation(elemSlave,is);
         if nargout > 3
           obj.tempNbubble = getBubbleBasisFinGPoints(elemSlave);

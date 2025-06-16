@@ -32,7 +32,7 @@ classdef Quadrilateral < FiniteElementLagrangian
       % way to call this method: if el is a scalar (element idx) the 3D
       % coordinates are retrieved by the corresponding mesh object. Only
       % the determinant is returned
-      % if in is not scalar, it is a 4x2 list of 2 coordinates, the
+      % if in is not scalar, it is a 4x2 list of 2D coordinates, the
       % gradient matrix and the determinant are returned
 
       if isscalar(in)
@@ -44,7 +44,7 @@ classdef Quadrilateral < FiniteElementLagrangian
         end
         outVar1 = obj.detJ.*(obj.GaussPts.weight)';
       else
-        % 2D setting: in is a given list of x-y coordinates
+        % 2D - in is a given list of x-y coordinates for nodes
         J = pagemtimes(obj.Jref,in);
         for i=1:obj.GaussPts.nNode
           J(:,:,i) = inv(J(:,:,i));
@@ -149,7 +149,8 @@ classdef Quadrilateral < FiniteElementLagrangian
 
 
     function dN = computeDerBasisF(obj, list)
-      % Compute derivatives in the reference space for input list of points
+      % Compute derivatives in the reference space for input list of
+      % referencecoordinates
       % d(N)/d\csi
       d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
         (1+obj.coordLoc(j,2).*list(i,2)), ...
@@ -162,7 +163,6 @@ classdef Quadrilateral < FiniteElementLagrangian
       %
       dN = [d1';d2'];
     end
-
   end
 
   methods (Access = protected)

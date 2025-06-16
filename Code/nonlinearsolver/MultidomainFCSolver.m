@@ -404,11 +404,11 @@ classdef MultidomainFCSolver < handle
         discretizer = obj.domains(i).Discretizer;
         bc = obj.domains(i).BoundaryConditions;
         % Apply BCs to the blocks of the linear system
-        applyBC(discretizer, bc, obj.t);
+        applyBC(discretizer, bc, obj.t, i);
 
         % Apply BC to coupling matrices
         for j = discretizer.interfaceList
-          applyBC(obj.interfaces{j},i,bc,obj.t,obj.state(i).curr);
+          applyBC(obj.interfaces{j},i,bc,obj.t);
         end
       end
     end

@@ -35,18 +35,18 @@ classdef SegmentBasedQuadrature < handle
 
       Nm = zeros(obj.nGtri, elemMaster.nNode,obj.nTri);
       Ns = zeros(obj.nGtri,elemSlave.nNode,obj.nTri);
-      Nmult = ones(obj.nGtri,1,obj.nTri);
+      Nmult = zeros(obj.nGtri,elemSlave.nNode,obj.nTri);
 
       if nargout > 3
         [NbubSlave,NbubMaster] = deal(zeros(obj.nGtri,1,obj.nTri));
       end
 
-      % for P0 elements!
       for i = 1:obj.nTri
         xiM = xiMaster(:,:,i);
         xiS = xiSlave(:,:,i);
         Nm(:,:,i) = elemMaster.computeBasisF(xiM);
         Ns(:,:,i) = elemSlave.computeBasisF(xiS);
+        Nmult(:,:,i) = computeMultiplierBasisF(obj.mortar,is,Ns(:,:,i));
         if nargout > 3
           NbubSlave(:,:,i) = elemSlave.computeBubbleBasisF(xiS);
           NbubMaster(:,:,i) = elemMaster.computeBubbleBasisF(xiM);

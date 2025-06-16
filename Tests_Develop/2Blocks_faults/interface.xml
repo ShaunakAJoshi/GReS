@@ -5,10 +5,11 @@
     <Master id="1" surfaceTag="2" />
     <Slave id="2" surfaceTag="1" />
     <Type> MeshTying </Type>
-    <Stabilization type = "Jump" scale = "15.0" />
-    <Quadrature type = "RBF" nGP="16" nInt = "4"/>
+    <!--<Stabilization type = "Jump" scale = "1.0"/>-->
+    <Quadrature type = "RBF" nGP="6" nInt = "4"/>
     <!--<Quadrature type = "SegmentBased" nGP="7"/>-->
      <!--<Quadrature type = "ElementBased" nGP="4"/>-->
+    <Multiplier type = "dual"/>
     <Physics> Poromechanics </Physics>
     <Print name = "verticalFault"/>
   </Interface>

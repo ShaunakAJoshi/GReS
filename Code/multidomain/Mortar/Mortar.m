@@ -19,6 +19,7 @@ classdef Mortar < handle
     nFld          
     mortarMatrix
     elements
+    multiplierType = 'dual'
   end
 
   methods
@@ -60,7 +61,7 @@ classdef Mortar < handle
     end
 
 
-    function applyBC(obj,idDomain,bound,t,state)
+    function applyBC(obj,idDomain,bound,t)
       side = getSide(obj,idDomain);
       bcList = bound.db.keys;
 
@@ -76,9 +77,9 @@ classdef Mortar < handle
         else
           switch side
             case 'master'
-              applyBCmaster(obj,bound,bc,t,state)
+              applyBCmaster(obj,bound,bc,t)
             case 'slave'
-              applyBCslave(obj,bound,bc,t,state)
+              applyBCslave(obj,bound,bc,t)
           end
         end
       end
@@ -116,14 +117,24 @@ classdef Mortar < handle
         % differently from the base method of the mortar class, here global
         % dof indexing is used for the assembled matrices
 
+        ncomp = obj.dofm(2).getDoFperEnt(obj.physics);
+
         % get number of index entries for sparse matrix
-        nm = nnz(obj.mesh.elemConnectivity)*9*obj.mesh.nN(1);
-        ns = obj.mesh.nEl(2)*9*obj.mesh.nN(2);
+        % overestimate number of sparse indices assuming all quadrilaterals
+        switch obj.multiplierType
+          case 'P0'
+            k = 1;
+          otherwise
+            k = obj.mesh.nN(2);
+        end
+
+        nm = nnz(obj.mesh.elemConnectivity)*ncomp^2*k*obj.mesh.nN(1);
+        ns = obj.mesh.nEl(2)*ncomp^2*k*obj.mesh.nN(2);
 
         % get number of dofs for each block
         nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
         nDofSlave = obj.dofm(2).getNumDoF(obj.physics);
-        nDofMult = obj.mesh.nEl(2)*obj.dofm(2).getDoFperEnt(obj.physics);
+        nDofMult = getNumbMultipliers(obj);
 
         % define matrix assemblers
         locM = @(imult,imaster,Nmult,Nmaster) ...
@@ -140,12 +151,19 @@ classdef Mortar < handle
           if isempty(masterElems)
             continue
           end
-
-          Dloc = zeros(3,3*getElem(obj,2,is).nNode);
+          
+          elSlave = getElem(obj,2,is);
+          nN = elSlave.nNode;
+          switch obj.multiplierType
+            case 'P0'
+              Dloc = zeros(ncomp,ncomp*nN);
+            otherwise
+              Dloc = zeros(ncomp*nN,ncomp*nN);
+          end
 
           for im = masterElems'
 
-            [Nslave,Nmaster,Nmult,Nbslave,Nbmaster] = ...
+            [Nslave,Nmaster,Nmult] = ...
               getMortarBasisFunctions(obj.quadrature,is,im);
 
             if isempty(Nmaster)
@@ -171,6 +189,7 @@ classdef Mortar < handle
         obj.Jslave{1} = asbD.sparseAssembly();
       end
     end
+    
 
     function sideStr = getSide(obj,idDomain)
       % get side of the interface 'master' or 'slave' based on the
@@ -266,15 +285,15 @@ classdef Mortar < handle
         type = interfStr(i).Type;
         switch type
           case 'MeshTying'
-            if strcmp(interfStr.Stabilization.typeAttribute,'Jump')
-              interfaceStruct{i} = MeshGlueJumpStabilization(i,interfStr(i), ...
-                modelStruct([idMaster,idSlave]));
-            elseif strcmp(interfStr.Stabilization,'Bubble')
-              interfaceStruct{i} = MeshGlueBubbleStabilization(i,interfStr(i), ...
-                modelStruct([idMaster,idSlave]));
-            elseif (~isfield(interfaceStruct,"Stabilization"))
+            if (~isfield(interfStr,"Stabilization"))
               % standard mesh tying with dual multipliers
               interfaceStruct{i} = MeshGlue(i,interfStr(i),modelStruct([idMaster,idSlave]));
+            elseif strcmp(interfStr.Stabilization.typeAttribute,'Jump')
+              interfaceStruct{i} = MeshGlueJumpStabilization(i,interfStr(i), ...
+                modelStruct([idMaster,idSlave]));
+            elseif strcmp(interfStr.Stabilization.typeAttribute,'Bubble')
+              interfaceStruct{i} = MeshGlueBubbleStabilization(i,interfStr(i), ...
+                modelStruct([idMaster,idSlave]));
             else
               error('Invalid input argument for interface %i',i)
             end
@@ -285,8 +304,8 @@ classdef Mortar < handle
             error(['Invalid interface law type for interface %i in file' ...
               '%s. \nAvailable types are: \nMeshTying \nFault'],i,fileName);
         end
-        addInterface(modelStruct(idMaster).Discretizer,i);
-        addInterface(modelStruct(idSlave).Discretizer,i);
+        addInterface(modelStruct(idMaster).Discretizer,i,interfaceStruct{i});
+        addInterface(modelStruct(idSlave).Discretizer,i,interfaceStruct{i});
       end
       fprintf('Done Mortar initialization. \n')
     end

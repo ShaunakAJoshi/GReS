@@ -11,10 +11,10 @@ classdef Discretizer < handle
 
    properties (GetAccess=public, SetAccess=public)
      interfaceList = []; 
-     state
+     interfaces = []
      % empty - single domain simulation
      % not empty - call to mesh glue instances 
-
+     state
    end
 
    methods (Access = public)
@@ -29,30 +29,38 @@ classdef Discretizer < handle
          obj.checkTimeDependence(symmod,mat,simParams);
       end
       
-      function applyBC(obj,bound,t)
-         % Apply boundary condition to blocks of physical solver
-         % ents: id of constrained entity
-         % vals: value to assign to each entity
-         bcList = bound.db.keys;
-         % get entities and values of boundary condition
-         for bc = string(bcList)
-            field = bound.getPhysics(bc);
-            % get id of constrained entities and corresponding BC values
-            [bcEnts,bcVals] = getBC(getSolver(obj,field),bound,bc,t);
-            % apply Boundary conditions to each Jacobian/rhs block
-            for f = obj.fields
-               if ~isCoupled(obj,field,f)
-                  continue
-                  % skip pair of uncoupled physics
-               end
-               switch bound.getType(bc)
-                  case 'Dir'
-                     applyDirBC(obj.getSolver({field,f}),field,bcEnts,bcVals);
-                  case {'Neu','VolumeForce'}
-                     applyNeuBC(obj.getSolver({field,f}),bcEnts,bcVals);
-               end
+      function applyBC(obj,bound,t,idDom)
+        % Apply boundary condition to blocks of physical solver
+        % ents: id of constrained entity
+        % vals: value to assign to each entity
+        bcList = bound.db.keys;
+        % get entities and values of boundary condition
+        for bc = string(bcList)
+          field = bound.getPhysics(bc);
+          % get id of constrained entities and corresponding BC values
+          [bcEnts,bcVals] = getBC(getSolver(obj,field),bound,bc,t);
+          if nargin > 3
+            assert(~isempty(obj.interfaceList),['Too many input arguments: ' ...
+              'invalid domain id input for single domain BC imposition']);
+            for i = 1:length(obj.interfaceList)
+              [bcEnts,bcVals] = obj.interfaces(i).removeSlaveBCdofs(field,[bcEnts,bcVals],idDom);
             end
-         end
+          end
+          %removeInterfaceBC(obj,bcEnts,bcVals)
+          % apply Boundary conditions to each Jacobian/rhs block
+          for f = obj.fields
+            if ~isCoupled(obj,field,f)
+              continue
+              % skip pair of uncoupled physics
+            end
+            switch bound.getType(bc)
+              case 'Dir'
+                applyDirBC(obj.getSolver({field,f}),field,bcEnts,bcVals);
+              case {'Neu','VolumeForce'}
+                applyNeuBC(obj.getSolver({field,f}),bcEnts,bcVals);
+            end
+          end
+        end
       end
 
       function applyDirVal(obj,bound,t)
@@ -133,9 +141,10 @@ classdef Discretizer < handle
          out = obj.solver(id);
       end
 
-      function addInterface(obj,interfId)
+      function addInterface(obj,interfId,interf)
         if ~ismember(interfId,obj.interfaceList)
           obj.interfaceList = sort([obj.interfaceList interfId]);
+          obj.interfaces = [obj.interfaces interf];
         end
       end
 
