@@ -1,9 +1,9 @@
 Mesh.Format = 1; // msh output format
 Mesh.MshFileVersion = 2.2; // Version of the MSH file format to use
 
-nX = 3;
-nY = 11;
-nZ = 10;
+nX = 4;
+nY = 21;
+nZ = 30;
 // This variable can then be used in the definition of Gmsh's simplest
 // `elementary entity', a `Point'. A Point is uniquely identified by a tag (
 // strictly positive integer; here `1') and defined by a list of four numbers:

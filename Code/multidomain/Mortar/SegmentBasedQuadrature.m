@@ -35,7 +35,12 @@ classdef SegmentBasedQuadrature < handle
 
       Nm = zeros(obj.nGtri, elemMaster.nNode,obj.nTri);
       Ns = zeros(obj.nGtri,elemSlave.nNode,obj.nTri);
-      Nmult = zeros(obj.nGtri,elemSlave.nNode,obj.nTri);
+      if strcmp(obj.mortar.multiplierType,'P0')
+        d2 = 1;
+      else
+        d2 = elemSlave.nNode;
+      end
+      Nmult = zeros(obj.nGtri,d2,obj.nTri);
 
       if nargout > 3
         [NbubSlave,NbubMaster] = deal(zeros(obj.nGtri,1,obj.nTri));

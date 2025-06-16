@@ -323,25 +323,12 @@ classdef SPFlow < SinglePhysics
          dof = obj.dofm.getLocalDoF(ents,obj.fldId);
       end
 
-      function applyDirVal(obj,bc,id,t)
+      function applyDirVal(obj,dof,vals)
          if isFVTPFABased(obj.model,'Flow')
             % Dirichlet BCs cannot be directly applied to the solution
             % vector
             return
          end
-         switch bc.getCond(id)
-            case 'NodeBC'
-               ents = bc.getEntities(id);
-               vals = bc.getVals(id,t);
-            case 'SurfBC'
-               ents = bc.getLoadedEntities(id);
-               s2n = bc.getEntitiesInfluence(id);
-               vals = s2n*bc.getVals(id,t);
-               % node id contained by constrained surface
-            otherwise
-               error('BC type %s is not available for %s field',cond,obj.field);
-         end
-         dof = bc.getCompEntities(id,ents);
          obj.state.data.pressure(dof) = vals;
       end
 

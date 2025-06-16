@@ -154,11 +154,11 @@ classdef MeshGlueBubbleStabilization < MeshGlue
         multMasterCond = -Mb*invKbb*Mb';
         KubCond = Mb*invKbb*Kub';
 
-        obj.Jmaster{1} = asbM.sparseAssembly() + KubCond;
+        obj.Jmaster{1} = asbM.sparseAssembly(); + KubCond;
         obj.Jslave{1} = asbD.sparseAssembly() + asbDcond.sparseAssembly();
-        obj.Jmult{1} = asbLag.sparseAssembly() + multMasterCond; 
+        obj.Jmult{1} = asbLag.sparseAssembly(); + multMasterCond; 
         poroSlave.J = poroSlave.J + asbKs.sparseAssembly();
-        poroMaster.J = poroMaster.J + asbKm.sparseAssembly();
+        %poroMaster.J = poroMaster.J + asbKm.sparseAssembly();
       end
     end
 

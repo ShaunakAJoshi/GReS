@@ -39,13 +39,7 @@ classdef Discretizer < handle
           field = bound.getPhysics(bc);
           % get id of constrained entities and corresponding BC values
           [bcEnts,bcVals] = getBC(getSolver(obj,field),bound,bc,t);
-          if nargin > 3
-            assert(~isempty(obj.interfaceList),['Too many input arguments: ' ...
-              'invalid domain id input for single domain BC imposition']);
-            for i = 1:length(obj.interfaceList)
-              [bcEnts,bcVals] = obj.interfaces(i).removeSlaveBCdofs(field,[bcEnts,bcVals],idDom);
-            end
-          end
+
           %removeInterfaceBC(obj,bcEnts,bcVals)
           % apply Boundary conditions to each Jacobian/rhs block
           for f = obj.fields
@@ -55,6 +49,13 @@ classdef Discretizer < handle
             end
             switch bound.getType(bc)
               case 'Dir'
+                if nargin > 3
+                  assert(~isempty(obj.interfaceList),['Too many input arguments: ' ...
+                    'invalid domain id input for single domain BC imposition']);
+                  for i = 1:length(obj.interfaceList)
+                    [bcEnts,bcVals] = obj.interfaces(i).removeSlaveBCdofs(field,[bcEnts,bcVals],idDom);
+                  end
+                end
                 applyDirBC(obj.getSolver({field,f}),field,bcEnts,bcVals);
               case {'Neu','VolumeForce'}
                 applyNeuBC(obj.getSolver({field,f}),bcEnts,bcVals);
@@ -63,7 +64,7 @@ classdef Discretizer < handle
         end
       end
 
-      function applyDirVal(obj,bound,t)
+      function applyDirVal(obj,bound,t,idDom)
          % Apply boundary condition to blocks of physical solver
          % ents: id of constrained entity
          % vals: value to assign to each entity
@@ -74,7 +75,15 @@ classdef Discretizer < handle
                continue
             end
             field = bound.getPhysics(bc);
-            getSolver(obj,field).applyDirVal(bound,bc,t);
+            [bcEnts,bcVals] = getBC(getSolver(obj,field),bound,bc,t);
+            if nargin > 3
+              assert(~isempty(obj.interfaceList),['Too many input arguments: ' ...
+                'invalid domain id input for single domain BC imposition']);
+              for i = 1:length(obj.interfaceList)
+                [bcEnts,bcVals] = obj.interfaces(i).removeSlaveBCdofs(field,[bcEnts,bcVals],idDom);
+              end
+            end
+            getSolver(obj,field).applyDirVal(bcEnts,bcVals);
          end
       end
 

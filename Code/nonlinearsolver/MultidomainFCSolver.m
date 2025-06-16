@@ -357,7 +357,7 @@ classdef MultidomainFCSolver < handle
         if ~isempty(obj.domains(i).BoundaryConditions)
 
           % Apply Dirichlet boundary values to i-th domain
-            applyDirVal(discretizer, bc, obj.t);
+            applyDirVal(discretizer, bc, obj.t,i);
         end
       end
     end

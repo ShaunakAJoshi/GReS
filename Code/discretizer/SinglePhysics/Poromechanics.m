@@ -248,20 +248,7 @@ classdef Poromechanics < SinglePhysics
       vals = obj.getBCVals(bc,id,t);
     end
 
-    function applyDirVal(obj,bc,id,t)
-      switch bc.getCond(id)
-        case 'NodeBC'
-          ents = bc.getEntities(id);
-          vals = bc.getVals(id,t);
-        case 'SurfBC'
-          ents = bc.getLoadedEntities(id);
-          s2n = bc.getEntitiesInfluence(id);
-          vals = s2n*bc.getVals(id,t);
-          % node id contained by constrained surface
-        otherwise
-          error('BC type %s is not available for %s field',cond,obj.field);
-      end
-      dof = bc.getCompEntities(id,ents);
+    function applyDirVal(obj,dof,vals)
       obj.state.data.dispConv(dof) = vals;
       obj.state.data.dispCurr(dof) = vals;
     end
@@ -370,10 +357,6 @@ classdef Poromechanics < SinglePhysics
     end
 
     function vals = getBCVals(obj,bc,id,t)
-      if strcmp(bc.getType(id),'Dir')
-        vals = [];
-        return
-      end
       vals = bc.getVals(id,t);
       if strcmp(bc.getCond(id),'SurfBC')
         entInfl = bc.getEntitiesInfluence(id);

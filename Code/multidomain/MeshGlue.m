@@ -246,7 +246,7 @@ classdef MeshGlue < Mortar
       elem = obj.getElem(2,el);
       switch obj.multiplierType
         case 'P0'
-          Nmult = ones(elem.GaussPts.nNode,1);
+          Nmult = ones(size(NslaveIn,1),1);
         case 'standard'
           Nmult = NslaveIn;
         case 'dual'

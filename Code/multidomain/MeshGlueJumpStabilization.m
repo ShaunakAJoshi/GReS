@@ -91,7 +91,7 @@ classdef MeshGlueJumpStabilization < MeshGlue
         % apply scaling due to relative grid size
         Am = mean(obj.mesh.msh(1).surfaceArea(fM));
         As = mean(obj.mesh.msh(2).surfaceArea(fS));
-        %S = (Am/As)*S;
+        S = (Am/As)*S;
 
         % assemble stabilization matrix component
         for iesLoc = ieS'
