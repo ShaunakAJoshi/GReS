@@ -30,29 +30,26 @@ classdef Elements < handle
   end
 
   methods (Access = public)
-    function obj = Elements(mesh,interpOrd,nGaussPt)
+    function obj = Elements(mesh,nGaussPt)
         obj.mesh = mesh;
         if nargin < 2
-          interpOrd = 1;
-          nGaussPt = 1;
-        elseif nargin < 3
           nGaussPt = 1;
         end
-        setElementData(obj,mesh,interpOrd,nGaussPt);
+        setElementData(obj,mesh,nGaussPt);
     end
 
 
-    function createElement(obj,id,msh,io,ng)
+    function createElement(obj,id,msh,ng)
       k = obj.mapVTK2elem(id);
       switch id
         case 12
-          obj.elems{k} = Hexahedron(io,ng,msh);
+          obj.elems{k} = Hexahedron(ng,msh);
         case 10
-          obj.elems{k} = Tetrahedron(io,ng,msh);
+          obj.elems{k} = Tetrahedron(ng,msh);
         case 9
-          obj.elems{k} = Quadrilateral(io,ng,msh);
+          obj.elems{k} = Quadrilateral(ng,msh);
         case 5
-          obj.elems{k} = Triangle(io,ng,msh);
+          obj.elems{k} = Triangle(ng,msh);
         otherwise
           error('Finite element of vtk type %i not yet implemented \n',id)
       end
@@ -61,7 +58,7 @@ classdef Elements < handle
   end
 
   methods (Access = private)
-    function setElementData(obj,msh,i,g)
+    function setElementData(obj,msh,g)
 
       obj.mapVTK2elem = zeros(max(obj.vtk3DTypeList),1);
       vtkList = [obj.vtk2DTypeList obj.vtk3DTypeList];
@@ -74,7 +71,7 @@ classdef Elements < handle
         nC = sum(obj.mesh.cellVTKType == vtk);
         if nC > 0
           obj.nCellsByType(c3D) = nC;
-          obj.createElement(vtk,msh,i,g);
+          obj.createElement(vtk,msh,g);
         end
       end
 
@@ -85,7 +82,7 @@ classdef Elements < handle
         nC = sum(obj.mesh.surfaceVTKType == vtk);
         if nC > 0
           obj.nSurfByType(c2D) = nC;
-          obj.createElement(vtk,msh,i,g);
+          obj.createElement(vtk,msh,g);
         end
       end
     end

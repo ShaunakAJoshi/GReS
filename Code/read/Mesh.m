@@ -97,7 +97,7 @@ classdef Mesh < handle
       end
       obj.nNodes = size(obj.coordinates,1);
       % cellsID = 3D element tag for readGMSHmesh.cpp
-      cellsID = [4, 5, 6, 7];
+      cellsID = [4, 5, 6, 7, 12];
       ID = ismember(elems(:,1), cellsID);
       obj.cellNumVerts = elems(ID,3);
       nVerts = max(obj.cellNumVerts);

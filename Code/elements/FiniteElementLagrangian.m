@@ -17,10 +17,9 @@ classdef (Abstract) FiniteElementLagrangian < handle
   methods (Access = public)
 
     % Abstract class constructor
-    function obj = FiniteElementLagrangian(interpolationOrder,ng,mesh)
-        obj.interpOrd = interpolationOrder;
+    function obj = FiniteElementLagrangian(ng,mesh)
         obj.nGP = ng;
-      if nargin > 2
+      if nargin > 1
         obj.mesh = mesh;
       end
       setElement(obj);
