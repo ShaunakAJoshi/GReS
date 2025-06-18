@@ -1,4 +1,4 @@
-Mesh.Format = 1; // msh output format
+Mesh.Format = 16; // msh output format
 Mesh.MshFileVersion = 2.2; // Version of the MSH file format to use
 
 nX = 1;
@@ -50,4 +50,4 @@ Mesh.ElementOrder = 2;
 Mesh.SecondOrderIncomplete = 0;  // <== ENSURES FULL HEXA-27
 
 Mesh 3;
-Save "cube.msh";
+Save "cube.vtk";

@@ -37,12 +37,11 @@ classdef Biot < CouplingPhysics
         function computeMatBiot(obj)
             % get domain ID with active Poro and Flow field
             subCells = obj.dofm.getFieldCells(obj.fields);
-            nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),[10, 12, 13, 14]);
             switch obj.flowScheme
               case 'FEM'
-                nEntries = (obj.mesh.nDim*obj.elements.nNodesElem.^2)*nSubCellsByType;
+                nEntries = sum((obj.mesh.nDim)*(obj.mesh.cellNumVerts(subCells)).^2);
               case 'FV'
-                nEntries = (obj.mesh.nDim*obj.elements.nNodesElem)*nSubCellsByType;
+                nEntries = sum((obj.mesh.nDim)*(obj.mesh.cellNumVerts(subCells)));
             end
             [iiVec,jjVec,Qvec] = deal(zeros(nEntries,1));
             nDoF1 = obj.dofm.getNumDoF(obj.fields{1});

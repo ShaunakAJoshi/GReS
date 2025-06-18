@@ -53,7 +53,7 @@ classdef Hexahedron < FiniteElementLagrangian
       %    3) dJWeighed = getDerBasisFAndDet(obj,el,3)
 
       coords = obj.mesh.coordinates(obj.mesh.cells(el,:),:);
-      [N, dJw] = mxGetDerBasisAndDetHexa(obj.Jref,coords,obj.GaussPts.weight);
+      [N, dJw] = mxGetDerBasisAndDet(obj.Jref,coords,obj.GaussPts.weight);
 
       switch flOut
         case 1
@@ -182,6 +182,8 @@ classdef Hexahedron < FiniteElementLagrangian
         (1+obj.coordLoc(j,2).*obj.GaussPts.coord(i,2)).* ...
         (1+obj.coordLoc(j,3).*obj.GaussPts.coord(i,3)), ...
         (1:obj.GaussPts.nNode)',1:obj.mesh.cellNumVerts(1));
+
+      obj.Nref = reshape(obj.Nref,[],obj.nNode);
     end
 
     function findLocBubbleBasisF(obj)

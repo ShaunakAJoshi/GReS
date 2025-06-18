@@ -36,20 +36,20 @@ classdef Mortar < handle
         case 'RBF'
           nG = inputStruct.Quadrature.nGPAttribute;
           nInt = inputStruct.Quadrature.nIntAttribute;
-          obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
-            Elements(obj.mesh.msh(2),1,nG)];
+          obj.elements = [Elements(obj.mesh.msh(1),nG),...
+            Elements(obj.mesh.msh(2),nG)];
           obj.quadrature = RBFquadrature(obj,nInt);
         case 'ElementBased'
            nG = inputStruct.Quadrature.nGPAttribute;
-          obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
-            Elements(obj.mesh.msh(2),1,nG)];
+          obj.elements = [Elements(obj.mesh.msh(1),nG),...
+            Elements(obj.mesh.msh(2),nG)];
           obj.quadrature = ElementBasedQuadrature(obj);
           obj.quadrature2 = RBFquadrature(obj,6);
         case 'SegmentBased'
           obj.quadrature = SegmentBasedQuadrature(obj,inputStruct.Quadrature.nGPAttribute);
           nG = 2; % dummy nG for elements deifnition
-          obj.elements = [Elements(obj.mesh.msh(1),1,nG),...
-            Elements(obj.mesh.msh(2),1,nG)];
+          obj.elements = [Elements(obj.mesh.msh(1),nG),...
+            Elements(obj.mesh.msh(2),nG)];
       end
       setPrintUtils(obj,inputStruct,domains(2).OutState);
     end

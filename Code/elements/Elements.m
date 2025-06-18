@@ -5,9 +5,10 @@ classdef Elements < handle
     % Mesh reference
     mesh
 
-    % list of elements istances [#tri, #quad, #tetra, #hexa #wed, #pyr]
+    % list of elements istances 
+    % [#tri, #quad, #tetra, #hexa #wed, #pyr, #quad9, #hexa27]
     mapVTK2elem
-    elems = cell(1,6)
+    elems = cell(1,8)
 
     % Element and surface type counts
     nCellsByType = zeros(1,4)     % [#tetra, #hexa, #wed, #pyr]
@@ -16,9 +17,9 @@ classdef Elements < handle
 
   properties (Constant)
     % available finite elements 
-    vtk3DTypeList = [10,12,13,14]
-    vtk2DTypeList = [5,9]
-    nNodesElem = [4,8,6,5]
+    vtk3DTypeList = [10,12,13,14,29]
+    vtk2DTypeList = [5,9,28]
+    nNodesElem = [3,4,9,4,8,27]
   end
 
 
@@ -50,6 +51,10 @@ classdef Elements < handle
           obj.elems{k} = Quadrilateral(ng,msh);
         case 5
           obj.elems{k} = Triangle(ng,msh);
+        case 28
+          obj.elems{k} = QuadrilateralQuadratic(ng,msh);
+        case 29
+          obj.elems{k} = HexahedronQuadratic(ng,msh);
         otherwise
           error('Finite element of vtk type %i not yet implemented \n',id)
       end

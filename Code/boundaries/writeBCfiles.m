@@ -32,7 +32,7 @@ fprintf(fID,'%s            %% Physics \n',physic(1));
 % Direction
 if strcmp(physic(1),'Poromechanics')
    dir = physic(2:end);
-   if strcmp(type,'Neu')
+   if strcmp(type,'Neu') && strcmp(item,'SurfBC')
       assert(numel(physic)==2,['Only one direction at time is allowed for' ...
          ' Poromechanics Neumann BCs ']);
       fprintf(fID,'%s \n',dir);
@@ -77,13 +77,13 @@ if strcmp(ph,'SinglePhaseFlow') || strcmp(ph,'VariablySaturatedFlow')
    fprintf(fList,'%i         %% Number of fixed entities \n',length(list));
    fprintf(fList,'%i \n',list);
 else
-   if strcmp(type,'Dir')
+   if strcmp(type,'Dir') || strcmp(item,'NodeBC')
       tmp = ismember(["x","y","z"],dir);
       fprintf(fList,'%i ',tmp*length(list));
       fprintf(fList,'   %% Number of fixed entities \n');
       list = repmat(list,sum(tmp),1);
       fprintf(fList,'%i \n',list);
-   elseif strcmp(type,'Neu')
+   elseif strcmp(type,'Neu') && strcmp(item,'SurfBC')
       fprintf(fList,'%i ',length(list));
       fprintf(fList,'   %% Number of fixed entities \n');
       fprintf(fList,'%i \n',list);

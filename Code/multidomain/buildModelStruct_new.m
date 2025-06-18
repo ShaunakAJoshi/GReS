@@ -26,7 +26,7 @@ function modStr = getModelStruct(str,simParam)
   
   gNPoints = str.Gauss;
   if ~ismissing(gNPoints)
-    elems = Elements(topology,1,gNPoints);
+    elems = Elements(topology,gNPoints);
   else
     elems = Elements(topology);
   end

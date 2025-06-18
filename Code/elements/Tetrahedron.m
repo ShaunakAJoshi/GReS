@@ -36,7 +36,7 @@ classdef Tetrahedron < FiniteElementLagrangian
         N = invMat(2:obj.nNode,:);
       else
         coords = obj.mesh.coordinates(obj.mesh.cells(el,:),:);
-        [N, dJw] = mxGetDerBasisAndDetTetra(obj.Jref,coords,obj.GaussPts.weight);
+        [N, dJw] = mxGetDerBasisAndDet(obj.Jref,coords,obj.GaussPts.weight);
       end
 
       switch flOut
@@ -106,6 +106,7 @@ classdef Tetrahedron < FiniteElementLagrangian
       obj.Jref = [-1 1 0 0;
         -1 0 1 0;
         -1 0 0 1];
+      obj.Jref = repmat(obj.Jref,1,1,obj.GaussPts.nNode);
     end
 
     function setElement(obj)

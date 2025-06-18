@@ -28,12 +28,12 @@ classdef DoFManager < handle
          obj.cellTags = mesh.cellTag;
          obj.fields = struct('field',[],'subdomainEnts',[],...
             'subID',[],'scheme',[],'entCount',[]);
-         obj.tag2subDomain = zeros(mesh.nCellTag,1);
+         obj.tag2subDomain = ones(mesh.nCellTag,1);
          % deal with variable imput
          switch nargin
             case 2 % no subdomains defined
                obj.ordering = 'field';
-               obj.tag2subDomain(:) = 1; % only one subdomain
+               obj.tag2subDomain = ones(mesh.nCellTag,1); % only one subdomain
                availFields = obj.model.getAvailPhysics();
                for field = (string(availFields))'
                   % assign all available fields to one subdomain

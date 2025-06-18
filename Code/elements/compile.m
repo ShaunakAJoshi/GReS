@@ -1,2 +1,2 @@
-mex -O mex/mxGetDerBasisAndDetHexa.cpp 
-mex -O mex/mxGetDerBasisAndDetTetra.cpp 
+cd mex
+mex -O mxGetDerBasisAndDet.cpp 

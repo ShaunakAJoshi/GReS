@@ -31,9 +31,8 @@ mat = Materials(model,fileName);
 
 
 % Create an object of the "Elements" class and process the element properties
-interpolationOrder = 1;
-gaussOrder = 1;
-elems = Elements(topology,interpolationOrder,gaussOrder);
+gaussOrder = 2;
+elems = Elements(topology,gaussOrder);
 
 %calling analytical solution script
 Terzaghi_analytical(topology, mat, 10)

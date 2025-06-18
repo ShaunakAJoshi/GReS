@@ -38,9 +38,8 @@ classdef Triangle < FiniteElementLagrangian
         % 3D setting
         coord = obj.mesh.coordinates(obj.mesh.surfaces(in,:),1:obj.mesh.nDim);
         J = pagemtimes(obj.Jref,coord);
-        for i = 1:obj.GaussPts.nNode
-          obj.detJ(i) = norm(cross(J(1,:,i),J(2,:,i)),2);
-        end
+        % jacobian is constant in a simplex
+        obj.detJ = norm(cross(J(1,:,1),J(2,:,1)),2);
         outVar1 = obj.detJ.*(obj.GaussPts.weight)';
       else
         % 2D setting: 'in' is a given list of x-y coordinates

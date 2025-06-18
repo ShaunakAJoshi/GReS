@@ -23,9 +23,9 @@ simParam = SimulationParameters(fileName,model);
 topology = Mesh();
 
 % Set the mesh input file name
-fileName = 'Mesh/cube.msh';
+fileName = 'Mesh/cube.vtk';
 % Import the mesh data into the Mesh object
-topology.importGMSHmesh(fileName);
+topology.importMesh(fileName);
 
 % Create an object of the Materials class and read the materials file
 fileName = 'materialsList.dat';
@@ -33,8 +33,8 @@ mat = Materials(model,fileName);
 
 
 % Create an object of the "Elements" class and process the element properties
-gaussOrder = 2;
-elems = Elements(topology,gaussOrder);
+ngp = 2;
+elems = Elements(topology,ngp);
 
 % Create an object of the "Faces" class and process the face properties
 faces = Faces(model, topology);
@@ -54,17 +54,20 @@ linSyst = Discretizer(model,simParam,dofmanager,grid,mat);
 linSyst.setState();
 
 % Create and set the print utility
-printUtils = OutState(model,topology,'outTime.dat','folderName','Output_Terzaghi_tetra','flagMatFile',true);
+printUtils = OutState(model,topology,'outTime.dat','folderName','Output_PatchTest');
 
 
 % % Write BC files programmatically with function utility 
 % F = -10; % vertical force
-% setTerzaghiBC('BCs',F,topology);
 % 
 % % Collect BC input file in a list
 % fileName = ["BCs/dirFlowTop.dat","BCs/neuPorotop.dat",...
 %    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
 % %
+writeBCfiles('BCs/fixBot','SurfBC','Dir',{'Poromechanics','x','y','z'},'bottom_fixed',0,0,topology,2); 
+writeBCfiles('BCs/topLoad','NodeBC','Neu',{'Poromechanics','z'},'top_load',0,-1,topology,1); % left block lateral fix
+
+fileName = ["BCs/fixBot.dat","BCs/topLoad.dat"];
 % Create an object of the "Boundaries" class 
 bound = Boundaries(fileName,model,grid);
 

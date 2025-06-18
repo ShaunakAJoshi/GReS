@@ -108,10 +108,8 @@ classdef SPFlow < SinglePhysics
       function computeMatFEM(obj)
 
         subCells = obj.dofm.getFieldCells(obj.field);
-        nSubCellsByType = histc(obj.mesh.cellVTKType(subCells),obj.elements.vtk3DTypeList);
+        nEntries = sum(obj.mesh.cellNumVerts(subCells).^2);
 
-        % Compute the stiffness (H) and mass (P) matrices for the flow problem by FEM
-        nEntries = (obj.elements.nNodesElem.^2)*nSubCellsByType;
         [iiVec,jjVec,HVec,PVec] = deal(zeros(nEntries,1));
 
         % Get the fluid compressibility
