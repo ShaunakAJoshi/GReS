@@ -28,7 +28,7 @@ classdef DoFManager < handle
          obj.cellTags = mesh.cellTag;
          obj.fields = struct('field',[],'subdomainEnts',[],...
             'subID',[],'scheme',[],'entCount',[]);
-         obj.tag2subDomain = ones(mesh.nCellTag,1);
+         obj.tag2subDomain = zeros(mesh.nCellTag,1);
          % deal with variable imput
          switch nargin
             case 2 % no subdomains defined

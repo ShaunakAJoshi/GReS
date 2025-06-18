@@ -29,6 +29,12 @@ classdef assembler < handle
       % Call local assembler and manage output
       allOut = cell(3 + nOut, 1);
       [allOut{:}] = obj.computeLocal(varargin{:});
+
+      assert(numel(allOut) > 2,['At least 3 output are required: \n' ...
+        'out(1): list of local row dofs \n' ...
+        'out(2): list of local column dofs \n' ...
+        'out(3): list of local values.']);
+
       dofr      = allOut{1};
       dofc      = allOut{2};
       localMat  = allOut{3};

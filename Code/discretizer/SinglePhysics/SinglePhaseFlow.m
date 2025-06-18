@@ -1,4 +1,4 @@
-classdef SPFlow < SinglePhysics
+classdef SinglePhaseFlow < SinglePhysics
    %POROMECHANICS
    % Subclass of Discretizer
    % Implement Poromechanics methods to assemble the stiffness matrix and
@@ -12,14 +12,14 @@ classdef SPFlow < SinglePhysics
       P
    end
 
+   properties (Constant)
+     field = 'SinglePhaseFlow'
+   end
+
    methods (Access = public)
-      function obj = SPFlow(symmod,params,dofManager,grid,mat,state,varargin)
-         if isempty(varargin)
-            fieldName = 'SinglePhaseFlow';
-         else
-            fieldName = varargin{1};
-         end
-         obj@SinglePhysics(fieldName,symmod,params,dofManager,grid,mat,state);
+      function obj = SinglePhaseFlow(symmod,params,dofManager,grid,mat,state)
+         obj@SinglePhysics(symmod,params,dofManager,grid,mat,state);
+         obj.fldId = obj.dofm.getFieldId(obj.field);
          if obj.model.isFVTPFABased('Flow')
             obj.computeTrans;
             %get cells with active flow model
@@ -84,7 +84,7 @@ classdef SPFlow < SinglePhysics
             otherwise
                error('Wrong number of input arguments');
          end
-         [cellData,pointData] = SPFlow.buildPrintStruct(obj.model,pressure,fluidPot);
+         [cellData,pointData] = SinglePhaseFlow.buildPrintStruct(obj.model,pressure,fluidPot);
       end
 
       function computeMat(obj,~,dt)
@@ -421,20 +421,24 @@ classdef SPFlow < SinglePhysics
    methods (Static)
       function [cellStr,pointStr] = buildPrintStruct(mod,press,pot)
          if isFEMBased(mod,'Flow')
-            cellStr = [];
-            pointStr = repmat(struct('name', 1, 'data', 1), 2, 1);
-            pointStr(1).name = 'pressure';
-            pointStr(1).data = press;
-            pointStr(2).name = 'potential';
-            pointStr(2).data = pot;
+           cellStr = [];
+           pointStr = repmat(struct('name', 1, 'data', 1), 2, 1);
+           pointStr(1).name = 'pressure';
+           pointStr(1).data = press;
+           pointStr(2).name = 'potential';
+           pointStr(2).data = pot;
          elseif isFVTPFABased(mod,'Flow')
-            pointStr = [];
-            cellStr = repmat(struct('name', 1, 'data', 1), 2, 1);
-            cellStr(1).name = 'pressure';
-            cellStr(1).data = press;
-            cellStr(2).name = 'potential';
-            cellStr(2).data = pot;
+           pointStr = [];
+           cellStr = repmat(struct('name', 1, 'data', 1), 2, 1);
+           cellStr(1).name = 'pressure';
+           cellStr(1).data = press;
+           cellStr(2).name = 'potential';
+           cellStr(2).data = pot;
          end
+      end
+
+      function out = getField()
+        out = SinglePhaseFlow.field;
       end
    end
 end

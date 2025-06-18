@@ -1,4 +1,4 @@
-classdef VSFlow < SPFlow
+classdef VariablySaturatedFlow < SinglePhaseFlow
     % Variably Saturated flow
     % Subclass of SPFlow
     % Implements Richards equations for unsaturated flow in vadose region
@@ -11,9 +11,9 @@ classdef VSFlow < SPFlow
     end
 
     methods (Access = public)
-        function obj = VSFlow(symmod,params,dofManager,grid,mat,state)
+        function obj = VariablySaturatedFlow(symmod,params,dofManager,grid,mat,state)
             % initialize as SPFlow class
-            obj@SPFlow(symmod,params,dofManager,grid,mat,state,'VSFlow');
+            obj@SinglePhaseFlow(symmod,params,dofManager,grid,mat,state);
         end
 
         function computeMat(obj,stateOld,dt)
@@ -76,7 +76,7 @@ classdef VSFlow < SPFlow
                     error('Wrong number of input arguments');
             end
             saturation = obj.material.computeSwAnddSw(obj.mesh,pressure);
-            [cellData,pointData] = VSFlow.buildPrintStruct(pressure,fluidPot,saturation);
+            [cellData,pointData] = VariablySaturatedFlow.buildPrintStruct(pressure,fluidPot,saturation);
         end
 
         function out = isLinear(obj)
@@ -145,6 +145,10 @@ classdef VSFlow < SPFlow
             cellStr(2).data = pot;
             cellStr(3).name = 'saturation';
             cellStr(3).data = sat;
+        end
+
+        function out = getField()
+          out = 'VariablySaturatedFlow';
         end
     end
 end

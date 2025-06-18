@@ -11,7 +11,7 @@ scriptDir = fileparts(scriptFullPath);
 cd(scriptDir);
 
 % Set physical models 
-model = ModelType(["SinglePhaseFlow_FEM","Poromechanics_FEM"]);
+model = ModelType(["SinglePhaseFlow_FVTPFA","Poromechanics_FEM"]);
 
 % Set parameters of the simulation
 fileName = "simParam.dat";
@@ -21,7 +21,7 @@ simParam = SimulationParameters(fileName,model);
 topology = Mesh();
 
 % Set the mesh input file name
-fileName = 'Mesh/Column_tetra.msh';
+fileName = 'Mesh/Column_hexa.msh';
 % Import the mesh data into the Mesh object
 topology.importGMSHmesh(fileName);
 

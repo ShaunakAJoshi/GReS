@@ -235,18 +235,9 @@ classdef Boundaries < handle
         error('%s boundary condition name already defined', name);
       end
       switch token
-        case {'NodeBC', 'ElementBC'}
+        case {'NodeBC', 'ElementBC','SurfBC'}
           obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
             'cond',token,'type', type, 'physics', physics);
-        case 'SurfBC'
-          switch physics
-            case {'SinglePhaseFlow','VariablySaturatedFlow'}
-              obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
-                'cond',token,'type', type, 'physics', physics);
-            case 'Poromechanics'
-              obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
-                'cond', token,'type', type, 'physics', physics);
-          end
         case 'VolumeForce'
           obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
             'cond',token, 'physics', physics);

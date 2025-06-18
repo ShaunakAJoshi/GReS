@@ -3,7 +3,7 @@ classdef ModelType < handle
   %   Detailed explanation goes here
   
   properties (Access = private)
-    ModSettings = zeros(3,1); % [Poromechanics; Flow; Thermal]
+    ModSettings = zeros(3,1); % [Poromechanics; Flow; Poisson]
     % ModSettings(1) -> Poromechanics
     %    0   -> The model is inactive
     %  10-19 -> Continuous mechanics
@@ -12,6 +12,10 @@ classdef ModelType < handle
     %    0   -> The model is inactive
     %  10-19 -> Single-phase flow
     %  20-29 -> Variably saturated flow (Richards eq.)
+
+    % ModSettings(3) -> Poisson
+    %    0   -> The model is inactive
+    %  10-19 -> Poisson problem with non homogeneous bcs
     %   ...
     %
     % Discretization schemes:
@@ -34,6 +38,13 @@ classdef ModelType < handle
     function out = isFlow(obj)
       out = false;
       if obj.ModSettings(2) > 0
+        out = true;
+      end
+    end
+
+    function out = isPoisson(obj)
+      out = false;
+      if obj.ModSettings(3) > 0
         out = true;
       end
     end
@@ -81,6 +92,7 @@ classdef ModelType < handle
           "Poromechanics", @isPoromechanics
           "SinglePhaseFlow", @isSinglePhaseFlow;
           "VariablySaturatedFlow", @isVariabSatFlow;
+          "Poisson", @isPoisson;
           };
        physics = physicsList(cellfun(@(f) f(obj), physicsList(:, 2)), 1);
     end
@@ -114,10 +126,13 @@ end
           case 'VariabSatFlow'
             r = 2;
             v = 20;
+          case 'Poisson'
+            r = 3;
+            v = 10;
           otherwise
             error(['%s model is invalid\n', ...
               'Accepted physics are: Poromechanics, SinglePhaseFlow,\n', ...
-              'VariabSatFlow'],spltStr(1));
+              'VariabSatFlow, Poisson'],spltStr(1));
         end
         if obj.ModSettings(r) ~= 0
           s = ModelType.findPhysicsFromID(r);
@@ -156,7 +171,7 @@ end
           r = 1;
         case {'Flow','SinglePhaseFlow','VariablySaturatedFlow'}
           r = 2;
-        case 'Thermal'
+        case 'Poisson'
           r = 3;
         otherwise
           error(['%s model is invalid\n', ...
@@ -171,7 +186,7 @@ end
         case 2
           s = 'Flow';
         case 3
-          s = 'Thermal';
+          s = 'Poisson';
       end
     end
   end

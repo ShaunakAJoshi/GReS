@@ -31,7 +31,7 @@ fileName = 'materialsListElastic.dat';
 mat = Materials(model,fileName);
 
 % Create an object of the "Elements" class and process the element properties
-elems = Elements(topology,1,2);
+elems = Elements(topology,2);
 
 % Create an object of the "Faces" class and process the face properties
 faces = Faces(model, topology);
@@ -65,9 +65,10 @@ bound = Boundaries(fileName,model,grid);
 % perform a fully coupled simulation
 solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst);
 [simState] = solver.NonLinearLoop();
-profile viewer
+
 % Finalize the print utility
 printUtils.finalize()
+
 
 %% POST PROCESSING
 

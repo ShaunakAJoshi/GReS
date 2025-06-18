@@ -30,7 +30,7 @@ fileName = 'materialsList.dat';
 mat = Materials(model,fileName);
 
 % Create an object of the "Elements" class and process the element properties
-elems = Elements(topology,1,2);
+elems = Elements(topology,2);
 
 %calling analytical solution script
 Mandel_Analytical(topology, mat, 10)

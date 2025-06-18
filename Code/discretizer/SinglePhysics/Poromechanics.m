@@ -5,13 +5,14 @@ classdef Poromechanics < SinglePhysics
     cell2stress     % map cell ID to position in stress/strain matrix
   end
 
-%   properties (Constant)
-%     nEntryKLoc      % Entries of local stiffness matrix per elem type
-%   end
+  properties (Constant)
+    field = 'Poromechanics'
+  end
 
   methods (Access = public)
     function obj = Poromechanics(symmod,params,dofManager,grid,mat,state)
-      obj@SinglePhysics('Poromechanics',symmod,params,dofManager,grid,mat,state);
+      obj@SinglePhysics(symmod,params,dofManager,grid,mat,state);
+      obj.fldId = obj.dofm.getFieldId(obj.field);
       setPoromechanics(obj)
     end
 
@@ -282,24 +283,24 @@ classdef Poromechanics < SinglePhysics
         obj.rhs = obj.fInt; % provisional assuming theta = 1;
       end
     end
-
-    function blk = blockJacobian(obj,varargin)
-      fRow = varargin{1};
-      fCol = varargin{2};
-      locRow = obj.dofm.field2block(fRow);
-      locCol = obj.dofm.field2block(fCol);
-      blk = obj.simParams.theta*obj.K(locRow,locCol);
-    end
-
-    function blk = blockRhs(obj, fld)
-      if ~strcmp(obj.dofm.subPhysics(fld), 'Poro')
-        % no contribution to non poro fields
-        blk = 0;
-      else
-        dofs = obj.dofm.field2block(fld);
-        blk = obj.rhs(dofs);
-      end
-    end
+% 
+%     function blk = blockJacobian(obj,varargin)
+%       fRow = varargin{1};
+%       fCol = varargin{2};
+%       locRow = obj.dofm.field2block(fRow);
+%       locCol = obj.dofm.field2block(fCol);
+%       blk = obj.simParams.theta*obj.K(locRow,locCol);
+%     end
+% 
+%     function blk = blockRhs(obj, fld)
+%       if ~strcmp(obj.dofm.subPhysics(fld), 'Poro')
+%         % no contribution to non poro fields
+%         blk = 0;
+%       else
+%         dofs = obj.dofm.field2block(fld);
+%         blk = obj.rhs(dofs);
+%       end
+%     end
 
     function out = isLinear(obj)
       out = false;
@@ -419,6 +420,10 @@ classdef Poromechanics < SinglePhysics
       Ks = pagemtimes(pagemtimes(a,'ctranspose',b,'none'),c);
       Ks = Ks.*reshape(dJW,1,1,[]);
       Kloc = sum(Ks,3);
+    end
+
+    function out = getField()
+      out = Poromechanics.field;
     end
   end
 end

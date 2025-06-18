@@ -17,6 +17,10 @@ classdef Discretizer < handle
      state
    end
 
+   properties (Access = private)
+     solverMap
+   end
+
    methods (Access = public)
       function obj = Discretizer(symmod,simParams,dofManager,grid,mat)
          %UNTITLED Construct an instance of this class
@@ -194,6 +198,7 @@ classdef Discretizer < handle
 
    methods(Access = private)
       function setDiscretizer(obj,symmod,params,dofManager,grid,mat)
+        obj.setSolverMap();
         flds = getFieldList(obj.dofm);
         nF = numel(flds);
         % loop over all fields and define corresponding models
@@ -202,69 +207,75 @@ classdef Discretizer < handle
         % modules
         stat = State();
         for i = 1:nF
-            for j = i:nF
-               k = k+1;
-               addPhysics(obj,k,flds(i),flds(j),symmod,params,dofManager,grid,mat,stat);
-            end
+          for j = i:nF
+            k = k+1;
+            addPhysics(obj,k,flds(i),flds(j),symmod,params,dofManager,grid,mat,stat);
+          end
         end
         obj.state = stat;
-         obj.fields = flds;
-         obj.numSolvers = k;
+        obj.fields = flds;
+        obj.numSolvers = k;
       end
 
       function checkTimeDependence(obj,mod,mat,parm)
-         % check if there is any time dependence in the input model
-         % no time dependence in absence of flow and
-         % incompressible single phase flow model.
-         if ~isSinglePhaseFlow(mod)
-            % Biot model is time dependent
+        % check if there is any time dependence in the input model
+        % no time dependence in absence of flow and
+        % incompressible single phase flow model.
+        if ~isSinglePhaseFlow(mod)
+          % Biot model is time dependent
+          setTimeDependence(parm,false);
+          return
+        else
+          % check if fluid is incompressible
+          beta = getFluidCompressibility(mat.getFluid());
+          if beta < eps
             setTimeDependence(parm,false);
-            return
-         else
-            % check if fluid is incompressible
-            beta = getFluidCompressibility(mat.getFluid());
-            if beta < eps
-               setTimeDependence(parm,false);
-            end
-         end
+          end
+        end
       end
 
       function addPhysics(obj,id,f1,f2,mod,parm,dof,grid,mat,state)
-         % Add new key to solver database
-         % Prepare input fields for solver definition
-         if ~isCoupled(obj,f1,f2)
-            return
-         end
-         f = sort({char(f1),char(f2)});
-         f = join(f,'_');
-         switch f{:}
-           case 'SinglePhaseFlow_SinglePhaseFlow'
-               obj.solver(id) = SPFlow(mod,parm,dof,grid,mat,state);
-            case 'Poromechanics_Poromechanics'
-               obj.solver(id) = Poromechanics(mod,parm,dof,grid,mat,state);
-           case 'Poromechanics_SinglePhaseFlow'
-               assert(isSinglePhaseFlow(mod),['Coupling between' ...
-                  'poromechanics and unsaturated flow is not yet implemented']);
-               obj.solver(id) = Biot(mod,parm,dof,grid,mat,state);
-           case 'VariablySaturatedFlow_VaraiablySaturatedFlow'
-               obj.solver(id) = VSFlow(mod,parm,dof,grid,mat,state);
-            otherwise
-               error('A physical module coupling %s with %s is not available!',f1,f2)
-         end
+        % Add new key to solver database
+        % Prepare input fields for solver definition
+        if ~isCoupled(obj,f1,f2)
+          return
+        end
+        f = join(unique(sort({char(f1),char(f2)})));
+
+        if ~obj.solverMap.isKey(string(f{:}))
+          error('A physical module coupling %s with %s is not available!',f1,f2)
+        else
+          solv = obj.solverMap(f{:});
+        end
+
+        obj.solver(id) = solv(mod,parm,dof,grid,mat,state);
       end
+
+      function setSolverMap(obj)
+
+        obj.solverMap = containers.Map('KeyType','char','ValueType','any');
+
+        subClasses = [findSubClasses('SinglePhysics','SinglePhysics'), ...
+          findSubClasses('CouplingPhysics','CouplingPhysics')];
+
+        for i = 1:numel(subClasses)
+          obj.solverMap = feval([subClasses{i} '.registerSolver'],obj.solverMap,subClasses{i});
+        end
+      end
+
    end
 
    methods (Static)
      function [row,col,val,c] = computeLocalMatrix(mat,row,col,val,c,w,dofRow,dofCol)
-      % shortcut for assemblying local matrix contributions in sparse format
-      mat = mat.*reshape(w,1,1,[]);
-      mat = sum(mat,3);
-      n = numel(mat);
-      [J, I] = meshgrid(1:size(mat,2), 1:size(mat,1));
-      row(c+1:c+n) = dofRow(I); 
-      col(c+1:c+n) = dofCol(J);
-      val(c+1:c+n) = mat(:);
-      c = c+n;
+       % shortcut for assemblying local matrix contributions in sparse format
+       mat = mat.*reshape(w,1,1,[]);
+       mat = sum(mat,3);
+       n = numel(mat);
+       [J, I] = meshgrid(1:size(mat,2), 1:size(mat,1));
+       row(c+1:c+n) = dofRow(I);
+       col(c+1:c+n) = dofCol(J);
+       val(c+1:c+n) = mat(:);
+       c = c+n;
      end
 
      function mat_new = expandMat(mat,n)

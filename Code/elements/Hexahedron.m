@@ -122,7 +122,7 @@ classdef Hexahedron < FiniteElementLagrangian
         vol(i) = sum(dJWeighed);
         assert(vol(i)>0,'Volume less than 0');
         gPCoordinates = getGPointsLocation(obj,el);
-        cellCentroid(i,:) = obj.detJ * gPCoordinates/vol(i);
+        cellCentroid(i,:) = (dJWeighed * gPCoordinates)./vol(i);
       end
     end
 

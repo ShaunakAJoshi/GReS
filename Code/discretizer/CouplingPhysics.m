@@ -1,7 +1,9 @@
 classdef CouplingPhysics < handle
-   % General coupling solver   
+   % General coupling solver 
+
+   properties  
+   end
    properties 
-      fields
       J = cell(2,1)             % 2x1 cell with jacobian blocks of fields
       rhs = cell(2,1)           % 2x1 cell array with rhs blocks of fields
       model
@@ -17,8 +19,7 @@ classdef CouplingPhysics < handle
    end
    
    methods
-      function obj = CouplingPhysics(field1,field2,symmod,params,dofManager,grid,mat,state)
-         obj.fields = {field1,field2};
+      function obj = CouplingPhysics(symmod,params,dofManager,grid,mat,state)
          obj.model = symmod;
          obj.simParams = params;
          obj.dofm = dofManager;
@@ -28,8 +29,6 @@ classdef CouplingPhysics < handle
          obj.material = mat;
          obj.state = state;
          obj.fldId = zeros(2,1);
-         obj.fldId(1) = obj.dofm.getFieldId(field1);
-         obj.fldId(2) = obj.dofm.getFieldId(field2);
       end
       
       function applyDirBC(obj,field,dofs,varargin)
@@ -66,6 +65,15 @@ classdef CouplingPhysics < handle
             'class'],fld);
          rhs = obj.rhs{id};
       end
+   end
+
+   methods (Static)
+     function map = registerSolver(map,solverName)
+      % update map of available solvers 
+      fld = eval([solverName '.getField']);
+      fld = join(sort(fld));
+      map(fld) = str2func(solverName);
+     end
    end
 end
 

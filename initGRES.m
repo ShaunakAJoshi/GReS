@@ -1,31 +1,33 @@
-% Define the root folder (adjust if GReS is located elsewhere)
-gresRoot = pwd;  % or use the full path if needed
-
+function initGRES()
 % List of folders to check
-foldersToCheck = { ...
-    fullfile(gresRoot, "Code"), ...
-    fullfile(gresRoot, "ThirdPartyLibs"), ...
-    fullfile(gresRoot, "Utilities") ...
-};
+foldList = ["Code","ThirdPartyLibs","Utilities"];
 
 % Check if any of the folders is already on the MATLAB path
 needRestore = false;
-for k = 1:numel(foldersToCheck)
-    if contains(path, foldersToCheck{k})
-        needRestore = true;
-        break;
-    end
+for k = 1:numel(foldList)
+  if contains(path, fullfile('GReS',foldList(k)))
+    needRestore = true;
+    break;
+  end
 end
 
 % Restore path only if needed
 if needRestore
-    restoredefaultpath;
+  fprintf('Restoring default paths \n');
+  restoredefaultpath;
+  fprintf('Done Restoring default paths \n');
 end
 
-% Add GReS paths
-addpath(genpath("Code"));
-addpath(genpath("ThirdPartyLibs"));
-addpath(genpath("Utilities"));
-% addpath(genpath("Tests_Develop"));
+% set the root to the gres directory
+gres_root = fileparts(mfilename('fullpath'));
+setappdata(0,'gres_root', gres_root);
 
-clear
+% Add GReS paths
+for k = 1:numel(foldList)
+  addpath(genpath(foldList(k)))
+end
+
+end
+
+
+% addpath(genpath("Tests_Develop"));

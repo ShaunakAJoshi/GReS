@@ -10,15 +10,21 @@ classdef Biot < CouplingPhysics
         flowScheme
     end
 
+    properties (Constant)
+      fields = ["Poromechanics","SinglePhaseFlow"];
+    end
+
     methods (Access = public)
         function obj = Biot(symmod,params,dofManager,grid,mat,state)
-            obj@CouplingPhysics('Poromechanics','SinglePhaseFlow',symmod,params,dofManager,grid,mat,state);
+            obj@CouplingPhysics(symmod,params,dofManager,grid,mat,state);
             if isSinglePhaseFlow(obj.model)
                 obj.flowModel = 'SinglePhaseFlow';
             elseif isVariabSatFlow(obj.model)
                 obj.flowModel = 'VaraiblySsaturatedFlow';
             end
             obj.flowScheme = obj.dofm.getScheme(obj.fields(2));
+            obj.fldId(1) = obj.dofm.getFieldId(obj.fields(1));
+            obj.fldId(2) = obj.dofm.getFieldId(obj.fields(2));
             %
         end
 
@@ -44,8 +50,8 @@ classdef Biot < CouplingPhysics
                 nEntries = sum((obj.mesh.nDim)*(obj.mesh.cellNumVerts(subCells)));
             end
             [iiVec,jjVec,Qvec] = deal(zeros(nEntries,1));
-            nDoF1 = obj.dofm.getNumDoF(obj.fields{1});
-            nDoF2 = obj.dofm.getNumDoF(obj.fields{2});
+            nDoF1 = obj.dofm.getNumDoF(obj.fields(1));
+            nDoF2 = obj.dofm.getNumDoF(obj.fields(2));
             %
             l1 = 0;
             for el=subCells'
@@ -91,15 +97,15 @@ classdef Biot < CouplingPhysics
             % compute Biot rhs contribute
             theta = obj.simParams.theta;
             % select active coefficients of solution vectors
-            entsPoro = obj.dofm.getActiveEnts(obj.fields{1});
-            entsFlow = obj.dofm.getActiveEnts(obj.fields{2});
+            entsPoro = obj.dofm.getActiveEnts(obj.fields(1));
+            entsFlow = obj.dofm.getActiveEnts(obj.fields(2));
             obj.rhs{1} = -theta*obj.Q*obj.state.data.pressure(entsFlow) - ...
                 (1-theta)*(obj.Q*stateOld.data.pressure(entsFlow));
             obj.rhs{2} = (obj.Q/dt)'*(obj.state.data.dispCurr(entsPoro) - obj.state.data.dispConv(entsPoro));
         end
 
         function applyDirBC(obj,field,ents,varargin)
-           if strcmp(field,obj.fields{2}) && isFVTPFABased(obj.model,'Flow')
+           if strcmp(field,obj.fields(2)) && isFVTPFABased(obj.model,'Flow')
               % FV Dirichlet BC does not affect coupling blocks
               return
            else
@@ -112,8 +118,13 @@ classdef Biot < CouplingPhysics
         function out = isLinear(obj)
             out = true;
         end
+    end
+    
+    methods (Static)
 
-
+        function out = getField()
+          out = Biot.fields;
+        end
     end
 
 end
