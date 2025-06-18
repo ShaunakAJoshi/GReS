@@ -345,15 +345,7 @@ classdef Poromechanics < SinglePhysics
       end
       % map entities dof to local dof numbering
       dof = obj.dofm.getLocalEnts(ents,obj.fldId);
-      switch bc.getType(id)
-        case 'Dir'
-          % component multiplication of Dirichlet BC dofs
-          dof = bc.getCompEntities(id,dof);
-        case 'Neu'
-          dir = bc.getDirection(id);
-          c = find(strcmp(["x","y","z"],dir));
-          dof = 3*dof - (3-c);
-      end
+      dof = bc.getCompEntities(id,dof);
     end
 
     function vals = getBCVals(obj,bc,id,t)

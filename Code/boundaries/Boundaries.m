@@ -108,9 +108,9 @@ classdef Boundaries < handle
       infl = obj.getData(identifier).entitiesInfl;
     end
 
-    function direction = getDirection(obj, identifier)
-      direction = obj.getData(identifier).direction;
-    end
+%     function direction = getDirection(obj, identifier)
+%       direction = obj.getData(identifier).direction;
+%     end
 
     function setDofs(obj, identifier, list)
       obj.getData(identifier).data.entities = list;
@@ -206,7 +206,7 @@ classdef Boundaries < handle
         error(['%s condition is unknown\n', ...
           'Accepted types are: NodeBC   -> Boundary cond. on nodes\n',...
           '                    SurfBC   -> Boundary cond. on surfaces\n',...
-          '                    ElementBC   -> Boundary cond. on elements\n',...                      
+          '                    ElementBC   -> Boundary cond. on elements\n',...
           '                    VolumeForce -> Volume force on elements'], token);
       end
       if ismember(convertCharsToStrings(token), ["NodeBC", "SurfBC", "ElementBC"])
@@ -217,14 +217,16 @@ classdef Boundaries < handle
         end
       end
       physics = Boundaries.readToken(fid);
-      
-      if strcmp(physics,'Poromechanics') && strcmp(token,'SurfBC') && strcmp(type,'Neu') 
-        direction = Boundaries.readToken(fid);
-        if ~ismember(direction,['x','y','z'])
-          error(['%s is an invalid direction of the distributed load\n', ...
-            'Accepted directions are: x, y, and z'],direction);
-        end
-      end
+
+      % DIRECTION IS NO MORE NEEDED
+      %       if strcmp(physics,'Poromechanics') && strcmp(token,'SurfBC') && strcmp(type,'Neu')
+      %         direction = Boundaries.readToken(fid);
+      %         if ~ismember(direction,['x','y','z'])
+      %           error(['%s is an invalid direction of the distributed load\n', ...
+      %             'Accepted directions are: x, y, and z'],direction);
+      %         end
+      %       end
+
       name = Boundaries.readToken(fid);
       setFile = Boundaries.readToken(fid);
       [times, dataFiles] = Boundaries.readDataFiles(fid);
@@ -233,7 +235,7 @@ classdef Boundaries < handle
         error('%s boundary condition name already defined', name);
       end
       switch token
-          case {'NodeBC', 'ElementBC'}
+        case {'NodeBC', 'ElementBC'}
           obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
             'cond',token,'type', type, 'physics', physics);
         case 'SurfBC'
@@ -242,14 +244,8 @@ classdef Boundaries < handle
               obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
                 'cond',token,'type', type, 'physics', physics);
             case 'Poromechanics'
-                switch type
-                    case 'Neu'
-                      obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
-                        'cond', token,'direction', direction, 'type', type, 'physics', physics);
-                    case 'Dir'
-                      obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
-                        'cond', token,'type', type, 'physics', physics);                        
-                end
+              obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...
+                'cond', token,'type', type, 'physics', physics);
           end
         case 'VolumeForce'
           obj.db(name) = struct('data', BoundaryEntities(name, setFile, times, dataFiles), ...

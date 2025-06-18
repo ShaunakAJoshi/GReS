@@ -46,8 +46,8 @@ Physical Surface("top",1) = {26};
 Physical Surface("bottom",2) = {1};
 
 // Mesh second-order
-Mesh.ElementOrder = 2;
-Mesh.SecondOrderIncomplete = 0;  // <== ENSURES FULL HEXA-27
+//Mesh.ElementOrder = 2;
+//Mesh.SecondOrderIncomplete = 0;  // <== ENSURES FULL HEXA-27
 
 Mesh 3;
-Save "cube.vtk";
+Save "cubeHexa8.vtk";

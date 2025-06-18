@@ -23,7 +23,7 @@ simParam = SimulationParameters(fileName,model);
 topology = Mesh();
 
 % Set the mesh input file name
-fileName = 'Mesh/cube.vtk';
+fileName = 'Mesh/cubeHexa8.vtk';
 % Import the mesh data into the Mesh object
 topology.importMesh(fileName);
 
@@ -65,7 +65,7 @@ printUtils = OutState(model,topology,'outTime.dat','folderName','Output_PatchTes
 %    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
 % %
 writeBCfiles('BCs/fixBot','SurfBC','Dir',{'Poromechanics','x','y','z'},'bottom_fixed',0,0,topology,2); 
-writeBCfiles('BCs/topLoad','NodeBC','Neu',{'Poromechanics','z'},'top_load',0,-1,topology,1); % left block lateral fix
+writeBCfiles('BCs/topLoad','SurfBC','Neu',{'Poromechanics','z'},'top_load',0,-1,topology,1); % left block lateral fix
 
 fileName = ["BCs/fixBot.dat","BCs/topLoad.dat"];
 % Create an object of the "Boundaries" class 

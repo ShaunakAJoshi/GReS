@@ -179,7 +179,7 @@ classdef HexahedronQuadratic < FiniteElementLagrangian
       end
 
       b = {@(x) 0.5*x*(x-1); @(x) 0.5*x*(x+1); @(x) 1-x^2};
-      gb = {@(x) x-0.5; @(x) -2*x; @(x) x+0.5};
+      gb = {@(x) x-0.5; @(x) x+0.5; @(x) -2*x};
       idx = obj.tensProd(obj.coordLoc);
 
       obj.Jref = zeros(3,obj.nNode,np);
