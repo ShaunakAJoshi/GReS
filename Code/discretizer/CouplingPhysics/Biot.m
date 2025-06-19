@@ -23,8 +23,6 @@ classdef Biot < CouplingPhysics
                 obj.flowModel = 'VaraiblySsaturatedFlow';
             end
             obj.flowScheme = obj.dofm.getScheme(obj.fields(2));
-            obj.fldId(1) = obj.dofm.getFieldId(obj.fields(1));
-            obj.fldId(2) = obj.dofm.getFieldId(obj.fields(2));
             %
         end
 

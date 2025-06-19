@@ -209,7 +209,8 @@ classdef DoFManager < handle
       end
 
       function entList = getLocalEnts(obj,entList,fldId)
-         % renumber entity id skipping inactive entities 
+         % renumber entity id skipping inactive entities
+         assert(~isempty(fldId),'Missing field id');
          entList = obj.entMap{fldId}(entList);
          if ~all(entList)
            error('Inactive entity for input field')

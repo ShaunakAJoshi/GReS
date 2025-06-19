@@ -26,6 +26,8 @@ classdef SinglePhysics < handle
          obj.faces = grid.faces;
          obj.material = mat;
          obj.state = state;
+         fld = feval([class(obj) '.getField']);
+         obj.fldId = obj.dofm.getFieldId(fld);
       end
 
       function applyNeuBC(obj,dofs,vals)

@@ -59,9 +59,12 @@ if ~isfolder(fName)
 end
 
 % Writing BC list of constrained entities
+assert(numel(varargin)>0,'Not enough input arguments')
 fList = fopen(listName,'w');
-if length(varargin) < 2 % direct assignment
+if ~isa(varargin{1},"Mesh") % direct assignment
   list = varargin{1};
+  vals = varargin{2}; % overwrite standard vals
+  assert(length(list)==length(vals))
 else
   surf = find(ismember(varargin{1}.surfaceTag,varargin{2}));
   switch item
@@ -73,7 +76,7 @@ else
   end
 end
 
-if strcmp(ph,'SinglePhaseFlow') || strcmp(ph,'VariablySaturatedFlow')
+if ismember(ph,["SinglePhaseFlow","Poisson","VariablySaturatedFlow"])
   fprintf(fList,'%i         %% Number of fixed entities \n',length(list));
   fprintf(fList,'%i \n',list);
 else
@@ -89,6 +92,6 @@ for i = 1:length(time)
   t_name = strcat(fName,'/time',num2str(i-1),'.dat');
   ft = fopen(t_name,'w');
   fprintf(ft,'%%Time %2.4f \n',time(i));
-  fprintf(ft,'%1.6e \n',repelem(vals(i),length(list)));
+  fprintf(ft,'%1.6e \n',vals);
 end
 end

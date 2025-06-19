@@ -19,7 +19,6 @@ classdef SinglePhaseFlow < SinglePhysics
    methods (Access = public)
       function obj = SinglePhaseFlow(symmod,params,dofManager,grid,mat,state)
          obj@SinglePhysics(symmod,params,dofManager,grid,mat,state);
-         obj.fldId = obj.dofm.getFieldId(obj.field);
          if obj.model.isFVTPFABased('Flow')
             obj.computeTrans;
             %get cells with active flow model

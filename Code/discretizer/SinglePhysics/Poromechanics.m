@@ -12,7 +12,6 @@ classdef Poromechanics < SinglePhysics
   methods (Access = public)
     function obj = Poromechanics(symmod,params,dofManager,grid,mat,state)
       obj@SinglePhysics(symmod,params,dofManager,grid,mat,state);
-      obj.fldId = obj.dofm.getFieldId(obj.field);
       setPoromechanics(obj)
     end
 
@@ -271,7 +270,7 @@ classdef Poromechanics < SinglePhysics
             obj.state.data.curr.strain((l1+1):(l1+nG),:)*D;
           l1 = l1+nG;
         end
-        ents = obj.dofm.getActiveEnts(obj.field);
+        ents = obj.dofm.getActiveEnts(obj.getField());
         if obj.simParams.isTimeDependent
           theta = obj.simParams.theta;
           obj.rhs = obj.J*obj.state.data.dispCurr(ents) + ...

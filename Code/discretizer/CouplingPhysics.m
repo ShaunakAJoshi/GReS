@@ -29,6 +29,9 @@ classdef CouplingPhysics < handle
          obj.material = mat;
          obj.state = state;
          obj.fldId = zeros(2,1);
+         fld = feval([class(obj) '.getField']);
+         obj.fldId(1) = obj.dofm.getFieldId(fld(1));
+         obj.fldId(2) = obj.dofm.getFieldId(fld(2));
       end
       
       function applyDirBC(obj,field,dofs,varargin)

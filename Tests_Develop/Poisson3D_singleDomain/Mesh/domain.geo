@@ -45,7 +45,7 @@ Physical Volume("cube",1) = {1};
 Physical Surface("surfBound",1) = {1,13,17,21,25,26};
 
 // Mesh second-order
-//Mesh.ElementOrder = 2;
+Mesh.ElementOrder = 1;
 //Mesh.SecondOrderIncomplete = 0;  // <== ENSURES FULL HEXA-27
 
 Mesh 3;

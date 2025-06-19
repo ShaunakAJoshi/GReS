@@ -154,6 +154,7 @@ classdef Discretizer < handle
          out = obj.solver(id);
       end
 
+
       function addInterface(obj,interfId,interf)
         if ~ismember(interfId,obj.interfaceList)
           obj.interfaceList = sort([obj.interfaceList interfId]);
@@ -243,7 +244,7 @@ classdef Discretizer < handle
         f = join(unique(sort({char(f1),char(f2)})));
 
         if ~obj.solverMap.isKey(string(f{:}))
-          error('A physical module coupling %s with %s is not available!',f1,f2)
+          error('A physical module coupling %s with %s is not available.',f1,f2)
         else
           solv = obj.solverMap(f{:});
         end
@@ -259,24 +260,25 @@ classdef Discretizer < handle
           findSubClasses('CouplingPhysics','CouplingPhysics')];
 
         for i = 1:numel(subClasses)
-          obj.solverMap = feval([subClasses{i} '.registerSolver'],obj.solverMap,subClasses{i});
+          obj.solverMap = feval([subClasses{i} '.registerSolver'],...
+            obj.solverMap,subClasses{i});
         end
       end
 
    end
 
    methods (Static)
-     function [row,col,val,c] = computeLocalMatrix(mat,row,col,val,c,w,dofRow,dofCol)
-       % shortcut for assemblying local matrix contributions in sparse format
-       mat = mat.*reshape(w,1,1,[]);
-       mat = sum(mat,3);
-       n = numel(mat);
-       [J, I] = meshgrid(1:size(mat,2), 1:size(mat,1));
-       row(c+1:c+n) = dofRow(I);
-       col(c+1:c+n) = dofCol(J);
-       val(c+1:c+n) = mat(:);
-       c = c+n;
-     end
+%      function [row,col,val,c] = computeLocalMatrix(mat,row,col,val,c,w,dofRow,dofCol)
+%        % shortcut for assemblying local matrix contributions in sparse format
+%        mat = mat.*reshape(w,1,1,[]);
+%        mat = sum(mat,3);
+%        n = numel(mat);
+%        [J, I] = meshgrid(1:size(mat,2), 1:size(mat,1));
+%        row(c+1:c+n) = dofRow(I);
+%        col(c+1:c+n) = dofCol(J);
+%        val(c+1:c+n) = mat(:);
+%        c = c+n;
+%      end
 
      function mat_new = expandMat(mat,n)
        % Get the size of the original matrix

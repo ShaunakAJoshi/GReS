@@ -1,7 +1,7 @@
 NodeBC            % BC item 
 Dir            % BC type 
 Poisson            % Physics 
-bottom_fixed            % BC name 
+manufactured_bc            % BC name 
 bc/list 
 0.000000 bc/time0.dat 
 End

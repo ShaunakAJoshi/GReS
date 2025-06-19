@@ -61,7 +61,7 @@ classdef Gauss < handle
 
     function [coord1D, weight1D] = points1D(ord)
 
-      nG = 2*ord-1;
+      nG = ceil(0.5*(ord+1));
       
       % get 1D points location for tensor product rule
       switch nG

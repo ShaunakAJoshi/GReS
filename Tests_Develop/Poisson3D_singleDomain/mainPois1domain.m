@@ -23,6 +23,9 @@ model = ModelType("Poisson_FEM");
 fileName = "simParam.dat";
 simParam = SimulationParameters(fileName,model);
 
+% Create an object of the Materials class and read the materials file
+mat = [];
+
 % Create the Mesh object
 topology = Mesh();
 
@@ -31,12 +34,10 @@ fileName = 'Mesh/domain.vtk';
 % Import the mesh data into the Mesh object
 topology.importMesh(fileName);
 
-% Create an object of the Materials class and read the materials file
-mat = [];
 
 % Create an object of the "Elements" class and process the element properties
-ngp = 2;
-elems = Elements(topology,ngp);
+ord = 3;
+elems = Elements(topology,ord);
 
 % Create an object of the "Faces" class and process the face properties
 faces = Faces(model, topology);
@@ -52,15 +53,23 @@ dofmanager = DoFManager(topology,model);
 % Create object handling construction of Jacobian and rhs of the model
 linSyst = Discretizer(model,simParam,dofmanager,grid,mat);
 
+linSyst.getSolver('Poisson').setAnalSolution(anal);
+
 % Build a structure storing variable fields at each time step
 linSyst.setState();
 
 % Create and set the print utility
 printUtils = OutState(model,topology,'outTime.dat','folderName','Output_PatchTest');
 
-fileName = ["BCs/fixBot.dat","BCs/topLoad.dat"];
+
+% write files for bcs
+nodes = unique(topology.surfaces(:));
+c = topology.coordinates(nodes,:);
+vals = anal(c(:,1),c(:,2),c(:,3));
+writeBCfiles('bc','NodeBC','Dir','Poisson','manufactured_bc',0,0,nodes,vals);
+
 % Create an object of the "Boundaries" class 
-bound = Boundaries(fileName,model,grid);
+bound = Boundaries("bc.dat",model,grid);
 
 % Print model initial state
 printState(printUtils,linSyst);
@@ -76,3 +85,11 @@ Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst);
 %
 % Finalize the print utility
 printUtils.finalize()
+
+
+%% POST PROCESSING
+
+pois = getSolver(linSyst,'Poisson');
+[L2err,H1err] = pois.computeError();
+
+

@@ -15,7 +15,7 @@ classdef Poisson < SinglePhysics
       obj@SinglePhysics(symmod,params,dofManager,grid,mat,state)
     end
 
-    function computeMat(obj)
+    function computeMat(obj,varargin)
       % classical
         % general sparse assembly loop over elements for Poromechanics
       subCells = obj.dofm.getFieldCells(obj.field);
@@ -44,7 +44,8 @@ classdef Poisson < SinglePhysics
       dofr = dof; dofc = dof;
     end
 
-    function computeRhs(obj)
+    function computeRhs(obj,varargin)
+      ents = obj.dofm.getActiveEnts(obj.getField());
       obj.rhs = obj.J*obj.state.data.u(ents);
     end
 
@@ -57,9 +58,9 @@ classdef Poisson < SinglePhysics
     function updateState(obj,dSol)
       % Update state structure with last solution increment
       ents = obj.dofm.getActiveEnts(obj.field);
-      obj.state.data.var(ents) = obj.state.data.var(ents) + dSol(getDoF(obj.dofm,obj.field));
+      obj.state.data.u(ents) = obj.state.data.u(ents) + dSol(getDoF(obj.dofm,obj.field));
       if ~isempty(obj.analSol)
-      obj.state.data.absErr(ents) = abs(obj.state.data.var(ents) - obj.analSol(ents));
+      obj.state.data.absErr(ents) = abs(obj.state.data.u(ents) - obj.analSol(ents));
       end
     end
 
@@ -73,7 +74,11 @@ classdef Poisson < SinglePhysics
       % map entities dof to local dof numbering
       dof = obj.dofm.getLocalEnts(ents,obj.fldId);
       dof = bc.getCompEntities(id,dof);
-      vals = obj.getBCVals(bc,id,t);
+      vals = bc.getVals(id,t);
+    end
+
+    function applyDirVal(obj,dof,vals)
+      obj.state.data.u(dof) = vals;
     end
 
     function [cellData,pointData] = printState(obj,sOld,sNew,t)
@@ -88,10 +93,10 @@ classdef Poisson < SinglePhysics
         otherwise
           error('Wrong number of input arguments');
       end
-      [cellData,pointData] = obj.buildPrintStruct(var);
+      [cellData,pointData] = buildPrintStruct(obj,var);
     end
 
-    function [cellStr,pointStr] = buildPrintStruct(var)
+    function [cellStr,pointStr] = buildPrintStruct(obj,var)
       nPointData = 1;
       if ~isempty(obj.analSol)
         nPointData = nPointData + 1;
@@ -110,6 +115,7 @@ classdef Poisson < SinglePhysics
     function setAnalSolution(obj,f)
       c = obj.mesh.coordinates;
       obj.analSol = arrayfun(@(i) f(c(i,1),c(i,2),c(i,3)),1:obj.mesh.nNodes);
+      obj.analSol = reshape(obj.analSol,[],1);
     end
 
     function [L2err,H1err] = computeError(obj)
@@ -120,18 +126,18 @@ classdef Poisson < SinglePhysics
       for el = 1:obj.mesh.nCells
         vtkId = obj.mesh.cellVTKType(el);
         elem = getElement(obj.elements,vtkId);
-        N = getBasisFinGPoints(el);
+        N = getBasisFinGPoints(elem);
         [gradN,dJW] = getDerBasisFAndDet(elem,el,1);
         dofId = obj.mesh.cells(el,:);
         locErr = obj.state.data.absErr(dofId);
         N_err = N*locErr;
-        N_err = (sum(N_err.*dJW))^2;
-        gradN_err = pagemtimes(gradN,'ctranspose',locErr,'none');
+        N_err = (sum(N_err.*reshape(dJW,[],1)))^2;
+        gradN_err = pagemtimes(gradN,locErr);
         gradN_err = gradN_err.*reshape(dJW,1,1,[]);
         gradN_err = sum(gradN_err,3);
         gradN_err = norm(gradN_err,2);
         L2err = L2err + N_err;
-        H1err = N_err + gradN_err;
+        H1err = H1err + N_err + gradN_err;
       end
       L2err = sqrt(L2err);
       H1err = sqrt(H1err);
