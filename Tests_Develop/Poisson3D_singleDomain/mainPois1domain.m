@@ -3,93 +3,66 @@ close all
 
 % Get the full path of the currently executing file
 scriptFullPath = mfilename('fullpath');
-
 % Extract the directory containing the script
 scriptDir = fileparts(scriptFullPath);
-
 % Change the current directory to the script's directory
 cd(scriptDir);
-
 
 %% Poisson problem with single domain in 3D. Testing new poisson module
 
 % analytical solution
-anal = @(x,y,z) cos(pi*y).*cos(pi*z).*(2*x-x.^2+sin(pi*x));
+anal = @(X) cos(pi*X(2)).*cos(pi*X(3)).*(2*X(1)-X(1).^2 + sin(pi*X(1)));
+gradx = @(X) cos(pi*X(2)).*cos(pi*X(3)).*(2 - 2*X(1) + pi*cos(pi*X(1)));
+grady = @(X) -pi*sin(pi*X(2)).*cos(pi*X(3)).*(2*X(1)-X(1).^2 + sin(pi*X(1)));
+gradz = @(X) -pi*cos(pi*X(2)).*sin(pi*X(3)).*(2*X(1)-X(1).^2 + sin(pi*X(1)));
+h = @(x) -2-3*pi^2*sin(pi*x)-4*pi^2*x+2*pi^2*x.^2;
+f = @(X) cos(pi*X(2)).*cos(pi*X(3)).*h(X(1));
 
+%% model commons
 % Set physical models 
 model = ModelType("Poisson_FEM");
-
 % Set parameters of the simulation
 fileName = "simParam.dat";
 simParam = SimulationParameters(fileName,model);
-
 % Create an object of the Materials class and read the materials file
 mat = [];
-
 % Create the Mesh object
 topology = Mesh();
 
-% Set the mesh input file name
-fileName = 'Mesh/domain.vtk';
-% Import the mesh data into the Mesh object
-topology.importMesh(fileName);
+%% INPUT
+% base domain size
+N = 2;
+% number of refinement
+nref = 3;
+[h,L2,H1] = deal(zeros(nref,1));
+
+%% convergence loop 
+for i = 1:nref
+  N_i = N*2^(i-1);
+  fname = strcat('domain_',num2str(i));
+  getMesh('Mesh/domain.geo',fname,2*N_i,N_i,N_i)
+  fprintf('Running mesh refinement %i \n',i);
+  runPoisson;
+
+  pois = getSolver(linSyst,'Poisson');
+  [L2(i),H1(i)] = pois.computeError_v2();
+  h(i) = 1/N_i;
+  fprintf('Max absolute error is: %1.6e \n',max(abs(pois.state.data.err)));
+end
+
+% compute convergence order
+L2ord = log(L2(1:end-1)./L2(2:end))./log(h(1:end-1)./h(2:end));
+H1ord = log(H1(1:end-1)./H1(2:end))./log(h(1:end-1)./h(2:end));
+
+%% plotting convergence profiles
+figure(1)
+loglog(h,L2,'-ro')
+hold on
+loglog(h,H1,'-b^')
+xlabel('h')
+ylabel('error_norm')
+legend('L2','H1')
 
 
-% Create an object of the "Elements" class and process the element properties
-ord = 3;
-elems = Elements(topology,ord);
-
-% Create an object of the "Faces" class and process the face properties
-faces = Faces(model, topology);
-%
-% Wrap Mesh, Elements and Faces objects in a structure
-grid = struct('topology',topology,'cells',elems,'faces',faces);
-%
-
-% Degree of freedom manager 
-%fname = 'dof.dat';
-dofmanager = DoFManager(topology,model);
-
-% Create object handling construction of Jacobian and rhs of the model
-linSyst = Discretizer(model,simParam,dofmanager,grid,mat);
-
-linSyst.getSolver('Poisson').setAnalSolution(anal);
-
-% Build a structure storing variable fields at each time step
-linSyst.setState();
-
-% Create and set the print utility
-printUtils = OutState(model,topology,'outTime.dat','folderName','Output_PatchTest');
-
-
-% write files for bcs
-nodes = unique(topology.surfaces(:));
-c = topology.coordinates(nodes,:);
-vals = anal(c(:,1),c(:,2),c(:,3));
-writeBCfiles('bc','NodeBC','Dir','Poisson','manufactured_bc',0,0,nodes,vals);
-
-% Create an object of the "Boundaries" class 
-bound = Boundaries("bc.dat",model,grid);
-
-% Print model initial state
-printState(printUtils,linSyst);
-
-% The modular structure of the discretizer class allow the user to easily
-% customize the solution scheme. 
-% Here, a built-in fully implict solution scheme is adopted with class
-% FCSolver. This could be simply be replaced by a user defined function
-Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst);
-%
-% Solve the problem
-[simState] = Solver.NonLinearLoop();
-%
-% Finalize the print utility
-printUtils.finalize()
-
-
-%% POST PROCESSING
-
-pois = getSolver(linSyst,'Poisson');
-[L2err,H1err] = pois.computeError();
 
 

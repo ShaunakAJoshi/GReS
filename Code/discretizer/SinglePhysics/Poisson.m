@@ -3,7 +3,8 @@ classdef Poisson < SinglePhysics
   %   Detailed explanation goes here
   
   properties
-    analSol        
+    F
+    anal
   end
 
   properties (Constant)
@@ -17,7 +18,7 @@ classdef Poisson < SinglePhysics
 
     function computeMat(obj,varargin)
       % classical
-        % general sparse assembly loop over elements for Poromechanics
+      % general sparse assembly loop over elements for Poromechanics
       subCells = obj.dofm.getFieldCells(obj.field);
       n = sum(obj.mesh.cellNumVerts(subCells).^2);
       Ndof = obj.dofm.getNumDoF(obj.field);
@@ -32,8 +33,7 @@ classdef Poisson < SinglePhysics
     end
 
     function [dofr,dofc,matLoc] = computeLocalMatrix(obj,elID)
-      vtkId = obj.mesh.cellVTKType(elID);
-      elem = getElement(obj.elements,vtkId);
+      elem = getElementByID(obj.elements,elID);
       [gradN,dJW] = getDerBasisFAndDet(elem,elID,1);
       matLoc = pagemtimes(gradN,'ctranspose',gradN,'none');
       matLoc = matLoc.*reshape(dJW,1,1,[]);
@@ -46,21 +46,23 @@ classdef Poisson < SinglePhysics
 
     function computeRhs(obj,varargin)
       ents = obj.dofm.getActiveEnts(obj.getField());
-      obj.rhs = obj.J*obj.state.data.u(ents);
+      f = computeForcingTerm(obj);
+      obj.rhs = obj.J*obj.state.data.u(ents) + f(ents);
     end
 
     function setState(obj)
       % add poromechanics fields to state structure
       obj.state.data.u = zeros(obj.mesh.nNodes,1);
-      obj.state.data.absErr = zeros(obj.mesh.nNodes,1);
+      obj.state.data.err = zeros(obj.mesh.nNodes,1);
     end
 
     function updateState(obj,dSol)
       % Update state structure with last solution increment
       ents = obj.dofm.getActiveEnts(obj.field);
       obj.state.data.u(ents) = obj.state.data.u(ents) + dSol(getDoF(obj.dofm,obj.field));
-      if ~isempty(obj.analSol)
-      obj.state.data.absErr(ents) = abs(obj.state.data.u(ents) - obj.analSol(ents));
+      if ~isempty(obj.anal)
+        analSol = computeAnal(obj,ents,'u');
+        obj.state.data.err(ents) = obj.state.data.u(ents) - analSol;
       end
     end
 
@@ -98,7 +100,7 @@ classdef Poisson < SinglePhysics
 
     function [cellStr,pointStr] = buildPrintStruct(obj,var)
       nPointData = 1;
-      if ~isempty(obj.analSol)
+      if ~isempty(obj.anal)
         nPointData = nPointData + 1;
       end
       pointStr = repmat(struct('name', 1, 'data', 1), nPointData, 1);
@@ -106,20 +108,71 @@ classdef Poisson < SinglePhysics
       % Displacement
       pointStr(1).name = 'u';
       pointStr(1).data = var;
-      if ~isempty(obj.analSol)
+      if ~isempty(obj.anal)
         pointStr(2).name = 'abs_error';
-        pointStr(2).data = abs(var-obj.analSol);
+        pointStr(2).data = abs(var-computeAnal(obj,1:obj.mesh.nNodes,'u'));
       end
     end
 
-    function setAnalSolution(obj,f)
-      c = obj.mesh.coordinates;
-      obj.analSol = arrayfun(@(i) f(c(i,1),c(i,2),c(i,3)),1:obj.mesh.nNodes);
-      obj.analSol = reshape(obj.analSol,[],1);
+    function setAnalSolution(obj,u,f,dux,duy,duz)
+      %
+      obj.anal.u = u;
+      obj.anal.f = f;
+      %
+      if nargin > 3
+        assert(nargin == 6,'Incorrect number of input.');
+        obj.anal.dux = dux;
+        obj.anal.duy = duy;
+        obj.anal.duz = duz;
+      end
+    end
+
+    function anal = computeAnal(obj,list,flag)
+      if min(size(list))==1
+        x = obj.mesh.coordinates(list,:);
+      else
+        x = list;
+      end
+      switch flag
+        case 'u'
+          f = obj.anal.u;
+        case 'f'
+          f = obj.anal.f;
+        case 'grad_x'
+          f = obj.anal.dux;
+        case 'grad_y'
+          f = obj.anal.duy;
+        case 'grad_z'
+          f = obj.anal.duz;
+        otherwise
+          error('Incorrect input for flag')
+      end
+      anal = arrayfun(@(i) f(x(i,:)),1:size(x,1));
+      anal = reshape(anal,[],1);      % make column array
+    end
+
+    function F = computeForcingTerm(obj)
+      % classical
+      % general sparse assembly loop over elements for Poromechanics
+      subCells = obj.dofm.getFieldCells(obj.field);
+      F = zeros(obj.dofm.getNumDoF('Poisson'),1);
+      % loop over cells
+      for el = subCells'
+        % get dof id and local matrix
+        id = obj.mesh.cells(el,:);
+        elem = getElementByID(obj.elements,el);
+        c_gp = getGPointsLocation(elem,el);
+        f_gp = computeAnal(obj,c_gp,'f');
+        [~,dJW] = getDerBasisFAndDet(elem,el,1);
+        N = getBasisFinGPoints(elem);
+        floc = N'*(f_gp.*dJW');
+        % proper integration
+        F(id) = F(id) + floc;
+      end
     end
 
     function [L2err,H1err] = computeError(obj)
-      assert(~isempty(obj.analSol),['Missing analytical solution for ' ...
+      assert(~isempty(obj.anal),['Missing analytical solution for ' ...
         'Poisson model \n'])
       L2err = 0;
       H1err = 0;
@@ -129,20 +182,62 @@ classdef Poisson < SinglePhysics
         N = getBasisFinGPoints(elem);
         [gradN,dJW] = getDerBasisFAndDet(elem,el,1);
         dofId = obj.mesh.cells(el,:);
-        locErr = obj.state.data.absErr(dofId);
-        N_err = N*locErr;
-        N_err = (sum(N_err.*reshape(dJW,[],1)))^2;
-        gradN_err = pagemtimes(gradN,locErr);
-        gradN_err = gradN_err.*reshape(dJW,1,1,[]);
-        gradN_err = sum(gradN_err,3);
-        gradN_err = norm(gradN_err,2);
-        L2err = L2err + N_err;
-        H1err = H1err + N_err + gradN_err;
+        locErr = (obj.state.data.err(dofId));
+        norm_e = N*locErr.^2;        % squared value of error
+        L2errLoc = sum(norm_e.*reshape(dJW,[],1));
+        grad_e = pagemtimes(gradN,locErr);
+        ngp = size(grad_e,3);
+        norm_grad_e = zeros(ngp,1);
+        for i = 1:ngp
+          norm_grad_e(i) = norm(grad_e(:,:,i),2);
+        end
+        norm_e_grad_e = norm_e + norm_grad_e;
+        H1errLoc = sum(norm_e_grad_e.*reshape(dJW,[],1));
+        L2err = L2err + L2errLoc;
+        H1err = H1err + H1errLoc;
       end
       L2err = sqrt(L2err);
       H1err = sqrt(H1err);
     end
+
+
+  function [L2err,H1err] = computeError_v2(obj)
+    assert(~isempty(obj.anal),['Missing analytical solution for ' ...
+      'Poisson model \n'])
+    L2err = 0;
+    H1err = 0;
+    for el = 1:obj.mesh.nCells
+      vtkId = obj.mesh.cellVTKType(el);
+      elem = getElement(obj.elements,vtkId);
+      N = getBasisFinGPoints(elem);
+      [gradN,dJW] = getDerBasisFAndDet(elem,el,1);
+      c_gp = getGPointsLocation(elem,el);
+      dofId = obj.mesh.cells(el,:);
+      u_gp = N*obj.state.data.u(dofId);
+      err = u_gp - computeAnal(obj,c_gp,'u');
+      err_2 = err.^2;        % squared value of error
+      L2errLoc = sum(err_2.*reshape(dJW,[],1));
+
+      grad_uh = pagemtimes(gradN,obj.state.data.u(dofId));
+      grad_uh = squeeze(permute(grad_uh,[3 1 2]));
+
+      grad_u = [computeAnal(obj,c_gp,'grad_x'),...
+                computeAnal(obj,c_gp,'grad_y'),...
+                computeAnal(obj,c_gp,'grad_z')];
+
+      grad_err = grad_uh - grad_u;
+      grad_err2 = sum(grad_err.^2,2);
+      semiH1errLoc = sum(grad_err2.*reshape(dJW,[],1));
+
+      L2err = L2err + L2errLoc;
+      H1err = H1err + L2errLoc + semiH1errLoc;
+    end
+
+    L2err = sqrt(L2err);
+    H1err = sqrt(H1err);
   end
+
+end
 
   methods (Static)
     function out = getField()

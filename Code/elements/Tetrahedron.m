@@ -86,7 +86,7 @@ classdef Tetrahedron < FiniteElementLagrangian
 
       function volNod = findNodeVolume(obj,el)
         volNod = 0.25*obj.mesh.cellVolume(el);
-        volNod = repelem(volNod,obj.nNode);
+        volNod = repelem(volNod,obj.nNode);      
       end
       %     end
   end

@@ -144,6 +144,7 @@ classdef Elements < handle
     function volNod = findNodeVolume(obj,el)
       i = obj.mesh.cellVTKType(el);
       volNod = findNodeVolume(getElement(obj,i),el);
+      volNod = reshape(volNod,[],1);
     end
 
     function N = getNumbCellData(obj,varargin)
