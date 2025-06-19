@@ -1,9 +1,9 @@
 Mesh.Format = 16; // msh output format
 Mesh.MshFileVersion = 2.2; // Version of the MSH file format to use
 
-NX = 16;
-NY = 8;
-NZ = 8;
+NX = 32;
+NY = 16;
+NZ = 16;
 // This variable can then be used in the definition of Gmsh's simplest
 // `elementary entity', a `Point'. A Point is uniquely identified by a tag (
 // strictly positive integer; here `1') and defined by a list of four numbers:
@@ -37,16 +37,16 @@ Curve Loop(1) = {1, 2, 3, 4};
 Plane Surface(1) = {1};
 
 Transfinite Surface {1}; // structured grid
-Recombine Surface {1}; // using hexahedra
+//Recombine Surface {1}; // using hexahedra
 
 // extruding mesh along the z direction
-Extrude {0, 0, Z} { Surface{1}; Layers{NZ}; Recombine;}
+Extrude {0, 0, Z} { Surface{1}; Layers{NZ};}
 Physical Volume("cube",1) = {1};
 Physical Surface("surfBound",1) = {1,13,17,21,25,26};
 
 // Mesh second-order
-Mesh.ElementOrder = 2;
-Mesh.SecondOrderIncomplete = 0;  // <== ENSURES FULL HEXA-27
+//Mesh.ElementOrder = 1;
+//Mesh.SecondOrderIncomplete = 0;  // <== ENSURES FULL HEXA-27
 
 //Mesh 3;
 //Save "domain.vtk";

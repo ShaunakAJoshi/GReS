@@ -84,6 +84,12 @@ classdef Tetrahedron < FiniteElementLagrangian
         end
       end
 
+      function gPCoordinates = getGPointsLocation(obj,el)
+        % Get the location of the Gauss points in the element in the physical
+        % space
+        gPCoordinates = obj.Nref*obj.mesh.coordinates(obj.mesh.cells(el,:),:);
+      end
+
       function volNod = findNodeVolume(obj,el)
         volNod = 0.25*obj.mesh.cellVolume(el);
         volNod = repelem(volNod,obj.nNode);      

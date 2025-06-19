@@ -61,7 +61,7 @@ classdef Poisson < SinglePhysics
       ents = obj.dofm.getActiveEnts(obj.field);
       obj.state.data.u(ents) = obj.state.data.u(ents) + dSol(getDoF(obj.dofm,obj.field));
       if ~isempty(obj.anal)
-        analSol = computeAnal(obj,ents,'u');
+        analSol = computeAnal(obj,ents,'u',0);
         obj.state.data.err(ents) = obj.state.data.u(ents) - analSol;
       end
     end
@@ -110,7 +110,7 @@ classdef Poisson < SinglePhysics
       pointStr(1).data = var;
       if ~isempty(obj.anal)
         pointStr(2).name = 'abs_error';
-        pointStr(2).data = abs(var-computeAnal(obj,1:obj.mesh.nNodes,'u'));
+        pointStr(2).data = abs(var-computeAnal(obj,1:obj.mesh.nNodes,'u',1));
       end
     end
 
@@ -127,11 +127,13 @@ classdef Poisson < SinglePhysics
       end
     end
 
-    function anal = computeAnal(obj,list,flag)
-      if min(size(list))==1
+    function anal = computeAnal(obj,list,flag,mode)
+      if mode == 0
         x = obj.mesh.coordinates(list,:);
-      else
+      elseif mode == 1
         x = list;
+      else 
+        error('Mode input must be 0 (nodes list) or 1 (coordinate input list)');
       end
       switch flag
         case 'u'
@@ -162,7 +164,7 @@ classdef Poisson < SinglePhysics
         id = obj.mesh.cells(el,:);
         elem = getElementByID(obj.elements,el);
         c_gp = getGPointsLocation(elem,el);
-        f_gp = computeAnal(obj,c_gp,'f');
+        f_gp = computeAnal(obj,c_gp,'f',1);
         [~,dJW] = getDerBasisFAndDet(elem,el,1);
         N = getBasisFinGPoints(elem);
         floc = N'*(f_gp.*dJW');
@@ -214,16 +216,16 @@ classdef Poisson < SinglePhysics
       c_gp = getGPointsLocation(elem,el);
       dofId = obj.mesh.cells(el,:);
       u_gp = N*obj.state.data.u(dofId);
-      err = u_gp - computeAnal(obj,c_gp,'u');
+      err = u_gp - computeAnal(obj,c_gp,'u',1);
       err_2 = err.^2;        % squared value of error
       L2errLoc = sum(err_2.*reshape(dJW,[],1));
 
       grad_uh = pagemtimes(gradN,obj.state.data.u(dofId));
       grad_uh = squeeze(permute(grad_uh,[3 1 2]));
 
-      grad_u = [computeAnal(obj,c_gp,'grad_x'),...
-                computeAnal(obj,c_gp,'grad_y'),...
-                computeAnal(obj,c_gp,'grad_z')];
+      grad_u = [computeAnal(obj,c_gp,'grad_x',1),...
+                computeAnal(obj,c_gp,'grad_y',1),...
+                computeAnal(obj,c_gp,'grad_z',1)];
 
       grad_err = grad_uh - grad_u;
       grad_err2 = sum(grad_err.^2,2);

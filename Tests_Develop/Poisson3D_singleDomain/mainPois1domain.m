@@ -31,7 +31,7 @@ topology = Mesh();
 
 %% INPUT
 % base domain size
-N = 2;
+N = 4;
 % number of refinement
 nref = 3;
 [h,L2,H1] = deal(zeros(nref,1));

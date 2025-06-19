@@ -2,7 +2,7 @@
 topology.importMesh(fullfile('Mesh',strcat(fname,'.vtk')));
 
 % Create an object of the "Elements" class and process the element properties
-ord = 4;
+ord = 1;
 elems = Elements(topology,ord);
 
 % Create an object of the "Faces" class and process the face properties
