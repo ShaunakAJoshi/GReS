@@ -119,7 +119,7 @@ classdef SegmentBasedQuadrature < handle
       obj.nTri = size(topolClip,1);
       [xiSlave] = projectBack(obj,2,topolClip,coordClip,coordS);
       [xiMaster] = projectBack(obj,1,topolClip,coordClip,coordM);
-      tri = Triangle(1,obj.nGtri);
+      tri = Triangle(obj.nGtri);
       dJwTri = zeros(obj.nGtri,obj.nTri);
       for i = 1:obj.nTri
         triVert = coordClip(topolClip(i,:),:);
@@ -141,7 +141,7 @@ classdef SegmentBasedQuadrature < handle
       % netwon params
       itMax = 10;
       tol = 1e-9;
-      tri = Triangle(1,obj.nGtri);                % define reference triangle
+      tri = Triangle(obj.nGtri);                % define reference triangle
       for i = 1:obj.nTri
         coordTri = clipCoord(topolTri(i,:),:);
         coordGPtri = getGPointsLocation(tri,coordTri);

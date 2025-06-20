@@ -17,7 +17,9 @@ classdef Poisson < SinglePhysics
     end
 
     function computeMat(obj,varargin)
-      % classical
+      if ~isempty(obj.J)
+        return
+      end
       % general sparse assembly loop over elements for Poromechanics
       subCells = obj.dofm.getFieldCells(obj.field);
       n = sum(obj.mesh.cellNumVerts(subCells).^2);
@@ -63,6 +65,17 @@ classdef Poisson < SinglePhysics
       if ~isempty(obj.anal)
         analSol = computeAnal(obj,ents,'u',0);
         obj.state.data.err(ents) = obj.state.data.u(ents) - analSol;
+      end
+    end
+
+    function var = getState(obj,varargin)
+      % input: state structure
+      % output: current primary variable
+      if isempty(varargin)
+        var = obj.state.data.u;
+      else
+        stateIn = varargin{1};
+        var = stateIn.data.u;
       end
     end
 

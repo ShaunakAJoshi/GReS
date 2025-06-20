@@ -26,8 +26,8 @@ interfFile = 'interface.xml';
 
 %% INPUT
 % base domain size
-N_0_l = 2;
-N_0_r = 3;
+N_0_l = 4;
+N_0_r = 5;
 % number of refinement
 nref = 1;
 [h,L2,H1] = deal(zeros(nref,1));
@@ -50,7 +50,7 @@ for i = 1:nref
   mesh.importMesh(meshFile);
 
   % set up bc file
-  nodes = unique(mesh.surfaces(ismember(mesh.surfaceTag,[1 3]),:));
+  nodes = unique(mesh.surfaces(ismember(mesh.surfaceTag,[2 4]),:));
   c = mesh.coordinates(nodes,:);
   vals = arrayfun(@(i) anal(c(i,:)),1:numel(nodes));
   vals = reshape(vals,[],1);
@@ -61,24 +61,24 @@ for i = 1:nref
   % write mesh to domain file
   strDomain.Domain.Geometry = fullfile(fname+".vtk");
   domainFile = fullfile('Domains','domain2block.xml');
-  writestruct(strDomain,'Domains/domain2block.xml');
+  writestruct(strDomain,domainFile);
+ 
+  % processing Poisson problem
   domains = buildModelStruct_new(domainFile,simParam);
-
+  domains.Discretizer.getSolver('Poisson').setAnalSolution(anal,f,gradx,grady,gradz);
+  
   [interfaces,domains] = Mortar.buildInterfaceStruct(interfFile,domains);
-
-
-
+  % set up analytical solution
+  
   solver = MultidomainFCSolver(simParam,domains,interfaces);
   solver.NonLinearLoop();
   solver.finalizeOutput();
 
-
-
   %runPoisson;
 
-  pois = getSolver(linSyst,'Poisson');
+  pois = getSolver(domains.Discretizer,'Poisson');
   [L2(i),H1(i)] = pois.computeError_v2();
-  h(i) = 1/N_i;
+  h(i) = 1/N_i_r;
   fprintf('Max absolute error is: %1.6e \n',max(abs(pois.state.data.err)));
 end
 
@@ -87,13 +87,13 @@ L2ord = log(L2(1:end-1)./L2(2:end))./log(h(1:end-1)./h(2:end));
 H1ord = log(H1(1:end-1)./H1(2:end))./log(h(1:end-1)./h(2:end));
 
 %% plotting convergence profiles
-figure(1)
-loglog(h,L2,'-ro')
-hold on
-loglog(h,H1,'-b^')
-xlabel('h')
-ylabel('error_norm')
-legend('L2','H1')
+% figure(1)
+% loglog(h,L2,'-ro')
+% hold on
+% loglog(h,H1,'-b^')
+% xlabel('h')
+% ylabel('error_norm')
+% legend('L2','H1')
 
 
 

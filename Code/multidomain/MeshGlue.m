@@ -49,10 +49,15 @@ classdef MeshGlue < Mortar
           varargout{1} = obj.Jmult{fldId};
           % 0.5 is needed because the multiplier matrix is retrieved twice
         case 2
-          if domId == obj.idDomain(1)
+          % assign master/slave mortar matrix
+          isDom = ismember(obj.idDomain,domId);
+          if all(isDom)
+            varargout{1} = (obj.Jmaster{fldId})' + (obj.Jslave{fldId})';
+            varargout{2} = obj.Jmaster{fldId} + obj.Jslave{fldId};
+          elseif isDom(1)
             varargout{1} = (obj.Jmaster{fldId})';
             varargout{2} = obj.Jmaster{fldId};
-          elseif domId == obj.idDomain(2)
+          elseif isDom(2)
             varargout{1} = (obj.Jslave{fldId})';
             varargout{2} = obj.Jslave{fldId};
           else
@@ -69,10 +74,13 @@ classdef MeshGlue < Mortar
           rhs = obj.rhsMult{fldId};
         case 3
           domId = varargin{1};
-          if domId == obj.idDomain(1)
+          isDom = ismember(obj.idDomain,domId);
+          if all(isDom)
+            rhs = obj.rhsMaster{fldId} + obj.rhsSlave{fldId};
+          elseif isDom(1)
             rhs = obj.rhsMaster{fldId};
-          elseif domId == obj.idDomain(2)
-            rhs = obj.rhsSlave{fldId};
+          elseif isDom(2)
+            rhs = obj.rhsMaster{fldId};
           else
             error('Input domain %i is not a valid master/slave',domId)
           end
@@ -321,7 +329,8 @@ classdef MeshGlue < Mortar
       end
 
       if nargin > 3
-        if strcmp(getSide(obj,domId),'master')
+        if ~(domId == obj.idDomain(2))
+          % not slave side
           return
         end
       end

@@ -11,15 +11,16 @@ classdef Elements < handle
     elems = cell(1,8)
 
     % Element and surface type counts
-    nCellsByType = zeros(1,4)     % [#tetra, #hexa, #wed, #pyr]
-    nSurfByType = zeros(1,2)      % [#tri, #quad]
+    nCellsByType = zeros(1,5)     % [#tetra, #hexa, #wed, #pyr]
+    nSurfByType = zeros(1,3)      % [#tri, #quad]
   end
 
   properties (Constant)
     % available finite elements 
     vtk3DTypeList = [10,12,13,14,29]
     vtk2DTypeList = [5,9,28]
-    nNodesElem = [3,4,9,4,8,27]
+    nNodesElem = [3,4,9,...       % 2D elements
+                  4,8,27]         % 3D elements
   end
 
 

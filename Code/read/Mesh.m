@@ -215,6 +215,7 @@ classdef Mesh < handle
       end
       %
       %
+
       % REGIONS DATA FOR 3D ELEMENT
       if exist('regions','var')
         nRegions = length(regions);
@@ -238,6 +239,7 @@ classdef Mesh < handle
       obj.surfaceVTKType = elems(ID,1);
       obj.surfaceTag = elems(ID,2);
       obj.nSurfaces = length(obj.surfaceTag);
+      obj.nSurfaceTag = max(obj.surfaceTag);
       %
 
       %       % 1D ELEMENT DATA
@@ -258,8 +260,6 @@ classdef Mesh < handle
           obj.surfaceRegions = setfield(obj.surfaceRegions, regions(ID(i)).name, regions(ID(i)).ID);
         end
         %
-        obj.nCellTag = max(obj.cellTag);
-        obj.nSurfaceTag = max(obj.surfaceTag);
       end
     end
 
@@ -378,6 +378,7 @@ classdef Mesh < handle
         surfMesh.nSurfaceTag = 1;
         surfMesh.surfaceVTKType = obj.surfaceVTKType(id);
         surfMesh.nDim = 3;
+        surfMesh.surfaceNumVerts = obj.surfaceNumVerts(id);
         surfMesh.surfaceCentroid = obj.surfaceCentroid(id,:);
         surfMesh.surfaceArea = obj.surfaceArea(id);
     end

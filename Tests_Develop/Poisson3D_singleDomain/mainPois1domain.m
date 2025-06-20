@@ -31,16 +31,30 @@ topology = Mesh();
 
 %% INPUT
 % base domain size
-N = 4;
+N = 3;
 % number of refinement
 nref = 3;
 [h,L2,H1] = deal(zeros(nref,1));
+
+elemType = 'hexa';
+
+switch elemType
+  case 'tetra'
+    nG = 1;
+  case 'hexa'
+    nG = 2;
+  case 'hexa27'
+    nG = 3;
+end
+
 
 %% convergence loop 
 for i = 1:nref
   N_i = N*2^(i-1);
   fname = strcat('domain_',num2str(i));
-  getMesh('Mesh/domain.geo',fname,2*N_i,N_i,N_i)
+    command = "python Mesh/SingleDomain.py "  + fname...
+    + " " + num2str(N_i) + " " + elemType;
+  system(command);
   fprintf('Running mesh refinement %i \n',i);
   runPoisson;
 

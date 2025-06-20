@@ -1,9 +1,8 @@
 % Import the mesh data into the Mesh object
-topology.importMesh(fullfile('Mesh',strcat(fname,'.vtk')));
+topology.importMesh(fullfile(strcat(fname,'.vtk')));
 
 % Create an object of the "Elements" class and process the element properties
-ord = 1;
-elems = Elements(topology,ord);
+elems = Elements(topology,nG);
 
 % Create an object of the "Faces" class and process the face properties
 faces = Faces(model, topology);

@@ -21,29 +21,29 @@ classdef Gauss < handle
 
   methods (Access = private)
 
-    function setGaussPoints(obj,cType,ord)
+    function setGaussPoints(obj,cType,nG)
       %METHOD1 Summary of this method goes here
       %   Detailed explanation goes here
       switch cType
         case 5 % Triangle
-          [c,w] = Gauss.pointsTriangle(ord);
+          [c,w] = Gauss.pointsTriangle(nG);
           obj.coord = c;
           obj.weight = w;
           obj.nNode = numel(w);
         case {9,28} % Quadrilateral
-          [c1,w1] = Gauss.points1D(ord);
+          [c1,w1] = Gauss.points1D(nG);
           [y, x] = meshgrid(c1,c1);
           obj.coord = [x(:), y(:)];
           obj.weight = bsxfun(@(a,b) a*b,w1,(w1)');
           obj.weight = obj.weight(:);
           obj.nNode = (numel(w1))^2;
         case 10 % Tetrahedron
-          [c,w] = Gauss.pointsTetra(ord);
+          [c,w] = Gauss.pointsTetra(nG);
           obj.coord = c;
           obj.weight = w;
           obj.nNode = numel(w);
         case {12,29} % Hexahedron
-          [c1,w1] = Gauss.points1D(ord);
+          [c1,w1] = Gauss.points1D(nG);
           [y, x, z] = meshgrid(c1,c1,c1);
           obj.coord = [x(:), y(:), z(:)];
           weightGaussTmp = bsxfun(@(a,b) a*b,w1,(w1)');
@@ -59,10 +59,8 @@ classdef Gauss < handle
 
   methods (Static)
 
-    function [coord1D, weight1D] = points1D(ord)
-
-      nG = ceil(0.5*(ord+1));
-      
+    function [coord1D, weight1D] = points1D(nG)
+ 
       % get 1D points location for tensor product rule
       switch nG
         case 1 % 1 node
@@ -129,10 +127,8 @@ classdef Gauss < handle
       end
     end
 
-    function [coord,weight] = pointsTriangle(ord)
+    function [coord,weight] = pointsTriangle(nG)
 
-      ord2ng = [1,3,4,6,7,12];
-      nG = ord2ng(ord);
       % get 1D points location for reference triangle
       % from Dunavant, 1984
       parentArea = 0.5;
@@ -244,15 +240,11 @@ classdef Gauss < handle
       weight = parentArea*weight;        
     end
 
-    function [coord, weight] = pointsTetra(ord)
+    function [coord, weight] = pointsTetra(nG)
       % Return Gauss integration points and weights for the reference tetrahedron
       % Reference tetrahedron: vertices at (0,0,0), (1,0,0), (0,1,0), (0,0,1)
       % Coordinates are in Cartesian coordinates
       % Weights are scaled by 1/6 (volume of reference tetrahedron)
-
-
-      ord2ng = [1,4,5,11];
-      nG = ord2ng(ord);
 
       parentVolume = 1/6;
       switch nG
@@ -328,7 +320,7 @@ classdef Gauss < handle
             ];
 
         otherwise
-                    error(['Unsupported number of gauss points for tetrahedron quadrature.' ...
+          error(['Unsupported number of gauss points for tetrahedron quadrature.' ...
             'Available integration order are: \n' ...
             ' order 1: 1 gp \n order 2: 4 gp \n order 3: 5 gp \n' ...
             ' order 4: 11 gp']);

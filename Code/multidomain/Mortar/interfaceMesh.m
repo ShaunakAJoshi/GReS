@@ -26,9 +26,9 @@ classdef interfaceMesh < handle
   
   methods
     function obj = interfaceMesh(domains,surf)
-
       mshMaster = domains(1).Grid.topology;
       mshSlave = domains(2).Grid.topology;
+      % extrad 2d surface mesh from parent domain
       obj.msh = [mshMaster.getSurfaceMesh(surf{1});
                  mshSlave.getSurfaceMesh(surf{2})];
       getCellTypes(obj);
@@ -142,14 +142,15 @@ classdef interfaceMesh < handle
       end
     end
 
-    %
+    % provisional: this method will be removed to support different element
+    % types in each side. 
     function getCellTypes(obj)
       for i = [1 2]
         switch obj.msh(i).surfaceVTKType(1)
           case 5 % Triangle mesh Master
             obj.cellType(i) = 10;
             obj.nN(i) = 3;
-          case 9 % Quad mesh Master
+          case {9,28} % Quad mesh Master
             obj.cellType(i) = 12;
             obj.nN(i) = 4;
         end

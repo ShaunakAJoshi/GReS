@@ -114,7 +114,7 @@ classdef MultidomainFCSolver < handle
           printState(obj);
         end
         %
-        updateResults(obj);
+        %updateResults(obj);
         % Manage next time step
         delta_t = manageNextTimeStep(obj,delta_t,flConv);
       end

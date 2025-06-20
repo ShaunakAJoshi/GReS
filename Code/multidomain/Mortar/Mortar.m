@@ -30,6 +30,7 @@ classdef Mortar < handle
       surfId = {inputStruct.Master.surfaceTagAttribute;
         inputStruct.Slave.surfaceTagAttribute};
       obj.mesh = interfaceMesh(domains,surfId);
+      checkInterfaceDisjoint(obj);
       obj.dofm = [domains(1).DoFManager;
                         domains(2).DoFManager];
       switch inputStruct.Quadrature.typeAttribute
@@ -62,7 +63,6 @@ classdef Mortar < handle
 
 
     function applyBC(obj,idDomain,bound,t)
-      side = getSide(obj,idDomain);
       bcList = bound.db.keys;
 
       for bc = string(bcList)
@@ -75,11 +75,11 @@ classdef Mortar < handle
           continue
           % only dirichlet bc has to be enforced to mortar blocks
         else
-          switch side
-            case 'master'
-              applyBCmaster(obj,bound,bc,t)
-            case 'slave'
-              applyBCslave(obj,bound,bc,t)
+          if idDomain == obj.idDomain(1)
+            applyBCmaster(obj,bound,bc,t)
+          end
+          if idDomain == obj.idDomain(2)
+            applyBCslave(obj,bound,bc,t)
           end
         end
       end
@@ -119,17 +119,22 @@ classdef Mortar < handle
 
         ncomp = obj.dofm(2).getDoFperEnt(obj.physics);
 
-        % get number of index entries for sparse matrix
+        % get number of index entries for sparse matrices
         % overestimate number of sparse indices assuming all quadrilaterals
+        cellsSlave = obj.mesh.getActiveCells(2);
+        %cellsMaster = obj.mesh.getActiveCells(1);
+        nNmaster = obj.mesh.msh(1).surfaceNumVerts'*obj.mesh.elemConnectivity;
         switch obj.multiplierType
           case 'P0'
-            k = 1;
+            N1 = sum(nNmaster(cellsSlave)); 
+            N2 = sum(obj.mesh(2).surfaceNumVerts(cellsSlave));
           otherwise
-            k = obj.mesh.nN(2);
+            N1 = nNmaster*obj.mesh.msh(2).surfaceNumVerts;
+            N2 = sum(obj.mesh.msh(2).surfaceNumVerts(cellsSlave).^2);
         end
 
-        nm = nnz(obj.mesh.elemConnectivity)*ncomp^2*k*obj.mesh.nN(1);
-        ns = obj.mesh.nEl(2)*ncomp^2*k*obj.mesh.nN(2);
+        nm = (ncomp^2)*N1;
+        ns = ncomp^2*N2;
 
         % get number of dofs for each block
         nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
@@ -146,7 +151,7 @@ classdef Mortar < handle
         asbD = assembler(ns,locD,nDofMult,nDofSlave);
 
         for i = 1:obj.mesh.nEl(2)
-          is = obj.mesh.getActiveCells(2,i);
+          is = cellsSlave(i);
           masterElems = find(obj.mesh.elemConnectivity(:,is));
           if isempty(masterElems)
             continue
@@ -173,7 +178,7 @@ classdef Mortar < handle
             end
 
             [Nslave,Nmaster,Nmult] = ...
-              obj.reshapeBasisFunctions(3,Nslave,Nmaster,Nmult);
+              obj.reshapeBasisFunctions(ncomp,Nslave,Nmaster,Nmult);
 
             asbM.localAssembly(i,im,-Nmult,Nmaster);
 
@@ -191,21 +196,23 @@ classdef Mortar < handle
     end
     
 
-    function sideStr = getSide(obj,idDomain)
-      % get side of the interface 'master' or 'slave' based on the
-      % domain input id
-      isMaster = obj.idDomain(1) == idDomain;
-      isSlave = obj.idDomain(2) == idDomain;
-      if isMaster
-        sideStr = 'master';
-      elseif isSlave
-        sideStr = 'slave';
-      else
-        % consider the case where both sides belong to the same domain,
-        % something like 'master_slave'
-        error('Input domain not belonging to the interface');
-      end
-    end
+%     function sideStr = getSide(obj,idDomain)
+%       % get side of the interface 'master' or 'slave' based on the
+%       % domain input id
+%       isMaster = obj.idDomain(1) == idDomain;
+%       isSlave = obj.idDomain(2) == idDomain;
+%       if isMaster
+%         sideStr = 'master';
+%       elseif isSlave
+%         sideStr = 'slave';
+%       elseif isMaster && isSlave
+%         sideStr = 'master'+'slave';
+%       else
+%         % consider the case where both sides belong to the same domain,
+%         % something like 'master_slave'
+%         error('Input domain not belonging to the interface');
+%       end
+%     end
 
     function finalizeOutput(obj)
       obj.outStruct.VTK.finalize();
@@ -266,7 +273,16 @@ classdef Mortar < handle
         out.tList = outState.timeList;
         obj.outStruct = out;
       end
+    end
 
+    function checkInterfaceDisjoint(obj)
+      if obj.idDomain(1)==obj.idDomain(2)
+        % interface defined within the same domain 
+        out = setdiff(obj.mesh.local2glob{1},obj.mesh.local2glob{2});
+        if ~all(out==obj.mesh.local2glob{1})
+          error('Nodes of master and slave side are not disjoint');
+        end
+      end
     end
   end
 
