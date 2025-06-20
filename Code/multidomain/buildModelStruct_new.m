@@ -15,7 +15,11 @@ function modStr = getModelStruct(str,simParam)
   model = ModelType(str.ModelType);
   topology = Mesh();
   topology.importMesh(char(str.Geometry));
-  material = Materials(model,char(str.Material));
+  if isfield(str,"Material")
+    material = Materials(model,char(str.Material));
+  else
+    material = [];
+  end
 
   % dof manager
   if ~isfield(str,'DoFManager')
@@ -25,6 +29,7 @@ function modStr = getModelStruct(str,simParam)
   end
   
   gNPoints = str.Gauss;
+  
   if ~ismissing(gNPoints)
     elems = Elements(topology,gNPoints);
   else

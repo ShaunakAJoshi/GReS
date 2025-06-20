@@ -14,7 +14,7 @@ classdef MultidomainFCSolver < handle
     dt
     statek
     stateTmp
-    systSize
+    systSize % [num_blocks, num_field_domain, num_field_interface]
     nfldInt
     nfldDom
   end
