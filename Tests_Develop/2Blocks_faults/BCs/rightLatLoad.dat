@@ -1,7 +1,6 @@
 SurfBC            % BC item 
 Neu            % BC type 
 Poromechanics            % Physics 
-x 
 right_latLoad            % BC name 
 BCs/rightLatLoad/list 
 0.000000 BCs/rightLatLoad/time0.dat 

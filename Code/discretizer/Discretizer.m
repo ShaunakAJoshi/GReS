@@ -12,6 +12,7 @@ classdef Discretizer < handle
    properties (GetAccess=public, SetAccess=public)
      interfaceList = []; 
      interfaces = []
+     interfaceSurf            % surfaceTag in each surface of interfaceSurf
      % empty - single domain simulation
      % not empty - call to mesh glue instances 
      state

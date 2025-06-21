@@ -63,8 +63,10 @@ assert(numel(varargin)>0,'Not enough input arguments')
 fList = fopen(listName,'w');
 if ~isa(varargin{1},"Mesh") % direct assignment
   list = varargin{1};
-  vals = varargin{2}; % overwrite standard vals
-  assert(length(list)==length(vals))
+  if numel(varargin)>1
+    vals = varargin{2}; % overwrite standard vals
+    assert(length(list)==length(vals))
+  end
 else
   surf = find(ismember(varargin{1}.surfaceTag,varargin{2}));
   switch item
@@ -92,6 +94,10 @@ for i = 1:length(time)
   t_name = strcat(fName,'/time',num2str(i-1),'.dat');
   ft = fopen(t_name,'w');
   fprintf(ft,'%%Time %2.4f \n',time(i));
-  fprintf(ft,'%1.6e \n',vals);
+  if isscalar(vals)
+    fprintf(ft,'%1.6e \n',repelem(vals(i),length(list)));
+  else
+    fprintf(ft,'%1.6e \n',vals);
+  end
 end
 end

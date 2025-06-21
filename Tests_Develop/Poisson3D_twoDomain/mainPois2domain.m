@@ -40,32 +40,51 @@ for i = 1:nref
   fprintf('Running mesh refinement %i \n',i);
 
   % run script to get refined mesh
-  fname = strcat('domain_',num2str(i));
-  command = "python Mesh/domain.py "  + fname...
-    + " " + num2str(N_i_l) + " " + num2str(N_i_r);
+  fnameLeft = strcat('domain_left_',num2str(i));
+  command = "python Mesh/domain_left.py "  + fnameLeft...
+    + " " + num2str(N_i_l);
+  system(command);
+
+  fnameRight = strcat('domain_right_',num2str(i));
+  command = "python Mesh/domain_right.py "  + fnameRight...
+    + " " + num2str(N_i_r);
   system(command);
   
-  meshFile = char(fname+".vtk");
-  mesh = Mesh();
-  mesh.importMesh(meshFile);
+  meshFile = char(fnameLeft+".vtk");
+  mesh_left = Mesh();
+  mesh_left.importMesh(meshFile);
 
   % set up bc file
-  nodes = unique(mesh.surfaces(ismember(mesh.surfaceTag,[2 4]),:));
-  c = mesh.coordinates(nodes,:);
+  nodes = unique(mesh_left.surfaces(ismember(mesh_left.surfaceTag,1),:));
+  c = mesh_left.coordinates(nodes,:);
   vals = arrayfun(@(i) anal(c(i,:)),1:numel(nodes));
   vals = reshape(vals,[],1);
-  writeBCfiles('bc','NodeBC','Dir','Poisson','manufactured_bc',0,0,nodes,vals);
+  writeBCfiles('bc_left','NodeBC','Dir','Poisson','manufactured_bc',0,0,nodes,vals);
 
-  clear mesh
+  meshFile = char(fnameRight+".vtk");
+  mesh_right = Mesh();
+  mesh_right.importMesh(meshFile);
+
+  % set up bc file
+  nodes = unique(mesh_right.surfaces(ismember(mesh_right.surfaceTag,1),:));
+  c = mesh_right.coordinates(nodes,:);
+  vals = arrayfun(@(i) anal(c(i,:)),1:numel(nodes));
+  vals = reshape(vals,[],1);
+  writeBCfiles('bc_right','NodeBC','Dir','Poisson','manufactured_bc',0,0,nodes,vals);
+
+  clear mesh_left
+  clear mesh_right
 
   % write mesh to domain file
-  strDomain.Domain.Geometry = fullfile(fname+".vtk");
+  strDomain.Domain(1).Geometry = fullfile(fnameLeft+".vtk");
+  strDomain.Domain(2).Geometry = fullfile(fnameRight+".vtk");
   domainFile = fullfile('Domains','domain2block.xml');
   writestruct(strDomain,domainFile);
  
   % processing Poisson problem
   domains = buildModelStruct_new(domainFile,simParam);
-  domains.Discretizer.getSolver('Poisson').setAnalSolution(anal,f,gradx,grady,gradz);
+  domains(1).Discretizer.getSolver('Poisson').setAnalSolution(anal,f,gradx,grady,gradz);
+  domains(2).Discretizer.getSolver('Poisson').setAnalSolution(anal,f,gradx,grady,gradz);
   
   [interfaces,domains] = Mortar.buildInterfaceStruct(interfFile,domains);
   % set up analytical solution
@@ -76,8 +95,8 @@ for i = 1:nref
 
   %runPoisson;
 
-  pois = getSolver(domains.Discretizer,'Poisson');
-  [L2(i),H1(i)] = pois.computeError_v2();
+  pois1 = getSolver(domains(1).Discretizer,'Poisson');
+  [L2(i),H1(i)] = pois1.computeError_v2();
   h(i) = 1/N_i_r;
   fprintf('Max absolute error is: %1.6e \n',max(abs(pois.state.data.err)));
 end

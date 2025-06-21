@@ -80,7 +80,7 @@ classdef MeshGlue < Mortar
           elseif isDom(1)
             rhs = obj.rhsMaster{fldId};
           elseif isDom(2)
-            rhs = obj.rhsMaster{fldId};
+            rhs = obj.rhsSlave{fldId};
           else
             error('Input domain %i is not a valid master/slave',domId)
           end

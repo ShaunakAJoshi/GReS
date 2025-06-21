@@ -69,7 +69,7 @@ gmsh.model.mesh.set_transfinite_surface(1)
 
 surf_tags = [surfLeft] + [outL[0][1]] +  [e[1] for e in outL[2:]]
 
-gmsh.model.addPhysicalGroup(2, surf_tags, 2, name = "lateralBound")
+gmsh.model.addPhysicalGroup(2, surf_tags, 1, name = "lateralBound")
 
 
 gmsh.model.addPhysicalGroup(outL[1][0], [outL[1][1]],1, name="domain")

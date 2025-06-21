@@ -33,7 +33,7 @@ topology = Mesh();
 % base domain size
 N = 3;
 % number of refinement
-nref = 3;
+nref = 2;
 [h,L2,H1] = deal(zeros(nref,1));
 
 elemType = 'hexa';

@@ -8,7 +8,6 @@ classdef VTKOutput < handle
    end
 
    properties (Access = private)
-
       mesh;
       hasFaults = false;
       surfaceList;
@@ -30,7 +29,6 @@ classdef VTKOutput < handle
       nDataMax = 100;
       IDdata = 0;
       data;
-
    end
 
    methods (Access = public)
