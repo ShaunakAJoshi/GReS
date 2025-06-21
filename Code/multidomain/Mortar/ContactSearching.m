@@ -108,16 +108,13 @@ classdef ContactSearching < handle
       % OUTPUT: k primitives defining the bounding polytop of the
       %         Cells belonging to left and right child (if any)
       nNodes = size(msh.surfaces,2);
-      surfCentroid = zeros(msh.nSurfaces,3);
-      % compute surface centroids
-      for i = 1:3
-        tmp = msh.coordinates(msh.surfaces',i);
-        tmp = reshape(tmp,nNodes,[]);
-        surfCentroid(:,i) = sum(tmp,1)/nNodes;
+      if nNodes == 9
+        % provisional: for quad9 just keep the first two nodes
+        nNodes = 4;
       end
-
+      surfCentroid = msh.surfaceCentroid;
       % get unique set of nodes belonging to input cells
-      nodes = unique(msh.surfaces(surfID,:));
+      nodes = unique(msh.surfaces(surfID,1:nNodes));
       % Store coordinates depending on 2D or 3D cases
       coords = msh.coordinates(nodes,1:obj.dim);
       prim = coords*obj.polytop;

@@ -26,10 +26,10 @@ interfFile = 'interfaces_1.xml';
 
 %% INPUT
 % base domain size
-N_0_l = 4;
-N_0_r = 5;
+N_0_l = 2;
+N_0_r = 3;
 % number of refinement
-nref = 1;
+nref = 3;
 [h,L2,H1] = deal(zeros(nref,1));
 
 %% convergence loop
@@ -42,7 +42,7 @@ for i = 1:nref
   % run script to get refined mesh
   fname = strcat('domain_',num2str(i));
   command = "python Mesh/domain.py "  + fname...
-    + " " + num2str(N_i_l) + " " + num2str(N_i_r);
+    + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + 'hexa27';
   system(command);
 
   
@@ -51,7 +51,7 @@ for i = 1:nref
   mesh.importMesh(meshFile);
 
   % set up bc file
-  nodes = unique(mesh.surfaces(ismember(mesh.surfaceTag,1),:));
+  nodes = unique(mesh.surfaces(ismember(mesh.surfaceTag,[2 4]),:));
   c = mesh.coordinates(nodes,:);
   vals = arrayfun(@(i) anal(c(i,:)),1:numel(nodes));
   vals = reshape(vals,[],1);

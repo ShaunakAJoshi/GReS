@@ -17,9 +17,9 @@ classdef Poisson < SinglePhysics
     end
 
     function computeMat(obj,varargin)
-      if ~isempty(obj.J)
-        return
-      end
+%       if ~isempty(obj.J)
+%         return
+%       end
       % general sparse assembly loop over elements for Poromechanics
       subCells = obj.dofm.getFieldCells(obj.field);
       n = sum(obj.mesh.cellNumVerts(subCells).^2);

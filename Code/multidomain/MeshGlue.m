@@ -90,10 +90,10 @@ classdef MeshGlue < Mortar
 
     function computeMat(obj,~)
       % return matrices for master and slave side in appropriate field
-      if obj.isMatrixComputed()
-        % mesh glue matrices are constant troughout the simulation
-        return
-      end
+%       if obj.isMatrixComputed()
+%         % mesh glue matrices are constant troughout the simulation
+%         return
+%       end
       computeMortarMatrices(obj);
       %       for i = 1:obj.nFld
       %         % map local mortar matrices to global indices
@@ -105,6 +105,8 @@ classdef MeshGlue < Mortar
     function computeRhs(obj)
       % compute rhs contributions for a specified input field
       for i = 1:obj.nFld
+        % reset rhs multiplier
+        obj.rhsMult{i} = zeros(getNumbMultipliers(obj),1);
         computeRhsMaster(obj,i);
         computeRhsSlave(obj,i);
       end

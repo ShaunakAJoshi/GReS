@@ -98,7 +98,7 @@ for i = 1:nref
   pois1 = getSolver(domains(1).Discretizer,'Poisson');
   [L2(i),H1(i)] = pois1.computeError_v2();
   h(i) = 1/N_i_r;
-  fprintf('Max absolute error is: %1.6e \n',max(abs(pois.state.data.err)));
+  fprintf('Max absolute error is: %1.6e \n',max(abs(pois1.state.data.err)));
 end
 
 % compute convergence order

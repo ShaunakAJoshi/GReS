@@ -11,8 +11,15 @@ gmsh.option.setNumber("General.Verbosity", 0)  # Reduce verbosity to minimum
 outfile = sys.argv[1]
 N1 = int(sys.argv[2])
 N2 = int(sys.argv[3])
+elem_type = sys.argv[4]
 
 gmsh.model.add('domain')
+
+
+recombineFlag = True
+
+if elem_type == 'tetra':
+    recombineFlag = False
 
 # Mesh.Format = 16 # msh output format
 # Mesh.MshFileVersion = 2.2 # Version of the MSH file format to use
@@ -48,11 +55,13 @@ gmsh.model.occ.addCurveLoop([1,2,3,4],1)
 surfLeft = gmsh.model.occ.addPlaneSurface([1])
 
 # dim tag is [(geo_size,tag_entity)]  numElements is a list!
-outL = gmsh.model.occ.extrude([(2, surfLeft)], 0, 0, 1, numElements=[NZ], recombine=True)
+outL = gmsh.model.occ.extrude([(2, surfLeft)], 0, 0, 1, numElements=[NZ], recombine=recombineFlag)
 
 gmsh.model.occ.synchronize()
 
-gmsh.model.mesh.setRecombine(2, surfLeft)
+
+if recombineFlag:
+    gmsh.model.mesh.setRecombine(2, surfLeft)
 
 gmsh.model.mesh.set_transfinite_curve(L1l,NX+1)
 gmsh.model.mesh.set_transfinite_curve(L2l,NY+1)
@@ -95,11 +104,13 @@ curveRight = gmsh.model.occ.addCurveLoop([L1r,L2r,L3r,L4r])
 surfRight = gmsh.model.occ.addPlaneSurface([curveRight])
 
 # dim tag is [(geo_size,tag_entity)]  numElements is a list!
-outR = gmsh.model.occ.extrude([(2,surfRight)],0,0,1,numElements=[NZ],recombine=True)
+outR = gmsh.model.occ.extrude([(2,surfRight)],0,0,1,numElements=[NZ],recombine=recombineFlag)
 
 gmsh.model.occ.synchronize()
 
-gmsh.model.mesh.setRecombine(2, surfRight)
+if recombineFlag:
+    gmsh.model.mesh.setRecombine(2, surfRight)
+
 
 gmsh.model.mesh.set_transfinite_curve(L1r,NX+1)
 gmsh.model.mesh.set_transfinite_curve(L2r,NY+1)
@@ -119,6 +130,16 @@ gmsh.model.addPhysicalGroup(outR[1][0], [outR[1][1]],2, name="right_mesh")
 
 
 
+if elem_type == "tetra" or elem_type == "hexa":
+    gmsh.option.setNumber("Mesh.ElementOrder", 1)
+elif elem_type == "hexa27":
+    gmsh.option.setNumber("Mesh.ElementOrder", 2)
+    gmsh.option.setNumber("Mesh.SecondOrderIncomplete", 0)
+else:
+    print("Unknown element type")
+
+
+
 
 
 gmsh.model.mesh.generate(3)
@@ -126,7 +147,6 @@ gmsh.model.mesh.generate(3)
 # ... and save it to disk
 outfile += '.vtk'
 gmsh.write(outfile)
-
 #if '-nopopup' not in sys.argv:
 #    gmsh.fltk.run()
 

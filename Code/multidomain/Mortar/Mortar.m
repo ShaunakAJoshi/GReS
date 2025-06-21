@@ -108,111 +108,109 @@ classdef Mortar < handle
 
     function computeMortarMatrices(obj,~)
       % assumption: each element has only one bubble face
-      if isempty(obj.Jmaster{:})
-        % loop over slave faces and:
-        % 1) compute Aub, Abu and Abb local matrix from the neighbor cell
-        % 2) compute local M, D and Db
-        % 3) assemble static condensation blocks and Jmult
+      % loop over slave faces and:
+      % 1) compute Aub, Abu and Abb local matrix from the neighbor cell
+      % 2) compute local M, D and Db
+      % 3) assemble static condensation blocks and Jmult
 
-        % differently from the base method of the mortar class, here global
-        % dof indexing is used for the assembled matrices
+      % differently from the base method of the mortar class, here global
+      % dof indexing is used for the assembled matrices
 
-        ncomp = obj.dofm(2).getDoFperEnt(obj.physics);
+      ncomp = obj.dofm(2).getDoFperEnt(obj.physics);
 
-        % get number of index entries for sparse matrices
-        % overestimate number of sparse indices assuming all quadrilaterals
-        cellsSlave = obj.mesh.getActiveCells(2);
-        %cellsMaster = obj.mesh.getActiveCells(1);
-        nNmaster = obj.mesh.msh(1).surfaceNumVerts'*obj.mesh.elemConnectivity;
+      % get number of index entries for sparse matrices
+      % overestimate number of sparse indices assuming all quadrilaterals
+      cellsSlave = obj.mesh.getActiveCells(2);
+      %cellsMaster = obj.mesh.getActiveCells(1);
+      nNmaster = obj.mesh.msh(1).surfaceNumVerts'*obj.mesh.elemConnectivity;
+      switch obj.multiplierType
+        case 'P0'
+          N1 = sum(nNmaster(cellsSlave));
+          N2 = sum(obj.mesh(2).surfaceNumVerts(cellsSlave));
+        otherwise
+          N1 = nNmaster*obj.mesh.msh(2).surfaceNumVerts;
+          N2 = sum(obj.mesh.msh(2).surfaceNumVerts(cellsSlave).^2);
+      end
+
+      nm = (ncomp^2)*N1;
+      ns = ncomp^2*N2;
+
+      % get number of dofs for each block
+      nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
+      nDofSlave = obj.dofm(2).getNumDoF(obj.physics);
+      nDofMult = getNumbMultipliers(obj);
+
+      % define matrix assemblers
+      locM = @(imult,imaster,Nmult,Nmaster) ...
+        computeLocMaster(obj,imult,imaster,Nmult,Nmaster);
+      locD = @(imult,islave,Dloc) ...
+        computeLocSlave(obj,imult,islave,Dloc);
+
+      asbM = assembler(nm,locM,nDofMult,nDofMaster);
+      asbD = assembler(ns,locD,nDofMult,nDofSlave);
+
+      for i = 1:obj.mesh.nEl(2)
+        is = cellsSlave(i);
+        masterElems = find(obj.mesh.elemConnectivity(:,is));
+        if isempty(masterElems)
+          continue
+        end
+
+        elSlave = getElem(obj,2,is);
+        nN = elSlave.nNode;
         switch obj.multiplierType
           case 'P0'
-            N1 = sum(nNmaster(cellsSlave)); 
-            N2 = sum(obj.mesh(2).surfaceNumVerts(cellsSlave));
+            Dloc = zeros(ncomp,ncomp*nN);
           otherwise
-            N1 = nNmaster*obj.mesh.msh(2).surfaceNumVerts;
-            N2 = sum(obj.mesh.msh(2).surfaceNumVerts(cellsSlave).^2);
+            Dloc = zeros(ncomp*nN,ncomp*nN);
         end
 
-        nm = (ncomp^2)*N1;
-        ns = ncomp^2*N2;
+        for im = masterElems'
 
-        % get number of dofs for each block
-        nDofMaster = obj.dofm(1).getNumDoF(obj.physics);
-        nDofSlave = obj.dofm(2).getNumDoF(obj.physics);
-        nDofMult = getNumbMultipliers(obj);
+          [Nslave,Nmaster,Nmult] = ...
+            getMortarBasisFunctions(obj.quadrature,is,im);
 
-        % define matrix assemblers
-        locM = @(imult,imaster,Nmult,Nmaster) ...
-          computeLocMaster(obj,imult,imaster,Nmult,Nmaster);
-        locD = @(imult,islave,Dloc) ...
-          computeLocSlave(obj,imult,islave,Dloc);
-
-        asbM = assembler(nm,locM,nDofMult,nDofMaster);
-        asbD = assembler(ns,locD,nDofMult,nDofSlave);
-
-        for i = 1:obj.mesh.nEl(2)
-          is = cellsSlave(i);
-          masterElems = find(obj.mesh.elemConnectivity(:,is));
-          if isempty(masterElems)
+          if isempty(Nmaster)
+            % refine connectivity matrix
+            obj.mesh.elemConnectivity(im,is) = 0;
             continue
           end
-          
-          elSlave = getElem(obj,2,is);
-          nN = elSlave.nNode;
-          switch obj.multiplierType
-            case 'P0'
-              Dloc = zeros(ncomp,ncomp*nN);
-            otherwise
-              Dloc = zeros(ncomp*nN,ncomp*nN);
-          end
 
-          for im = masterElems'
+          [Nslave,Nmaster,Nmult] = ...
+            obj.reshapeBasisFunctions(ncomp,Nslave,Nmaster,Nmult);
 
-            [Nslave,Nmaster,Nmult] = ...
-              getMortarBasisFunctions(obj.quadrature,is,im);
+          asbM.localAssembly(i,im,-Nmult,Nmaster);
 
-            if isempty(Nmaster)
-              % refine connectivity matrix
-              obj.mesh.elemConnectivity(im,is) = 0;
-              continue
-            end
-
-            [Nslave,Nmaster,Nmult] = ...
-              obj.reshapeBasisFunctions(ncomp,Nslave,Nmaster,Nmult);
-
-            asbM.localAssembly(i,im,-Nmult,Nmaster);
-
-            Dloc = Dloc + ...
-              obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
-              Nmult,Nslave);
-          end
-
-          asbD.localAssembly(i,is,Dloc);
+          Dloc = Dloc + ...
+            obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
+            Nmult,Nslave);
         end
 
-        obj.Jmaster{1} = asbM.sparseAssembly();
-        obj.Jslave{1} = asbD.sparseAssembly();
+        asbD.localAssembly(i,is,Dloc);
+      end
+
+      obj.Jmaster{1} = asbM.sparseAssembly();
+      obj.Jslave{1} = asbD.sparseAssembly();
+    end
+
+
+    function sideStr = getSide(obj,idDomain)
+      % get side of the interface 'master' or 'slave' based on the
+      % domain input id
+      isMaster = obj.idDomain(1) == idDomain;
+      isSlave = obj.idDomain(2) == idDomain;
+      if isMaster
+        sideStr = 'master';
+      elseif isSlave
+        sideStr = 'slave';
+      elseif isMaster && isSlave
+        sideStr = 'master'+'slave';
+      else
+        % consider the case where both sides belong to the same domain,
+        % something like 'master_slave'
+        error('Input domain not belonging to the interface');
       end
     end
-    
-
-%     function sideStr = getSide(obj,idDomain)
-%       % get side of the interface 'master' or 'slave' based on the
-%       % domain input id
-%       isMaster = obj.idDomain(1) == idDomain;
-%       isSlave = obj.idDomain(2) == idDomain;
-%       if isMaster
-%         sideStr = 'master';
-%       elseif isSlave
-%         sideStr = 'slave';
-%       elseif isMaster && isSlave
-%         sideStr = 'master'+'slave';
-%       else
-%         % consider the case where both sides belong to the same domain,
-%         % something like 'master_slave'
-%         error('Input domain not belonging to the interface');
-%       end
-%     end
 
     function finalizeOutput(obj)
       obj.outStruct.VTK.finalize();
@@ -235,7 +233,7 @@ classdef Mortar < handle
         if tID <= length(tList)
           while tList(tID) <= tNew
             t = tList(tID);
-            % Linear interpolation
+            %Linear interpolation
             fac = (t - tOld)/(tNew - tOld);
             for i = 1:obj.nFld
               [cellData,pointData] = buildPrintStruct(obj,i,fac);
@@ -252,8 +250,8 @@ classdef Mortar < handle
         end
       end
     end
-
   end
+
 
   methods (Access = private)
 

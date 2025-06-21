@@ -36,7 +36,7 @@ N = 3;
 nref = 2;
 [h,L2,H1] = deal(zeros(nref,1));
 
-elemType = 'hexa';
+elemType = 'hexa27';
 
 switch elemType
   case 'tetra'
