@@ -51,9 +51,10 @@ classdef (Abstract) FEM < handle
       rangeXi = [min(elem.coordLoc(:,1)) max(elem.coordLoc(:,1))];
       rangeEta = [min(elem.coordLoc(:,2)) max(elem.coordLoc(:,2))];
       out = true;
-      if (coord(1) < rangeXi(1) || coord(1) > rangeXi(2))
+      tol = 1e-4; % to avoid issues with uneven number of gp
+      if (coord(1) < rangeXi(1)-tol || coord(1) > rangeXi(2)+tol)
         out = false;
-      elseif (coord(2) < rangeEta(1) || coord(2) > rangeEta(2))
+      elseif (coord(2) < rangeEta(1)-tol || coord(2) > rangeEta(2)+tol)
         out = false;
       end
     end

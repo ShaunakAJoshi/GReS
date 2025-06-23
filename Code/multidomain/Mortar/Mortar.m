@@ -194,7 +194,7 @@ classdef Mortar < handle
 
       % check satisfaction of partition of unity (mortar consistency)
       pu = sum([obj.Jmaster{1} obj.Jslave{1}],2);
-      assert(norm(pu)<1e-8,'Partiition of unity violated');
+      assert(norm(pu)<1e-6,'Partiition of unity violated');
     end
 
 

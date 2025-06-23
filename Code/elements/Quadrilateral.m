@@ -129,18 +129,6 @@ classdef Quadrilateral < FEM
       end
     end
 
-
-    function N = computeBasisF(obj, coordList)
-      % Find the value the basis functions take at some  reference points
-      % whose 2D coordinates are store in coord
-      N = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*coordList(i,1)).* ...
-        (1+obj.coordLoc(j,2).*coordList(i,2)), ...
-        (1:size(coordList,1))',1:obj.nNode);
-      if size(N,2) ~= obj.nNode
-        N = N';
-      end
-    end
-
     function N = computeBubbleBasisF(obj, coordList)
       % Find the value the bubble basis functions take at some  reference
       % points whose 2D coordinates are store in coord
@@ -240,16 +228,30 @@ classdef Quadrilateral < FEM
      cLoc = Quadrilateral.coordLoc;
      nN = Quadrilateral.nNode;
 
-      d1 = bsxfun(@(i,j) 1/4*cLoc(j,1).* ...
-        (1+cLoc(j,2).*list(i,2)), ...
-        (1:size(list,1)),1:nN);
-      %
-      % d(N)/d\eta
-      d2 = bsxfun(@(i,j) 1/4*cLoc(j,2).* ...
-        (1+cLoc(j,1).*list(i,1)), ...
-        (1:size(list,1)),1:nN);
-      %
-      dN = [d1';d2'];
+     d1 = bsxfun(@(i,j) 1/4*cLoc(j,1).* ...
+       (1+cLoc(j,2).*list(i,2)), ...
+       (1:size(list,1)),1:nN);
+     %
+     % d(N)/d\eta
+     d2 = bsxfun(@(i,j) 1/4*cLoc(j,2).* ...
+       (1+cLoc(j,1).*list(i,1)), ...
+       (1:size(list,1)),1:nN);
+     %
+     dN = [d1';d2'];
+    end
+
+    function N = computeBasisF(coordList)
+      % Find the value the basis functions take at some  reference points
+      % whose 2D coordinates are store in coord
+      cLoc = Quadrilateral.coordLoc;
+      nN = Quadrilateral.nNode;
+
+      N = bsxfun(@(i,j) 1/4*(1+cLoc(j,1).*coordList(i,1)).* ...
+        (1+cLoc(j,2).*coordList(i,2)), ...
+        (1:size(coordList,1))',1:nN);
+      if size(N,2) ~= nN
+        N = N';
+      end
     end
   end
 

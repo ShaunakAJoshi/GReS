@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <struct>
     <Domain>
-        <Name>Cube_ElementBased_3</Name>
+        <Name>Cube_RBF_3</Name>
         <Geometry>domain_3.vtk</Geometry>
         <ModelType>Poisson_FEM</ModelType>
-        <Gauss>2</Gauss>
+        <Gauss>3</Gauss>
         <BoundaryConditions count="1">
             <File>bc.dat</File>
         </BoundaryConditions>

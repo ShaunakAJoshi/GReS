@@ -30,22 +30,26 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 3;
+nref = 4;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
-elem_type = "hexa";                 % hexa,hexa27
-integration_type = 'ElementBased';    % SegmentBased (7 gp),ElementBased,RBF
+elem_type = "hexa27";                 % hexa,hexa27
+integration_type = 'RBF';    % SegmentBased (7 gp),ElementBased,RBF
 nG = 6;           
 if strcmp(integration_type,'SegmentBased')
   nG = 7;
 end
 nInt = 6;
 
+N_l = [2 4 8 12 18];
+
+N_r = [3 6 12 18 27];
+
 %% convergence loop
 for i = 1:nref
-  N_i_l = N_0_l*2^(i-1);
-  N_i_r = N_0_r*2^(i-1);
+  N_i_l = N_l(i);
+  N_i_r = N_r(i);
 
   fprintf('Running mesh refinement %i \n',i);
 

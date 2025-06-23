@@ -8,6 +8,7 @@ classdef RBFquadrature < handle
     wF        % weight of RBF for primary variable basis function
     w1        % weight of rescaling RBF
     wB        % weight of RBF for bubble basis functions
+    wSupp     % weight for support detection in higher order elements
     ptsRBF    % position of interpolation points
     vecPts    % pointer of each element to location in ptsRBF
   end
@@ -41,6 +42,12 @@ classdef RBFquadrature < handle
 
       if obj.idSlave ~= is
         % new slave element
+        if ~isempty(obj.suppFlag)
+          if ~all(obj.suppFlag)
+            warning('% i GP not projected for element %i',...
+              sum(obj.suppFlag),obj.idSlave)
+          end
+        end
         obj.idSlave = is;
         obj.tempdJw = getDerBasisFAndDet(elemSlave,is);
         obj.tempNs = getBasisFinGPoints(elemSlave);
@@ -92,16 +99,25 @@ classdef RBFquadrature < handle
 
     function [Nm,id,Nb] = getMasterBasisF(obj,idMaster)
       % return interpolated master basis function into slave domain
-      tol = 1e-4;
       posGP = obj.tempGPloc;
       v = obj.vecPts(idMaster,:);
       nN = getElem(obj.mortar,1,idMaster).nNode;
       ptsInt = obj.ptsRBF(1:v(2),3*v(3)-[2 1 0]);
       [fiNM,id1] = obj.computeRBFfiNM(ptsInt,posGP);
+
       Nm = (fiNM*obj.wF(:,v(1)+1:v(1)+nN))./(fiNM*obj.w1(:,v(3)));
-      Nsupp = Nm(:,[1 2 3]);
+
       % automatically detect supports computing interpolant
-      id = all([Nsupp >= 0-tol id1],2);
+      tol = 1e-4;
+      if size(Nm,2) > 4
+        % higher order elements
+        Nsupp = (fiNM*obj.wSupp(1:v(2),3*v(3)-[2 1 0]))./(fiNM*obj.w1(:,v(3)));
+      else
+        Nsupp = Nm(:,[1 2 3]);
+      end
+      % automatically detect supports computing interpolant
+      id = all([Nsupp > 0-tol id1],2);
+    
       if nargout > 2
         % interpolated bubble basis function
         Nb = (fiNM*obj.wB(:,v(3)))./(fiNM*obj.w1(:,v(3)));
@@ -160,11 +176,12 @@ classdef RBFquadrature < handle
       weigh1 = zeros(numPts,obj.mortar.mesh.nEl(1));
       weighB = weigh1;
       pts = zeros(numPts,obj.mortar.mesh.nEl(1)*3);
+      weighSupp = zeros(numPts,obj.mortar.mesh.nEl(1)*3);
 
       k = 0;
       for i = 1:obj.mortar.mesh.nEl(1)
         im = obj.mortar.mesh.activeCells{1}(i);
-        [f, ptsInt] = computeMortarBasisF(obj,im);
+        [f, ptsInt, fSupp] = computeMortarBasisF(obj,im);
         nptInt = size(ptsInt,1);
         nN = getElem(obj.mortar,1,im).nNode;
         if nN < 5
@@ -176,20 +193,29 @@ classdef RBFquadrature < handle
         fiMM = obj.computeRBFfiMM(ptsInt);
         % solve local system to get weight of interpolant
         warning('off','MATLAB:nearlySingularMatrix')
-        x = fiMM\[f ones(size(ptsInt,1),1) bf];
+        if nN < 5
+          x = fiMM\[f ones(size(ptsInt,1),1) bf];
+        else
+          x = fiMM\[f ones(size(ptsInt,1),1) fSupp];
+        end
         weighF(1:nptInt,k+1:k+nN) = x(:,1:nN);
-        weigh1(1:nptInt,i) = x(:,end-1);
-        weighB(1:nptInt,i) = x(:,end);
+        weigh1(1:nptInt,i) = x(:,nN+1);
+        weighB(1:nptInt,i) = x(:,nN+2);
+        if size(x,2)>nN+2
+          % higher order elements
+          weighSupp(1:nptInt,[3*i-2 3*i-1 3*i]) = x(:,end-2:end) ;
+        end
         pts(1:nptInt,[3*i-2 3*i-1 3*i]) = ptsInt;
         obj.vecPts(im,1) = k;
-        obj.vecPts(im,2) = nptInt;
-        obj.vecPts(im,3) = i;
+        obj.vecPts(im,2) = nptInt;      % store number of interpolation points (changes between quad and tri)
+        obj.vecPts(im,3) = i;           % maps global id of master elements with list of local elements
         k = k+nN;
       end
       obj.wF = weighF;
       obj.w1 = weigh1;
       obj.wB = weighB;
       obj.ptsRBF = pts;
+      obj.wSupp = weighSupp;
       % loop trough master elements and interpolate Basis function
     end
 
@@ -201,14 +227,15 @@ classdef RBFquadrature < handle
 
     function [fiNM,id] = computeRBFfiNM(obj,ptsInt,ptsGauss)
       % id: id of points that has a distance < r with at least one
-      % master points
+      % master points (to autmatically sort out gauss points that are too
+      % far from the master interpolation points)
       d = sqrt((ptsGauss(:,1) - ptsInt(:,1)').^2 + (ptsGauss(:,2) - ptsInt(:,2)').^2 + (ptsGauss(:,3) - ptsInt(:,3)').^2);
       r = sqrt((max(ptsInt(:,1)) - min(ptsInt(:,1)))^2 + (max(ptsInt(:,2)) - min(ptsInt(:,2)))^2 + (max(ptsInt(:,3)) - min(ptsInt(:,3)))^2);
       id = ~all(d>=r,2);
       fiNM = obj.rbfInterp(d,r);
     end
 
-    function [bf,pos] = computeMortarBasisF(obj,id)
+    function [bf,pos,bfSupp] = computeMortarBasisF(obj,id)
       % evaluate shape function in the real space and return position of
       % integration points in the real space
       surfNodes = obj.mortar.mesh.msh(1).surfaces(id,:);
@@ -216,9 +243,17 @@ classdef RBFquadrature < handle
       elem = obj.mortar.getElem(1,id);
       % place interpolation points in a regular grid
       intPts = getInterpolationPoints(obj,elem);
-      bf = computeBasisF(elem,intPts);
+      bf = elem.computeBasisF(intPts);
       % get coords of interpolation points in the real space
       pos = bf*coord;
+
+      if elem.nNode < 5
+        bfSupp = [];
+      else
+        % auxiliary function for support detection
+        bfSupp = Quadrilateral.computeBasisF(intPts);
+        bfSupp = bfSupp(:,1:end-1);
+      end
     end
 
     function bf = computeMortarBubbleBasisF(obj,id)
@@ -247,6 +282,19 @@ classdef RBFquadrature < handle
           [y, x] = meshgrid(intPts, intPts);
           intPts = [x(:), y(:)];
       end
+    end
+
+    function id = detectSupport(obj,Nmaster,id1,fiNM)
+      % detect gp lying in the master domain checking value of basis functions
+      tol = 1e-4;
+      if size(Nmaster,2) > 4
+        % higher order elements
+        Nsupp = (fiNM*obj.wSupp(1:v(2),3*v(3)-[2 1 0]))./(fiNM*obj.w1(:,v(3)));
+      else
+        Nsupp = Nmaster(:,[1 2 3]);
+      end
+      % automatically detect supports computing interpolant
+      id = all([Nsupp >= 0-tol id1],2);
     end
   end
 
