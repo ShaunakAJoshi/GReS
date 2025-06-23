@@ -123,7 +123,7 @@ classdef Poisson < SinglePhysics
       pointStr(1).data = var;
       if ~isempty(obj.anal)
         pointStr(2).name = 'abs_error';
-        pointStr(2).data = abs(var-computeAnal(obj,1:obj.mesh.nNodes,'u',1));
+        pointStr(2).data = abs(var-computeAnal(obj,1:obj.mesh.nNodes,'u',0));
       end
     end
 
@@ -140,7 +140,7 @@ classdef Poisson < SinglePhysics
       end
     end
 
-    function anal = computeAnal(obj,list,flag,mode)
+    function anal = computeAnal(obj,list,var,mode)
       if mode == 0
         x = obj.mesh.coordinates(list,:);
       elseif mode == 1
@@ -148,7 +148,7 @@ classdef Poisson < SinglePhysics
       else 
         error('Mode input must be 0 (nodes list) or 1 (coordinate input list)');
       end
-      switch flag
+      switch var
         case 'u'
           f = obj.anal.u;
         case 'f'

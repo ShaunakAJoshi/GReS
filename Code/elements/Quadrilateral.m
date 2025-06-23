@@ -1,4 +1,4 @@
-classdef Quadrilateral < FiniteElementLagrangian
+classdef Quadrilateral < FEM
   % QUADRILATERAL element class
   %
   % NODE ORDERING ASSUMPTION (same as Gmsh output):
@@ -35,15 +35,7 @@ classdef Quadrilateral < FiniteElementLagrangian
       % if in is not scalar, it is a 4x2 list of 2D coordinates, the
       % gradient matrix and the determinant are returned
 
-      if isscalar(in)
-        % 3D setting
-        coord = obj.mesh.coordinates(obj.mesh.surfaces(in,:),1:obj.mesh.nDim);
-        J = pagemtimes(obj.Jref,coord);
-        for i = 1:obj.GaussPts.nNode
-          obj.detJ(i) = norm(cross(J(1,:,i),J(2,:,i)),2);
-        end
-        outVar1 = obj.detJ.*(obj.GaussPts.weight)';
-      else
+      if size(in,2) == 2
         % 2D - in is a given list of x-y coordinates for nodes
         J = pagemtimes(obj.Jref,in);
         for i=1:obj.GaussPts.nNode
@@ -52,6 +44,18 @@ classdef Quadrilateral < FiniteElementLagrangian
         end
         outVar1 = pagemtimes(J,obj.Jref);
         outVar2 = obj.detJ.*(obj.GaussPts.weight)';
+      else
+        if isscalar(in)
+          % 3D setting
+          coord = FEM.getElementCoords(obj,in);
+        elseif size(in,2)==3 % 3D list of coordinates in input
+          coord = in;
+        end
+        J = pagemtimes(obj.Jref,coord);
+        for i = 1:obj.GaussPts.nNode
+          obj.detJ(i) = norm(cross(J(1,:,i),J(2,:,i)),2);
+        end
+        outVar1 = obj.detJ.*(obj.GaussPts.weight)';
       end
     end
 
@@ -94,8 +98,7 @@ classdef Quadrilateral < FiniteElementLagrangian
     function n = computeNormal(obj,idQuad,pos)
       % compute normal vector of quadrilatral in specific reference point
       assert(isscalar(idQuad),'Input id must be a scalar positive integer')
-
-      dN = computeDerBasisF(obj,pos);
+      dN = obj.computeDerBasisF(pos);
       nodeCoord = obj.mesh.coordinates(obj.mesh.surfaces(idQuad,:),:);
       tang = dN*nodeCoord;
       crossTang = cross(tang(1,:)',tang(2,:)');
@@ -114,11 +117,16 @@ classdef Quadrilateral < FiniteElementLagrangian
     end
 
 
-
-    function gPCoordinates = getGPointsLocation(obj,el)
+    function gPCoordinates = getGPointsLocation(obj,in)
       % Get the location of the Gauss points in the element in the physical
       % space
-      gPCoordinates = obj.Nref*obj.mesh.coordinates(obj.mesh.surfaces(el,:),:);
+      if isscalar(in) % element id
+        gPCoordinates = obj.Nref*FEM.getElementCoords(obj,in);
+      else 
+        assert(size(in,1)==4, ['List of coordinates in ' ...
+          'input must be a 4x2 or 4x3 matrix'])
+        gPCoordinates = obj.Nref*in;
+      end
     end
 
 
@@ -127,7 +135,7 @@ classdef Quadrilateral < FiniteElementLagrangian
       % whose 2D coordinates are store in coord
       N = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*coordList(i,1)).* ...
         (1+obj.coordLoc(j,2).*coordList(i,2)), ...
-        (1:size(coordList,1))',1:obj.mesh.surfaceNumVerts(1));
+        (1:size(coordList,1))',1:obj.nNode);
       if size(N,2) ~= obj.nNode
         N = N';
       end
@@ -146,23 +154,6 @@ classdef Quadrilateral < FiniteElementLagrangian
       obj.mesh.surfaceCentroid(idQuad,:) = cellCent;
       obj.mesh.surfaceArea(idQuad,:) = area;
     end
-
-
-    function dN = computeDerBasisF(obj, list)
-      % Compute derivatives in the reference space for input list of
-      % referencecoordinates
-      % d(N)/d\csi
-      d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
-        (1+obj.coordLoc(j,2).*list(i,2)), ...
-        (1:size(list,1)),1:obj.nNode);
-      %
-      % d(N)/d\eta
-      d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
-        (1+obj.coordLoc(j,1).*list(i,1)), ...
-        (1:size(list,1)),1:obj.nNode);
-      %
-      dN = [d1';d2'];
-    end
   end
 
   methods (Access = protected)
@@ -176,36 +167,36 @@ classdef Quadrilateral < FiniteElementLagrangian
 
     function findLocDerBasisF(obj,varargin)
       % Compute derivatives in the reference space for all Gauss points
-      obj.Jref = zeros(2,obj.mesh.surfaceNumVerts(1),obj.GaussPts.nNode);
+      obj.Jref = zeros(2,obj.nNode,obj.GaussPts.nNode);
       %
       % d(N)/d\csi
       if isempty(varargin)
         d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
           (1+obj.coordLoc(j,2).*obj.GaussPts.coord(i,2)), ...
-          (1:obj.GaussPts.nNode)',1:obj.mesh.surfaceNumVerts(1));
+          (1:obj.GaussPts.nNode)',1:obj.nNode);
         %
         % d(N)/d\eta
         d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
           (1+obj.coordLoc(j,1).*obj.GaussPts.coord(i,1)), ...
-          (1:obj.GaussPts.nNode)',1:obj.mesh.surfaceNumVerts(1));
+          (1:obj.GaussPts.nNode)',1:obj.nNode);
         % d2 = 1/8.*coord_loc(:,2).*(1+coord_loc(:,1).*pti_G(1)).*(1+coord_loc(:,3).*pti_G(3));
         %
-        obj.Jref(1,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d1';
-        obj.Jref(2,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d2';
+        obj.Jref(1,1:obj.nNode,1:obj.GaussPts.nNode) = d1';
+        obj.Jref(2,1:obj.nNode,1:obj.GaussPts.nNode) = d2';
       else
         refCoord = varargin{1};
         d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
           (1+obj.coordLoc(j,2).*refCoord(i,2)), ...
-          (1:size(refCoord,1))',1:obj.mesh.surfaceNumVerts(1));
+          (1:size(refCoord,1))',1:obj.nNode);
         %
         % d(N)/d\eta
         d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
           (1+obj.coordLoc(j,1).*refCoord(i,1)), ...
-          (1:size(refCoord,1))',1:obj.mesh.surfaceNumVerts(1));
+          (1:size(refCoord,1))',1:obj.nNode);
         % d2 = 1/8.*coord_loc(:,2).*(1+coord_loc(:,1).*pti_G(1)).*(1+coord_loc(:,3).*pti_G(3));
         %
-        obj.Jref(1,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d1';
-        obj.Jref(2,1:obj.mesh.surfaceNumVerts(1),1:obj.GaussPts.nNode) = d2';
+        obj.Jref(1,1:obj.nNode,1:obj.GaussPts.nNode) = d1';
+        obj.Jref(2,1:obj.nNode,1:obj.GaussPts.nNode) = d2';
       end
     end
 
@@ -216,7 +207,7 @@ classdef Quadrilateral < FiniteElementLagrangian
       if isempty(varargin)
         obj.Nref = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*obj.GaussPts.coord(i,1)).* ...
           (1+obj.coordLoc(j,2).*obj.GaussPts.coord(i,2)), ...
-          (1:obj.GaussPts.nNode)',1:obj.mesh.surfaceNumVerts(1));
+          (1:obj.GaussPts.nNode)',1:obj.nNode);
         if obj.GaussPts.nNode == 1
           obj.Nref = obj.Nref';
         end
@@ -225,7 +216,7 @@ classdef Quadrilateral < FiniteElementLagrangian
         refCoord = varargin{1};
         bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*refCoord(i,1)).* ...
           (1+obj.coordLoc(j,2).*refCoord(i,2)), ...
-          (1:size(refCoord,1))',1:obj.mesh.surfaceNumVerts(1));
+          (1:size(refCoord,1))',1:nNOde);
       end
     end
 
@@ -238,6 +229,27 @@ classdef Quadrilateral < FiniteElementLagrangian
 
       obj.Nb = zeros(obj.GaussPts.nNode,1);
       obj.Nb =  arrayfun(@(i) bub(i,1).*bub(i,2),1:obj.GaussPts.nNode);
+    end
+  end
+
+  methods (Static)
+    function dN = computeDerBasisF(list)
+      % Compute derivatives in the reference space for input list of
+      % referencecoordinates
+      % d(N)/d\csi
+     cLoc = Quadrilateral.coordLoc;
+     nN = Quadrilateral.nNode;
+
+      d1 = bsxfun(@(i,j) 1/4*cLoc(j,1).* ...
+        (1+cLoc(j,2).*list(i,2)), ...
+        (1:size(list,1)),1:nN);
+      %
+      % d(N)/d\eta
+      d2 = bsxfun(@(i,j) 1/4*cLoc(j,2).* ...
+        (1+cLoc(j,1).*list(i,1)), ...
+        (1:size(list,1)),1:nN);
+      %
+      dN = [d1';d2'];
     end
   end
 

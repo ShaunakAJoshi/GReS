@@ -10,23 +10,26 @@ classdef ElementBasedQuadrature < handle
   properties
     msh       % instance of InterfaceMesh class
     mortar
+    nGP
   end
 
   properties (Access = private)
     % temporary properties for element-based sort out process
-    idSlave = 0
-    tempGPloc
-    tempdJw
-    tempNs
-    tempNmult
-    tempNbubble
-    suppFlag
+    idSlave = 0       % current id of slave element
+    tempGPloc         % full list of gp location
+    tempdJw           % full list of jacobian determinant
+    tempNs            % full list of slave basis functions
+    tempNmult         % full list of multiplier basis functions
+    tempNbubble       % full list of bubble basis function
+    gptoProj          % mark gp still to be projected for current m/s couple
+    flagProj          % projected gp for current master/slave couple
   end
 
   methods
-    function obj = ElementBasedQuadrature(mortar)
+    function obj = ElementBasedQuadrature(mortar,nG)
       obj.mortar = mortar;
       obj.msh = obj.mortar.mesh.msh;
+      obj.nGP = nG;
     end
 
     function [Ns,Nm,Nmult,NbubSlave,NbubMaster] = getMortarBasisFunctions(obj,is,im)
@@ -36,75 +39,87 @@ classdef ElementBasedQuadrature < handle
 
       % new slave element
       if obj.idSlave ~= is
+        if ~isempty(obj.gptoProj)
+          if any(obj.gptoProj)
+            warning('% i GP not projected for element %i',...
+              sum(obj.gptoProj),obj.idSlave)
+          end
+        end
         obj.idSlave = is;
         obj.tempdJw = getDerBasisFAndDet(elemSlave,is);
         obj.tempNs = getBasisFinGPoints(elemSlave);
         obj.tempNmult = computeMultiplierBasisF(obj.mortar,is,obj.tempNs);
         obj.tempGPloc = elemSlave.GaussPts.coord;
-        obj.suppFlag = false(size(obj.tempNs,1),1);
+        obj.gptoProj = true(size(obj.tempNs,1),1);
         if nargout > 3
           obj.tempNbubble = getBubbleBasisFinGPoints(elemSlave);
         end
       else         % old slave element, sort out gp
-        if all(obj.suppFlag)
+        if ~any(obj.gptoProj)
           % gp already projected on all previous elements
           [Ns,Nm,Nmult,NbubSlave,NbubMaster] = deal([]);
           return
         end
-
-        obj.tempNs = obj.tempNs(~obj.suppFlag,:);
-        obj.tempNmult = obj.tempNmult(~obj.suppFlag,:);
-        if nargout > 3
-          obj.tempNbubble = obj.tempNbubble(~obj.suppFlag,:);
-        end
-        obj.tempGPloc = obj.tempGPloc(~obj.suppFlag,:);
-        obj.tempdJw = obj.tempdJw(~obj.suppFlag);
+% 
+%         obj.tempNs = obj.tempNs(~obj.suppFlag,:);
+%         obj.tempNmult = obj.tempNmult(~obj.suppFlag,:);
+%         if nargout > 3
+%           obj.tempNbubble = obj.tempNbubble(~obj.suppFlag,:);
+%         end
+%         obj.tempGPloc = obj.tempGPloc(~obj.suppFlag,:);
+%         obj.tempdJw = obj.tempdJw(~obj.suppFlag);
       end
 
+      % reset list of projected gp
+      obj.flagProj = false(size(obj.tempNs,1),1);
       % get master basis and gp in slave support
-      [xiProj,obj.suppFlag] = projectGP(obj,is,im);
+      xiProj = projectGP(obj,is,im);
+      % remove projected gp from list
+      obj.gptoProj(obj.flagProj,:) = false;
       Nm = elemMaster.computeBasisF(xiProj);
 
       if nargout > 4
         NbubMaster = elemMaster.computeBubbleBasisF(xiProj);  
-        NbubMaster = NbubMaster(obj.suppFlag,:);
+        NbubMaster = NbubMaster(obj.flagProj,:);
       end
 
-      if ~any(obj.suppFlag)
+      if all(obj.gptoProj)
         % no detected intersection
         [Ns,Nm,Nmult,NbubSlave,NbubMaster] = deal([]);
         return
       end
 
-      Nm = Nm(obj.suppFlag,:);
+      %Nm = Nm(obj.suppFlag,:);
 
       % return basis function in active gp
-      Ns = obj.tempNs(obj.suppFlag,:);
-      Nmult = obj.tempNmult(obj.suppFlag,:);
+      Ns = obj.tempNs(obj.flagProj,:);
+      Nmult = obj.tempNmult(obj.flagProj,:);
       if nargout > 3
-        NbubSlave = obj.tempNbubble(obj.suppFlag,:);
+        NbubSlave = obj.tempNbubble(obj.flagProj,:);
       end
     end
 
-    function [xiM,id] = projectGP(obj,is,im)
+    function [xiM,gpProjected] = projectGP(obj,is,im)
       % xi: reference coordinates of the gauss point
       % get nodal normal
-      supp = ~obj.suppFlag;
       elM = getElem(obj.mortar,1,im);
       elS = getElem(obj.mortar,2,is);
       nodeS = obj.msh(2).surfaces(is,:);
       coordS = obj.msh(2).coordinates(nodeS,:);
-      X = elS.Nref(supp,:)*coordS;                    % real position of gauss pts
-      xiS = obj.tempGPloc;
+      X = elS.Nref(obj.gptoProj,:)*coordS;                    % real position of gauss pts
+      xiS = obj.tempGPloc(obj.gptoProj,:);
       ngp = size(xiS,1);
       xiM = zeros(ngp,2);
-      id = false(ngp,1);
       itMax = 8;
       tol = 1e-9;
+      gpProjected = false(size(obj.gptoProj,1),1);
+      fl = false(ngp,1);
+      k = find(obj.gptoProj); % index of gp to project
       for i = 1:ngp
         Ns = elS.computeBasisF(xiS(i,:));
         ng = Ns*obj.mortar.mesh.avgNodNormal{2}(nodeS,:); % slave normal at GP
-        xiM(i,:) = elS.centroid;                                 % initial guess
+        ng = ng/norm(ng);
+        xiM(i,:) = elS.centroid;                          % initial guess
         iter = 0;
         w = 0;
         nodeM = obj.msh(1).surfaces(im,:);
@@ -122,10 +137,16 @@ classdef ElementBasedQuadrature < handle
           Nm =  elM.computeBasisF(xiM(i,:));
           rhs = (Nm*coordM - w*ng - X(i,:))';
         end
-
-        % check if gp lies in master reference space
-        id(i) = FiniteElementLagrangian.checkInRange(elM,xiM(i,:));
+        % check if gp lies in master reference space and update gp flag 
+        if FEM.checkInRange(elM,xiM(i,:))
+          % turn off gp that fall in master 
+          % turn on flag for projected gp
+          obj.flagProj(k(i)) = true;
+          fl(i) = true;
+          % store result in projected gp
+        end
       end
+      xiM = xiM(fl,:);
     end
 
 
@@ -138,7 +159,7 @@ classdef ElementBasedQuadrature < handle
       if ~all(size3 == size3(1))
         error('All inputs must have the same size along dimension 3.');
       end
-      dJWeighed = obj.tempdJw(obj.suppFlag);
+      dJWeighed = obj.tempdJw(obj.flagProj);
       mat = func(varargin{:});
       mat = mat.*reshape(dJWeighed,1,1,[]);
       mat = sum(mat,3);

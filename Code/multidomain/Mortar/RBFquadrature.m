@@ -166,11 +166,16 @@ classdef RBFquadrature < handle
         im = obj.mortar.mesh.activeCells{1}(i);
         [f, ptsInt] = computeMortarBasisF(obj,im);
         nptInt = size(ptsInt,1);
-        bf = computeMortarBubbleBasisF(obj,im);
+        nN = getElem(obj.mortar,1,im).nNode;
+        if nN < 5
+          bf = computeMortarBubbleBasisF(obj,im);
+        else
+          bf =  ones(size(ptsInt,1),1);
+          % to provisionally cope with bubble in quad9
+        end
         fiMM = obj.computeRBFfiMM(ptsInt);
         % solve local system to get weight of interpolant
         warning('off','MATLAB:nearlySingularMatrix')
-        nN = getElem(obj.mortar,1,im).nNode;
         x = fiMM\[f ones(size(ptsInt,1),1) bf];
         weighF(1:nptInt,k+1:k+nN) = x(:,1:nN);
         weigh1(1:nptInt,i) = x(:,end-1);
@@ -237,7 +242,7 @@ classdef RBFquadrature < handle
             k = k-1;
           end
           intPts(:,2) = repelem(p,obj.nInt:-1:1);
-        case 'Quadrilateral'
+        case {'Quadrilateral','QuadrilateralQuadratic'}
           intPts = linspace(-1,1, obj.nInt);
           [y, x] = meshgrid(intPts, intPts);
           intPts = [x(:), y(:)];

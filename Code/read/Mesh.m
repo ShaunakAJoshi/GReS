@@ -373,7 +373,7 @@ classdef Mesh < handle
         surfMesh.surfaces = (reshape(surfTopol, [], nNmax));
         surfMesh.coordinates = obj.coordinates(surfOrd,:);
         surfMesh.nNodes = length(surfMesh.coordinates);
-        surfMesh.nSurfaces = length(surfMesh.surfaces);
+        surfMesh.nSurfaces = size(surfMesh.surfaces,1);
         surfMesh.surfaceTag = repmat(surfTag, surfMesh.nSurfaces,1);
         surfMesh.nSurfaceTag = 1;
         surfMesh.surfaceVTKType = obj.surfaceVTKType(id);

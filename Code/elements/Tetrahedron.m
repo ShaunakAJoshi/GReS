@@ -1,4 +1,4 @@
-classdef Tetrahedron < FiniteElementLagrangian
+classdef Tetrahedron < FEM
   % TETRAHEDRON element class
 
     properties (Constant)

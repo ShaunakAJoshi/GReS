@@ -1,4 +1,4 @@
-classdef HexahedronQuadratic < FiniteElementLagrangian
+classdef HexahedronQuadratic < FEM
   % HEXAHEDRON element class
       %
       % NODE ORDERING ASSUMPTION (VTK, not available with msh grids)
@@ -294,7 +294,7 @@ classdef HexahedronQuadratic < FiniteElementLagrangian
       findLocDerBasisF(obj);
 %       findLocBubbleBasisF(obj);
 %       findLocDerBubbleBasisF(obj);
-      FiniteElementLagrangian.setStrainMatrix(obj);
+      FEM.setStrainMatrix(obj);
     end
   end
 

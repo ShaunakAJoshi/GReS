@@ -1,8 +1,8 @@
-classdef Triangle < FiniteElementLagrangian
+classdef Triangle < FEM
   % TRIANGLE element class
 
   properties (Constant)
-    centroid = [0.33,0.33]
+    centroid = [1/3,1/3]
     coordLoc = [0 0; 1 0; 0 1];
     vtkType = 5
     nNode = 3

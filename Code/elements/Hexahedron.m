@@ -1,4 +1,4 @@
-classdef Hexahedron < FiniteElementLagrangian
+classdef Hexahedron < FEM
   % HEXAHEDRON element class
       %
     % NODE ORDERING ASSUMPTION (same as Gmsh output):
@@ -259,7 +259,7 @@ classdef Hexahedron < FiniteElementLagrangian
       findLocDerBasisF(obj);
       findLocBubbleBasisF(obj);
       findLocDerBubbleBasisF(obj);
-      FiniteElementLagrangian.setStrainMatrix(obj);
+      FEM.setStrainMatrix(obj);
     end
   end
 

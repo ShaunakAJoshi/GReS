@@ -1,4 +1,4 @@
-classdef QuadrilateralQuadratic < FiniteElementLagrangian
+classdef QuadrilateralQuadratic < FEM
   % QUADRILATERAL element class
   %
   % NODE ORDERING ASSUMPTION (same as Gmsh output):
@@ -6,11 +6,11 @@ classdef QuadrilateralQuadratic < FiniteElementLagrangian
   %
   %       | v
   % 4-----7-----3
+  % |  4  |  3  |
   % |     |     |
+  % 8-----9-----6---->
+  % |  1  |  2  |   u
   % |     |     |
-  % 8     9-----6---->
-  % |           |   u
-  % |           |
   % 1-----5-----2
 
   properties (Constant)
@@ -28,6 +28,16 @@ classdef QuadrilateralQuadratic < FiniteElementLagrangian
     vtkType = 28
     nNode = 9
     nFace = 1
+
+    nod2sub = [1,5,9,8;
+               5,2,6,9;
+               9,6,3,7;
+               8,9,7,4];
+
+    subMap =  [1  1;
+              -1  1;
+              -1 -1;
+               1 -1;]
   end
 
 
@@ -43,7 +53,7 @@ classdef QuadrilateralQuadratic < FiniteElementLagrangian
 
       if isscalar(in)
         % 3D setting
-        coord = obj.mesh.coordinates(obj.mesh.surfaces(in,:),1:obj.mesh.nDim);
+        coord = FEM.getElementCoords(obj,in);
         J = pagemtimes(obj.Jref,coord);
         for i = 1:obj.GaussPts.nNode
           obj.detJ(i) = norm(cross(J(1,:,i),J(2,:,i)),2);
@@ -97,15 +107,40 @@ classdef QuadrilateralQuadratic < FiniteElementLagrangian
 
 
 
-    function n = computeNormal(obj,idQuad,pos)
+    function n = computeNormal(obj,idQuad,pos,idSub)
       % compute normal vector of quadrilatral in specific reference point
-      assert(isscalar(idQuad),'Input id must be a scalar positive integer')
-
-      dN = computeDerBasisF(obj,pos);
-      nodeCoord = obj.mesh.coordinates(obj.mesh.surfaces(idQuad,:),:);
+      assert(isscalar(idQuad),'Element input id must be a scalar positive integer')
+      if nargin < 4
+        dN = computeDerBasisF(obj,pos);
+        nodeCoord = FEM.getElementCoords(obj,idQuad);
+      else
+        dN = Quadrilateral.computeDerBasisF(pos);
+        nodeCoord = obj.getSubElementCoords(idQuad,idSub);
+      end
       tang = dN*nodeCoord;
       crossTang = cross(tang(1,:)',tang(2,:)');
       n = crossTang/norm(crossTang);
+    end
+
+
+
+    function centroid = computeCentroid(obj,idQuad,idSub)
+      assert(isscalar(idQuad),'Element input id must be a scalar positive integer')
+      % compute centroid of specific subElement defined by idSub
+      if nargin > 2
+        quad = createSubElement(obj);
+        nodeCoord = obj.getSubElementCoords(idQuad,idSub);
+        dJWeighed = getDerBasisFAndDet(quad,nodeCoord);
+        gPCoordinates = getGPointsLocation(quad,nodeCoord);
+      elseif nargin == 2
+        dJWeighed = getDerBasisFAndDet(obj,idQuad);
+        gPCoordinates = getGPointsLocation(obj,idQuad);
+      else
+        error('Wrong number of input arguments.')
+      end
+      area = sum(dJWeighed);
+      assert(area>0,'Volume less than 0');
+      centroid = dJWeighed * gPCoordinates/area;
     end
 
 
@@ -121,22 +156,46 @@ classdef QuadrilateralQuadratic < FiniteElementLagrangian
 
 
 
-    function gPCoordinates = getGPointsLocation(obj,el)
+    function gPCoordinates = getGPointsLocation(obj,in)
       % Get the location of the Gauss points in the element in the physical
       % space
-      gPCoordinates = obj.Nref*obj.mesh.coordinates(obj.mesh.surfaces(el,:),:);
+      if isscalar(in) % element id
+        gPCoordinates = obj.Nref*FEM.getElementCoords(obj,in);
+      else 
+        assert(size(in,1)==4 && size(in,2)==2, ['List of coordinates in ' ...
+          'input must be a 4x2 matrix'])
+        gPCoordinates = obj.Nref*in;
+      end
+    end
+
+    function subElement = createSubElement(obj)
+      subElement = Quadrilateral(obj.nGP);
     end
 
 
     function N = computeBasisF(obj, coordList)
       % Find the value the basis functions take at some  reference points
       % whose 2D coordinates are store in coord
-      N = bsxfun(@(i,j) 1/4*(1+obj.coordLoc(j,1).*coordList(i,1)).* ...
-        (1+obj.coordLoc(j,2).*coordList(i,2)), ...
-        (1:size(coordList,1))',1:obj.mesh.surfaceNumVerts(1));
-      if size(N,2) ~= obj.nNode
-        N = N';
-      end
+      % Find the value the basis functions take at the Gauss points
+      b1 = @(x) 0.5*x*(x-1);
+      b2 = @(x) 1-x^2;
+      b3 = @(x) 0.5*x*(x+1);
+
+      c = coordList;
+      np = size(c,1);
+      N = zeros(np,obj.nNode);
+      N(:,1) = arrayfun(@(i) b1(c(i,1)).*b1(c(i,2)),1:np);
+      N(:,2) = arrayfun(@(i) b3(c(i,1)).*b1(c(i,2)),1:np);
+      N(:,3) = arrayfun(@(i) b3(c(i,1)).*b3(c(i,2)),1:np);
+      N(:,4) = arrayfun(@(i) b1(c(i,1)).*b3(c(i,2)),1:np);
+      N(:,5) = arrayfun(@(i) b2(c(i,1)).*b1(c(i,2)),1:np);
+      N(:,6) = arrayfun(@(i) b3(c(i,1)).*b2(c(i,2)),1:np);
+      N(:,7) = arrayfun(@(i) b2(c(i,1)).*b3(c(i,2)),1:np);
+      N(:,8) = arrayfun(@(i) b1(c(i,1)).*b2(c(i,2)),1:np);
+      N(:,9) = arrayfun(@(i) b2(c(i,1)).*b2(c(i,2)),1:np);
+%       if np == 1
+%         N = N';
+%       end
     end
 
 %     function N = computeBubbleBasisF(obj, coordList)
@@ -158,16 +217,61 @@ classdef QuadrilateralQuadratic < FiniteElementLagrangian
       % Compute derivatives in the reference space for input list of
       % reference coordinates
       % d(N)/d\csi
-      d1 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,1).* ...
-        (1+obj.coordLoc(j,2).*list(i,2)), ...
-        (1:size(list,1)),1:obj.nNode);
-      %
-      % d(N)/d\eta
-      d2 = bsxfun(@(i,j) 1/4*obj.coordLoc(j,2).* ...
-        (1+obj.coordLoc(j,1).*list(i,1)), ...
-        (1:size(list,1)),1:obj.nNode);
-      %
-      dN = [d1';d2'];
+      % 1D basis function
+      b1 = @(x) 0.5*x*(x-1);
+      b2 = @(x) 1-x^2;
+      b3 = @(x) 0.5*x*(x+1);
+      % gradient of 1D basis functions
+      gb1 = @(x) 0.5*(2*x-1);
+      gb2 = @(x) -2*x;
+      gb3 = @(x) 0.5*(2*x+1);
+
+      c = list;
+      np = size(c,1);
+      dN = zeros(2,obj.mesh.surfaceNumVerts(1),np);
+      dN(1,1,:) = arrayfun(@(i) gb1(c(i,1)).*b1(c(i,2)),1:np);
+      dN(2,1,:) = arrayfun(@(i) b1(c(i,1)).*gb1(c(i,2)),1:np);
+
+      dN(1,2,:) = arrayfun(@(i) gb3(c(i,1)).*b1(c(i,2)),1:np);
+      dN(2,2,:) = arrayfun(@(i) b3(c(i,1)).*gb1(c(i,2)),1:np);
+
+      dN(1,3,:) = arrayfun(@(i) gb3(c(i,1)).*b3(c(i,2)),1:np);
+      dN(2,3,:) = arrayfun(@(i) b3(c(i,1)).*gb3(c(i,2)),1:np);
+
+      dN(1,4,:) = arrayfun(@(i) gb1(c(i,1)).*b3(c(i,2)),1:np);
+      dN(2,4,:) = arrayfun(@(i) b1(c(i,1)).*gb3(c(i,2)),1:np);
+
+      dN(1,5,:) = arrayfun(@(i) gb2(c(i,1)).*b1(c(i,2)),1:np);
+      dN(2,5,:) = arrayfun(@(i) b2(c(i,1)).*gb1(c(i,2)),1:np);
+
+      dN(1,6,:) = arrayfun(@(i) gb3(c(i,1)).*b2(c(i,2)),1:np);
+      dN(2,6,:) = arrayfun(@(i) b3(c(i,1)).*gb2(c(i,2)),1:np);
+
+      dN(1,7,:) = arrayfun(@(i) gb2(c(i,1)).*b3(c(i,2)),1:np);
+      dN(2,7,:) = arrayfun(@(i) b2(c(i,1)).*gb3(c(i,2)),1:np);
+
+      dN(1,8,:) = arrayfun(@(i) gb1(c(i,1)).*b2(c(i,2)),1:np);
+      dN(2,8,:) = arrayfun(@(i) b1(c(i,1)).*gb2(c(i,2)),1:np);
+
+      dN(1,9,:) = arrayfun(@(i) gb2(c(i,1)).*b2(c(i,2)),1:np);
+      dN(2,9,:) = arrayfun(@(i) b2(c(i,1)).*gb2(c(i,2)),1:np);
+    end
+
+    function coord = getSubElementCoords(obj,idQuad,idSub)
+      nodeSub = obj.mesh.surfaces(idQuad,obj.nod2sub(idSub,:));
+      coord = obj.mesh.coordinates(nodeSub,:);
+    end
+
+    function xi_sub = mapref2sub(obj,xi_ref,sub)
+      % map the reference coordinate of element to reference coordinate of
+      % the subsegment space defined by 1D
+      xi_sub = 2*xi_ref + obj.subMap(sub,:);
+    end
+
+    function xi_ref = mapsub2ref(obj,xi_sub,sub)
+      % map reference coordinate of subsegment space defined by sub to
+      % reference coordinate of element
+      xi_ref = 0.5*(xi_sub - obj.subMap(sub,:));
     end
   end
 

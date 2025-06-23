@@ -172,7 +172,6 @@ classdef Elements < handle
       end
     end
 
-
 %     function N = getNumbNodeData(obj,varargin)
 %       % return number of nodes for each cell in input
 %       N = 0;

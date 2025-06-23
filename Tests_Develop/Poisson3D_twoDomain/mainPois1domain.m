@@ -23,14 +23,24 @@ simParam = SimulationParameters('simParam.dat');
 % base structure to write xml file
 strDomain = readstruct('Domains/domain1block.xml');
 interfFile = 'interfaces_1.xml';
-
+strInterf = readstruct(interfFile);
 %% INPUT
 % base domain size
 N_0_l = 2;
 N_0_r = 3;
+
 % number of refinement
 nref = 3;
 [h,L2,H1] = deal(zeros(nref,1));
+
+% study parameters
+elem_type = "hexa";                 % hexa,hexa27
+integration_type = 'ElementBased';    % SegmentBased (7 gp),ElementBased,RBF
+nG = 6;           
+if strcmp(integration_type,'SegmentBased')
+  nG = 7;
+end
+nInt = 6;
 
 %% convergence loop
 for i = 1:nref
@@ -42,7 +52,7 @@ for i = 1:nref
   % run script to get refined mesh
   fname = strcat('domain_',num2str(i));
   command = "python Mesh/domain.py "  + fname...
-    + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + 'hexa27';
+    + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + elem_type;
   system(command);
 
   
@@ -60,9 +70,21 @@ for i = 1:nref
   clear mesh
 
   % write mesh to domain file
+  strDomain.Domain.Name = "Cube_"+integration_type+"_"+num2str(i);
   strDomain.Domain.Geometry = fullfile(fname+".vtk");
   domainFile = fullfile('Domains','domain1block.xml');
   writestruct(strDomain,domainFile);
+
+  % write interface to file
+  strInterf.Interface(1).Quadrature.typeAttribute = integration_type;
+  strInterf.Interface(1).Quadrature.nGPAttribute = nG;
+  strInterf.Interface(1).Print.nameAttribute = "interf_"+integration_type+"_"+num2str(i);
+  if strcmp(integration_type,'RBF')
+    strInterf.Interface(1).Quadrature.nIntAttribute = nInt;
+  end
+  writestruct(strInterf,interfFile);
+
+
  
   % processing Poisson problem
   domains = buildModelStruct_new(domainFile,simParam);

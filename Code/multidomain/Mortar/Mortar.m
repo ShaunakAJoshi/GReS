@@ -44,8 +44,8 @@ classdef Mortar < handle
            nG = inputStruct.Quadrature.nGPAttribute;
           obj.elements = [Elements(obj.mesh.msh(1),nG),...
             Elements(obj.mesh.msh(2),nG)];
-          obj.quadrature = ElementBasedQuadrature(obj);
-          obj.quadrature2 = RBFquadrature(obj,6);
+          obj.quadrature = ElementBasedQuadrature(obj,nG);
+          %obj.quadrature2 = RBFquadrature(obj,6);
         case 'SegmentBased'
           obj.quadrature = SegmentBasedQuadrature(obj,inputStruct.Quadrature.nGPAttribute);
           nG = 2; % dummy nG for elements deifnition
@@ -172,7 +172,7 @@ classdef Mortar < handle
 
           if isempty(Nmaster)
             % refine connectivity matrix
-            obj.mesh.elemConnectivity(im,is) = 0;
+            %obj.mesh.elemConnectivity(im,is) = 0;
             continue
           end
 
@@ -191,6 +191,10 @@ classdef Mortar < handle
 
       obj.Jmaster{1} = asbM.sparseAssembly();
       obj.Jslave{1} = asbD.sparseAssembly();
+
+      % check satisfaction of partition of unity (mortar consistency)
+      pu = sum([obj.Jmaster{1} obj.Jslave{1}],2);
+      assert(norm(pu)<1e-8,'Partiition of unity violated');
     end
 
 
