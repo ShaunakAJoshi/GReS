@@ -32,7 +32,7 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 6;
+nref = 7;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
@@ -101,54 +101,54 @@ for i_t = integration_type
       domainFile = fullfile('Domains','domain1block.xml');
       writestruct(strDomain,domainFile);
 
-      % write interface to file
-      strInterf.Interface(1).Quadrature.typeAttribute = i_t;
-      strInterf.Interface(1).Quadrature.nGPAttribute = ngp;
-      strInterf.Interface(1).Print.nameAttribute = "interf_"+i_t+"_"+num2str(i);
-      if strcmp(i_t,'RBF')
-        strInterf.Interface(1).Quadrature.nIntAttribute = n_i;
-      end
-      writestruct(strInterf,interfFile);
-
-      % processing Poisson problem
-      domains = buildModelStruct_new(domainFile,simParam);
-      domains.Discretizer.getSolver('Poisson').setAnalSolution(anal,f,gradx,grady,gradz);
-
-      [interfaces,domains] = Mortar.buildInterfaceStruct(interfFile,domains);
-      % set up analytical solution
-
-      solver = MultidomainFCSolver(simParam,domains,interfaces);
-      solver.NonLinearLoop();
-      solver.finalizeOutput();
-
-      %runPoisson;
-
-      pois = getSolver(domains.Discretizer,'Poisson');
-      [L2(i),H1(i)] = pois.computeError_v2();
-      h(i) = 1/N_i_r;
-      fprintf('Max absolute error is: %1.6e \n',max(abs(pois.state.data.err)));
+%       % write interface to file
+%       strInterf.Interface(1).Quadrature.typeAttribute = i_t;
+%       strInterf.Interface(1).Quadrature.nGPAttribute = ngp;
+%       strInterf.Interface(1).Print.nameAttribute = "interf_"+i_t+"_"+num2str(i);
+%       if strcmp(i_t,'RBF')
+%         strInterf.Interface(1).Quadrature.nIntAttribute = n_i;
+%       end
+%       writestruct(strInterf,interfFile);
+% 
+%       % processing Poisson problem
+%       domains = buildModelStruct_new(domainFile,simParam);
+%       domains.Discretizer.getSolver('Poisson').setAnalSolution(anal,f,gradx,grady,gradz);
+% 
+%       [interfaces,domains] = Mortar.buildInterfaceStruct(interfFile,domains);
+%       % set up analytical solution
+% 
+%       solver = MultidomainFCSolver(simParam,domains,interfaces);
+%       solver.NonLinearLoop();
+%       solver.finalizeOutput();
+% 
+%       %runPoisson;
+% 
+%       pois = getSolver(domains.Discretizer,'Poisson');
+%       [L2(i),H1(i)] = pois.computeError_v2();
+%       h(i) = 1/N_i_r;
+%       fprintf('Max absolute error is: %1.6e \n',max(abs(pois.state.data.err)));
 
     end % end refinement
 
-    % compute convergence order
-    L2ord = log(L2(1:end-1)./L2(2:end))./log(h(1:end-1)./h(2:end));
-    H1ord = log(H1(1:end-1)./H1(2:end))./log(h(1:end-1)./h(2:end));
-
-    % store result in structure
-    switch elem_type
-      case 'hexa'
-        outDir = "OUT_HEXA";
-      case 'hexa27'
-        outDir = "OUT_HEXA27";
-    end
-    out_str = struct('int_type',i_t,'nGP',ngp,...
-      'L2norm',L2,'H1norm',H1);
-    fname = i_t+"_"+num2str(ngp);
-    if strcmp(i_t,'RBF')
-      fname = fname + "_" + num2str(n_i);
-      out_str.nInt = n_i;
-    end
-    save(fullfile(outDir,strcat(fname,'.mat')),'-struct',"out_str");
+%     % compute convergence order
+%     L2ord = log(L2(1:end-1)./L2(2:end))./log(h(1:end-1)./h(2:end));
+%     H1ord = log(H1(1:end-1)./H1(2:end))./log(h(1:end-1)./h(2:end));
+% 
+%     % store result in structure
+%     switch elem_type
+%       case 'hexa'
+%         outDir = "OUT_HEXA";
+%       case 'hexa27'
+%         outDir = "OUT_HEXA27";
+%     end
+%     out_str = struct('int_type',i_t,'nGP',ngp,...
+%       'L2norm',L2,'H1norm',H1);
+%     fname = i_t+"_"+num2str(ngp);
+%     if strcmp(i_t,'RBF')
+%       fname = fname + "_" + num2str(n_i);
+%       out_str.nInt = n_i;
+%     end
+    %save(fullfile(outDir,strcat(fname,'.mat')),'-struct',"out_str");
     end % end interpolation loop points
   end % end gp loop
 end % end integration type loop

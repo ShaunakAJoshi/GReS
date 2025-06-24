@@ -7,6 +7,6 @@
         <Quadrature type="SegmentBased" nGP="7" nInt="6"/>
         <Multiplier type="standard"/>
         <Physics>Poisson</Physics>
-        <Print name="interf_SegmentBased_4"/>
+        <Print name="interf_SegmentBased_5"/>
     </Interface>
 </struct>

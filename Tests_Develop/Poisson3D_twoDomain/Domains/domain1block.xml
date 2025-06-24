@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <struct>
     <Domain>
-        <Name>Cube_SegmentBased_4</Name>
+        <Name>Cube_RBF_4</Name>
         <Geometry>domain_4.vtk</Geometry>
         <ModelType>Poisson_FEM</ModelType>
         <Gauss>3</Gauss>
