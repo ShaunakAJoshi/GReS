@@ -30,7 +30,7 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 4;
+nref = 5;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
