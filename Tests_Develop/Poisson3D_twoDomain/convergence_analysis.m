@@ -32,20 +32,18 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 5;
+nref = 3;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
 elem_type = "hexa27";                 % hexa,hexa27
 integration_type = ["SegmentBased", "RBF", "ElementBased"];    % SegmentBased (7 gp),ElementBased,RBF
          
-nInt = 6;
-
 % add one more evenutally 
 
-N_l = [2 4 8 10 12 14 16];
+N_l = [2 4 8 12 16 18 20];
 
-N_r = [3 6 12 15 18 21 24];
+N_r = [3 6 12 18 24 27 30];
 
 %% convergence loop
 
@@ -55,12 +53,23 @@ for i_t = integration_type
   else
     nG = [4 6 16];  
   end
+
+  nInt = 0;
+
+  if strcmp(i_t,'RBF')
+    nInt = [4 5 6];
+  end
   for ngp = nG
     fprintf('_____________________________________________________________________\n')
     fprintf('Running convergence analysis with %s integration - %i GP \n',i_t,ngp)
     fprintf('_____________________________________________________________________\n')
+    for n_i = nInt
+      if strcmp(i_t,'RBF')
+        fprintf('Using %i interpolation points %i \n',n_i)
+      end
     % refinement loop
     for i = 1:nref
+
       N_i_l = N_l(i);
       N_i_r = N_r(i);
 
@@ -132,11 +141,15 @@ for i_t = integration_type
       case 'hexa27'
         outDir = "OUT_HEXA27";
     end
-
     out_str = struct('int_type',i_t,'nGP',ngp,...
       'L2norm',L2,'H1norm',H1);
     fname = i_t+"_"+num2str(ngp);
+    if strcmp(i_t,'RBF')
+      fname = fname + "_" + num2str(n_i);
+      out_str.nInt = n_i;
+    end
     save(fullfile(outDir,strcat(fname,'.mat')),'-struct',"out_str");
+    end % end interpolation loop points
   end % end gp loop
 end % end integration type loop
 

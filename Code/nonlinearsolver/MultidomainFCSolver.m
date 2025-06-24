@@ -189,14 +189,18 @@ classdef MultidomainFCSolver < handle
       % solve unstabilized system
       J = FCSolver.cell2matJac(J);
       rhs = cell2mat(rhs);
-%       if size(J,1)>1e4
-%         % iterative solver
-%         [L,U] = ilu(J,struct('type','ilutp','droptol',5e-3,'udiag',1));
-%         sol = gmres(J,-rhs,[],1e-10,400,L,U);
-%       else
-        % direct solver
+      if size(J,1)>1e4
+        % iterative solver
+        fprintf('Solving linear system...\n')
+        tic
+        p = symamd(J);
+        sol = J(p,p) \ -rhs(p);
+        sol(p) = sol;
+        fprintf('Linear system solved in %.4f s \n',toc)
+      else
+        %direct solver
         sol = J\(-rhs);
-      %end
+      end
       %       clear Jmat
       %       Jstab =
 

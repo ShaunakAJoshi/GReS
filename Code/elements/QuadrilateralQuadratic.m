@@ -177,22 +177,23 @@ classdef QuadrilateralQuadratic < FEM
       % Find the value the basis functions take at some  reference points
       % whose 2D coordinates are store in coord
       % Find the value the basis functions take at the Gauss points
-      b1 = @(x) 0.5*x*(x-1);
-      b2 = @(x) 1-x^2;
-      b3 = @(x) 0.5*x*(x+1);
-
-      c = coordList;
-      np = size(c,1);
-      N = zeros(np,obj.nNode);
-      N(:,1) = arrayfun(@(i) b1(c(i,1)).*b1(c(i,2)),1:np);
-      N(:,2) = arrayfun(@(i) b3(c(i,1)).*b1(c(i,2)),1:np);
-      N(:,3) = arrayfun(@(i) b3(c(i,1)).*b3(c(i,2)),1:np);
-      N(:,4) = arrayfun(@(i) b1(c(i,1)).*b3(c(i,2)),1:np);
-      N(:,5) = arrayfun(@(i) b2(c(i,1)).*b1(c(i,2)),1:np);
-      N(:,6) = arrayfun(@(i) b3(c(i,1)).*b2(c(i,2)),1:np);
-      N(:,7) = arrayfun(@(i) b2(c(i,1)).*b3(c(i,2)),1:np);
-      N(:,8) = arrayfun(@(i) b1(c(i,1)).*b2(c(i,2)),1:np);
-      N(:,9) = arrayfun(@(i) b2(c(i,1)).*b2(c(i,2)),1:np);
+      N = mxComputeBasisFQuad9(coordList);
+%       b1 = @(x) 0.5*x*(x-1);
+%       b2 = @(x) 1-x^2;
+%       b3 = @(x) 0.5*x*(x+1);
+% 
+%       c = coordList;
+%       np = size(c,1);
+%       N = zeros(np,obj.nNode);
+%       N(:,1) = arrayfun(@(i) b1(c(i,1)).*b1(c(i,2)),1:np);
+%       N(:,2) = arrayfun(@(i) b3(c(i,1)).*b1(c(i,2)),1:np);
+%       N(:,3) = arrayfun(@(i) b3(c(i,1)).*b3(c(i,2)),1:np);
+%       N(:,4) = arrayfun(@(i) b1(c(i,1)).*b3(c(i,2)),1:np);
+%       N(:,5) = arrayfun(@(i) b2(c(i,1)).*b1(c(i,2)),1:np);
+%       N(:,6) = arrayfun(@(i) b3(c(i,1)).*b2(c(i,2)),1:np);
+%       N(:,7) = arrayfun(@(i) b2(c(i,1)).*b3(c(i,2)),1:np);
+%       N(:,8) = arrayfun(@(i) b1(c(i,1)).*b2(c(i,2)),1:np);
+%       N(:,9) = arrayfun(@(i) b2(c(i,1)).*b2(c(i,2)),1:np);
 %       if np == 1
 %         N = N';
 %       end
@@ -218,43 +219,44 @@ classdef QuadrilateralQuadratic < FEM
       % reference coordinates
       % d(N)/d\csi
       % 1D basis function
-      b1 = @(x) 0.5*x*(x-1);
-      b2 = @(x) 1-x^2;
-      b3 = @(x) 0.5*x*(x+1);
-      % gradient of 1D basis functions
-      gb1 = @(x) 0.5*(2*x-1);
-      gb2 = @(x) -2*x;
-      gb3 = @(x) 0.5*(2*x+1);
-
-      c = list;
-      np = size(c,1);
-      dN = zeros(2,obj.mesh.surfaceNumVerts(1),np);
-      dN(1,1,:) = arrayfun(@(i) gb1(c(i,1)).*b1(c(i,2)),1:np);
-      dN(2,1,:) = arrayfun(@(i) b1(c(i,1)).*gb1(c(i,2)),1:np);
-
-      dN(1,2,:) = arrayfun(@(i) gb3(c(i,1)).*b1(c(i,2)),1:np);
-      dN(2,2,:) = arrayfun(@(i) b3(c(i,1)).*gb1(c(i,2)),1:np);
-
-      dN(1,3,:) = arrayfun(@(i) gb3(c(i,1)).*b3(c(i,2)),1:np);
-      dN(2,3,:) = arrayfun(@(i) b3(c(i,1)).*gb3(c(i,2)),1:np);
-
-      dN(1,4,:) = arrayfun(@(i) gb1(c(i,1)).*b3(c(i,2)),1:np);
-      dN(2,4,:) = arrayfun(@(i) b1(c(i,1)).*gb3(c(i,2)),1:np);
-
-      dN(1,5,:) = arrayfun(@(i) gb2(c(i,1)).*b1(c(i,2)),1:np);
-      dN(2,5,:) = arrayfun(@(i) b2(c(i,1)).*gb1(c(i,2)),1:np);
-
-      dN(1,6,:) = arrayfun(@(i) gb3(c(i,1)).*b2(c(i,2)),1:np);
-      dN(2,6,:) = arrayfun(@(i) b3(c(i,1)).*gb2(c(i,2)),1:np);
-
-      dN(1,7,:) = arrayfun(@(i) gb2(c(i,1)).*b3(c(i,2)),1:np);
-      dN(2,7,:) = arrayfun(@(i) b2(c(i,1)).*gb3(c(i,2)),1:np);
-
-      dN(1,8,:) = arrayfun(@(i) gb1(c(i,1)).*b2(c(i,2)),1:np);
-      dN(2,8,:) = arrayfun(@(i) b1(c(i,1)).*gb2(c(i,2)),1:np);
-
-      dN(1,9,:) = arrayfun(@(i) gb2(c(i,1)).*b2(c(i,2)),1:np);
-      dN(2,9,:) = arrayfun(@(i) b2(c(i,1)).*gb2(c(i,2)),1:np);
+      dN = mxComputeDerBasisFQuad9(list);
+%       b1 = @(x) 0.5*x*(x-1);
+%       b2 = @(x) 1-x^2;
+%       b3 = @(x) 0.5*x*(x+1);
+%       % gradient of 1D basis functions
+%       gb1 = @(x) 0.5*(2*x-1);
+%       gb2 = @(x) -2*x;
+%       gb3 = @(x) 0.5*(2*x+1);
+% 
+%       c = list;
+%       np = size(c,1);
+%       dN = zeros(2,obj.mesh.surfaceNumVerts(1),np);
+%       dN(1,1,:) = arrayfun(@(i) gb1(c(i,1)).*b1(c(i,2)),1:np);
+%       dN(2,1,:) = arrayfun(@(i) b1(c(i,1)).*gb1(c(i,2)),1:np);
+% 
+%       dN(1,2,:) = arrayfun(@(i) gb3(c(i,1)).*b1(c(i,2)),1:np);
+%       dN(2,2,:) = arrayfun(@(i) b3(c(i,1)).*gb1(c(i,2)),1:np);
+% 
+%       dN(1,3,:) = arrayfun(@(i) gb3(c(i,1)).*b3(c(i,2)),1:np);
+%       dN(2,3,:) = arrayfun(@(i) b3(c(i,1)).*gb3(c(i,2)),1:np);
+% 
+%       dN(1,4,:) = arrayfun(@(i) gb1(c(i,1)).*b3(c(i,2)),1:np);
+%       dN(2,4,:) = arrayfun(@(i) b1(c(i,1)).*gb3(c(i,2)),1:np);
+% 
+%       dN(1,5,:) = arrayfun(@(i) gb2(c(i,1)).*b1(c(i,2)),1:np);
+%       dN(2,5,:) = arrayfun(@(i) b2(c(i,1)).*gb1(c(i,2)),1:np);
+% 
+%       dN(1,6,:) = arrayfun(@(i) gb3(c(i,1)).*b2(c(i,2)),1:np);
+%       dN(2,6,:) = arrayfun(@(i) b3(c(i,1)).*gb2(c(i,2)),1:np);
+% 
+%       dN(1,7,:) = arrayfun(@(i) gb2(c(i,1)).*b3(c(i,2)),1:np);
+%       dN(2,7,:) = arrayfun(@(i) b2(c(i,1)).*gb3(c(i,2)),1:np);
+% 
+%       dN(1,8,:) = arrayfun(@(i) gb1(c(i,1)).*b2(c(i,2)),1:np);
+%       dN(2,8,:) = arrayfun(@(i) b1(c(i,1)).*gb2(c(i,2)),1:np);
+% 
+%       dN(1,9,:) = arrayfun(@(i) gb2(c(i,1)).*b2(c(i,2)),1:np);
+%       dN(2,9,:) = arrayfun(@(i) b2(c(i,1)).*gb2(c(i,2)),1:np);
     end
 
     function coord = getSubElementCoords(obj,idQuad,idSub)

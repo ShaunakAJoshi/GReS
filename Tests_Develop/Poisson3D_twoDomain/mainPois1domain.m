@@ -1,5 +1,6 @@
 clear
 close all
+clc
 
 % Get the full path of the currently executing file
 scriptFullPath = mfilename('fullpath');
@@ -36,18 +37,18 @@ nref = 5;
 % study parameters
 elem_type = "hexa27";                 % hexa,hexa27
 integration_type = 'RBF';    % SegmentBased (7 gp),ElementBased,RBF
-nG = 6;           
+nG = 16;           
 if strcmp(integration_type,'SegmentBased')
   nG = 7;
 end
 nInt = 6;
 
-N_l = [2 4 8 12 18];
+N_l = [2 4 8 9 18];
 
-N_r = [3 6 12 18 27];
+N_r = [4 8 12 18 24];
 
 %% convergence loop
-for i = 1:nref
+for i = 4
   N_i_l = N_l(i);
   N_i_r = N_r(i);
 
@@ -97,10 +98,13 @@ for i = 1:nref
   [interfaces,domains] = Mortar.buildInterfaceStruct(interfFile,domains);
   % set up analytical solution
   
+  tic
   solver = MultidomainFCSolver(simParam,domains,interfaces);
+  profile ON
   solver.NonLinearLoop();
+  profile viewer
   solver.finalizeOutput();
-
+  t = toc;
   %runPoisson;
 
   pois = getSolver(domains.Discretizer,'Poisson');
@@ -112,7 +116,6 @@ end
 % compute convergence order
 L2ord = log(L2(1:end-1)./L2(2:end))./log(h(1:end-1)./h(2:end));
 H1ord = log(H1(1:end-1)./H1(2:end))./log(h(1:end-1)./h(2:end));
-
 %% plotting convergence profiles
 % figure(1)
 % loglog(h,L2,'-ro')

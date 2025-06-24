@@ -129,8 +129,9 @@ classdef ElementBasedQuadrature < handle
         %
         while (norm(rhs,2) > tol) && (iter < itMax)
           iter = iter+1;
-          J1 = (elM.computeDerBasisF(xiM(i,:))*coordM)';
-          J = [J1 -ng'];
+          dN = elM.computeDerBasisF(xiM(i,:));
+          J1 = dN*coordM;
+          J = [J1' -ng'];
           ds = J\(-rhs);
           xiM(i,:) = xiM(i,:) + (ds(1:2))';
           w = w + ds(3);

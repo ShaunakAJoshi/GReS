@@ -109,7 +109,7 @@ classdef ContactSearching < handle
       %         Cells belonging to left and right child (if any)
       nNodes = size(msh.surfaces,2);
       if nNodes == 9
-        % provisional: for quad9 just keep the first two nodes
+        % provisional: for quad9 just keep the first 4 nodes
         nNodes = 4;
       end
       surfCentroid = msh.surfaceCentroid;
