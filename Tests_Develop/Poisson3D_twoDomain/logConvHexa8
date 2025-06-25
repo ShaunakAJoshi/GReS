@@ -1,0 +1,25 @@
+_____________________________________________________________________
+Running convergence analysis with SegmentBased integration - 7 GP 
+_____________________________________________________________________
+Running mesh refinement 1 
+Running mesh refinement 2 
+Running mesh refinement 3 
+Running mesh refinement 4 
+Running mesh refinement 5 
+Running mesh refinement 6 
+Running mesh refinement 7 
+_____________________________________________________________________
+Running convergence analysis with RBF integration - 4 GP 
+_____________________________________________________________________
+Using 3 interpolation points Running mesh refinement 1 
+Running mesh refinement 2 
+Running mesh refinement 3 
+Running mesh refinement 4 
+Running mesh refinement 5 
+Running mesh refinement 6 
+Running mesh refinement 7 
+Using 4 interpolation points Running mesh refinement 1 
+Running mesh refinement 2 
+Running mesh refinement 3 
+Running mesh refinement 4 
+Running mesh refinement 5 

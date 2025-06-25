@@ -1,6 +1,8 @@
 clear
 close all
 
+diary 
+diary logConvHexa8
 % Get the full path of the currently executing file
 scriptFullPath = mfilename('fullpath');
 % Extract the directory containing the script
@@ -36,7 +38,7 @@ nref = 7;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
-elem_type = "hexa27";                 % hexa,hexa27
+elem_type = "hexa";                 % hexa,hexa27
 integration_type = ["SegmentBased", "RBF", "ElementBased"];    % SegmentBased (7 gp),ElementBased,RBF
          
 % add one more evenutally 
@@ -57,7 +59,7 @@ for i_t = integration_type
   nInt = 0;
 
   if strcmp(i_t,'RBF')
-    nInt = [4 5 6];
+    nInt = [3 4 5];
   end
   for ngp = nG
     fprintf('_____________________________________________________________________\n')
@@ -76,12 +78,12 @@ for i_t = integration_type
       fprintf('Running mesh refinement %i \n',i);
 
       % run script to get refined mesh
-      fname = strcat('domain_',num2str(i));
+      fname = strcat('domain_hexa8_',num2str(i));
       command = "python Mesh/domain.py "  + fname...
         + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + elem_type;
-      system(command);
+      %system(command);
 
-
+      %continue
       meshFile = char(fname+".vtk");
       mesh = Mesh();
       mesh.importMesh(meshFile);
@@ -153,6 +155,7 @@ for i_t = integration_type
   end % end gp loop
 end % end integration type loop
 
+diary off
 % store output structure
 
 %% plotting convergence profiles

@@ -47,7 +47,7 @@ N_l = [2 4 8 12 18];
 N_r = [3 6 12 18 24];
 
 %% convergence loop
-for i = 1:nref
+for i = 2
   N_i_l = N_l(i);
   N_i_r = N_r(i);
 

@@ -7,6 +7,6 @@
         <Quadrature type="ElementBased" nGP="6" nInt="6"/>
         <Multiplier type="standard"/>
         <Physics>Poisson</Physics>
-        <Print name="interf_ElementBased_1"/>
+        <Print name="interf_ElementBased_2"/>
     </Interface>
 </struct>
