@@ -99,6 +99,67 @@ classdef ElementBasedQuadrature < handle
       end
     end
 
+%     function [xiM, gpProjected] = par_projectGP(obj, is, im)
+%       elM = getElem(obj.mortar,1,im);
+%       elS = getElem(obj.mortar,2,is);
+%       nodeS = obj.msh(2).surfaces(is,:);
+%       coordS = obj.msh(2).coordinates(nodeS,:);
+%       X = elS.Nref(obj.gptoProj,:) * coordS;
+%       xiS = obj.tempGPloc(obj.gptoProj,:);
+%       ngp = size(xiS,1);
+%       xiM_all = zeros(ngp, 2);       % results
+%       fl = false(ngp,1);             % flags
+%       tol = 1e-9;
+%       itMax = 8;
+%       k = find(obj.gptoProj);        % global indices of GP to project
+% 
+%       nodeM = obj.msh(1).surfaces(im,:);
+%       coordM = obj.msh(1).coordinates(nodeM,:);
+%       normals = obj.mortar.mesh.avgNodNormal{2}(nodeS,:);
+% 
+%       % Create local copies of elements (safe for parallel)
+%       elMcopy = elM;
+%       elScopy = elS;
+% 
+%       parfor i = 1:ngp
+%         xiMi = elScopy.centroid;
+%         xiSi = xiS(i,:);
+%         Xi = X(i,:);
+%         Ns = elScopy.computeBasisF(xiSi);
+%         ng = Ns * normals;
+%         ng = ng / norm(ng);
+% 
+%         iter = 0;
+%         w = 0;
+%         Nm = elMcopy.computeBasisF(xiMi);
+%         rhs = (Nm * coordM - w * ng - Xi)';
+% 
+%         while norm(rhs,2) > tol && iter < itMax
+%           iter = iter + 1;
+%           dN = elMcopy.computeDerBasisF(xiMi);
+%           J1 = dN * coordM;
+%           J = [J1' -ng'];
+%           ds = J \ (-rhs);
+%           xiMi = xiMi + ds(1:2)';
+%           w = w + ds(3);
+%           Nm = elMcopy.computeBasisF(xiMi);
+%           rhs = (Nm * coordM - w * ng - Xi)';
+%         end
+% 
+%         if FEM.checkInRange(elMcopy, xiMi)
+%           xiM_all(i,:) = xiMi;
+%           fl(i) = true;
+%         end
+%       end
+% 
+%       xiM = xiM_all(fl,:);
+%       gpProjected = fl;
+% 
+%       % Safe to update obj.flagProj *after* the loop
+%       obj.flagProj(k(fl)) = true;
+%     end
+
+
     function [xiM,gpProjected] = projectGP(obj,is,im)
       % xi: reference coordinates of the gauss point
       % get nodal normal

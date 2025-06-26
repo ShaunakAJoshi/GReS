@@ -108,7 +108,7 @@ classdef Mortar < handle
 
     function computeMortarMatrices(obj,~)
       fprintf('Computing mortar matrices...\n')
-      tic
+      tIni = cputime;
       % assumption: each element has only one bubble face
       % loop over slave faces and:
       % 1) compute Aub, Abu and Abb local matrix from the neighbor cell
@@ -197,7 +197,7 @@ classdef Mortar < handle
       % check satisfaction of partition of unity (mortar consistency)
       pu = sum([obj.Jmaster{1} obj.Jslave{1}],2);
       assert(norm(pu)<1e-6,'Partiition of unity violated');
-      fprintf('Done computing mortar matrix in %.4f s \n',toc)
+      fprintf('Done computing mortar matrix in %.4f s \n',cputime-tIni)
     end
 
 

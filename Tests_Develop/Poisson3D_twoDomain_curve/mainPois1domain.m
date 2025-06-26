@@ -35,8 +35,8 @@ nref = 4;
 
 % study parameters
 elem_type = "hexa";                 % hexa,hexa27
-integration_type = 'ElementBased';    % SegmentBased (7 gp),ElementBased,RBF
-nG = 6;           
+integration_type = 'RBF';    % SegmentBased (7 gp),ElementBased,RBF
+nG = 16;           
 if strcmp(integration_type,'SegmentBased')
   nG = 7;
 end
@@ -47,7 +47,7 @@ N_l = [2 4 8 12 18];
 N_r = [3 6 12 18 24];
 
 %% convergence loop
-for i = 2
+for i = 5
   N_i_l = N_l(i);
   N_i_r = N_r(i);
 

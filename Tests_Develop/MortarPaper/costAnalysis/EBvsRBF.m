@@ -12,11 +12,11 @@ clc
 
 % assume 3 avg iteration per element based
 
-ng = 2:25;
+ng = 2:30;
 
-el_type = 'hexa';
+el_type = 'hexa27';
 
-rh = 0.5;         % h_slave/h_master
+rh = 1.5;         % h_slave/h_master
 
 % costQuad8 = 0;
 % costQuad9 = 75;         % minimum flops required to assemble each system
@@ -52,7 +52,7 @@ else
   R_slave2 = 1; % reduced cost of evaluation after support detection
 end
 
-nInt = 16;
+nInt = 25;
 nIntSupp = 16;
 
 c_hexa8 = R_slave*4*(2*nInt-1);
@@ -65,7 +65,7 @@ switch el_type
     c_rbf = c_hexa8;
   case 'hexa27'
     c_rbf = c_hexa27;
-    N = 8;
+    N = 9;
 end
 
 
