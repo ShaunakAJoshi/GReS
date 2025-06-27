@@ -34,7 +34,7 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 7;
+nref = 5;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
@@ -43,9 +43,9 @@ integration_type = ["SegmentBased", "RBF", "ElementBased"];    % SegmentBased (7
          
 % add one more evenutally 
 
-N_l = [2 4 8 12 16 18 20];
+N_l = [2 4 8 16 24];
 
-N_r = [3 6 12 18 24 27 30];
+N_r = [3 6 12 24 36];
 
 %% convergence loop
 
@@ -53,13 +53,13 @@ for i_t = integration_type
   if strcmp(i_t,'SegmentBased')
     nG = 7;
   else
-    nG = [4 6 16];  
+    nG = [6];  
   end
 
   nInt = 0;
 
   if strcmp(i_t,'RBF')
-    nInt = [3 4 5];
+    nInt = [2 3 4];
   end
   for ngp = nG
     fprintf('_____________________________________________________________________\n')
@@ -121,7 +121,7 @@ for i_t = integration_type
  
        solver = MultidomainFCSolver(simParam,domains,interfaces);
        solver.NonLinearLoop();
-       solver.finalizeOutput();
+       %solver.finalizeOutput();
 
        %runPoisson;
  
@@ -139,7 +139,7 @@ for i_t = integration_type
 %     % store result in structure
      switch elem_type
        case 'hexa'
-         outDir = "OUT_HEXA";
+         outDir = "OUT_HEXA_2";
        case 'hexa27'
          outDir = "OUT_HEXA27";
      end

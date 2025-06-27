@@ -221,7 +221,7 @@ classdef SegmentBasedQuadrature < handle
         coordTri = clipCoord(topolTri(i,:),:);
         coordGPtri = getGPointsLocation(tri,coordTri);
         for g = 1:obj.nGtri
-          rhs = (elem.computeBasisF(xi(g,:))*elemCoord)' - coordGPtri(g,:)';
+          rhs = (elem.computeBasisF(xi(g,:,i))*elemCoord)' - coordGPtri(g,:)';
           iter = 0;
           while (norm(rhs,2) > tol) && (iter < itMax)
             iter = iter+1;

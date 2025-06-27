@@ -31,7 +31,7 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 5;
+nref = 3;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
@@ -45,10 +45,10 @@ nInt = 6;
 
 N_l = [2 4 8 9 18];
 
-N_r = [4 8 12 18 24];
+N_r = [3 6 12 18 24];
 
 %% convergence loop
-for i = 4
+for i =1:nref
   N_i_l = N_l(i);
   N_i_r = N_r(i);
 
@@ -100,9 +100,7 @@ for i = 4
   
   tic
   solver = MultidomainFCSolver(simParam,domains,interfaces);
-  profile ON
   solver.NonLinearLoop();
-  profile viewer
   solver.finalizeOutput();
   t = toc;
   %runPoisson;

@@ -6,29 +6,29 @@ h = 1./[3 6 12 18 24 27 30];
 integration_type = ["SegmentBased", "RBF", "ElementBased"];
 figure(1)
 
-lw = 1;
-ms = 8;
-
 
 for i_t = integration_type
   switch i_t
     case 'SegmentBased'
-      col = 'k';
+      col = 'r';
       m = 'o';
-      ls = '-';
+      ms = 6;
+      ls = '--';
       lw = 2;
       nInt = 0;
     case 'ElementBased'
-      col = 'r';
+      col = 'g';
       m = 's';
-      ls = '--';
-      lw = 1;
+      ls = '-.';
+      lw = 0.1;
       nInt = 0;
+      ms = 8;
     case 'RBF'
       col = 'b';
-      m = '+';
+      m = '^';
+      ms = 8;
       ls = '-';
-      lw = 1;
+      lw = 0.5;
       nInt = 5;
   end
 

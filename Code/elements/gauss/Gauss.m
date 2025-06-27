@@ -59,74 +59,84 @@ classdef Gauss < handle
 
   methods (Static)
 
-    function [coord1D, weight1D] = points1D(nG)
- 
-      % get 1D points location for tensor product rule
-      switch nG
-        case 1 % 1 node
-          coord1D = 0.0;
-          weight1D = 2.0;
-        case 2 % 2 nodes
-          l = 1/sqrt(3);
-          coord1D = [-l; l];
-          weight1D = ones(2,1);
-        case 3 % 3 nodes
-          a = sqrt(0.6);
-          b = 0.0;
-          wa = 5/9;
-          wb = 8/9;
-          coord1D = [-a; b; a];
-          weight1D = [wa; wb; wa];
-        case 4 % 4 nodes
-          a = 0.861136311594953;
-          b = 0.339981043584856;
-          wa = 0.347854845137454;
-          wb = 0.652145154862546;
-          coord1D = [-a; -b; b; a];
-          weight1D = [wa; wb; wb; wa];
-        case 5 % 5 nodes
-          a = 0.906179845938664;
-          b = 0.5384693101056831;
-          c = 0.0;
-          wa = 0.2369268850561891;
-          wb = 0.4786286704993665;
-          wc = 0.568888888888888;
-          coord1D = [-a; -b; c; b; a];
-          weight1D = [wa; wb; wc; wb; wa];
-        case 6 % 6 nodes
-          a = 0.9324695142031521;
-          b = 0.6612093864662645;
-          c = 0.2386191860831969;
-          wa = 0.1713244923791704;
-          wb = 0.3607615730481386;
-          wc = 0.4679139345726910;
-          coord1D = [-a; -b; -c; c; b; a];
-          weight1D = [wa; wb; wc; wc; wb; wa];
-        case 16
-          a = 0.9894009349916499;
-          b = 0.9445750230732326;
-          c = 0.8656312023878318;
-          d = 0.7554044083550030;
-          e = 0.6178762444026438;
-          f = 0.4580167776572274;
-          g = 0.2816035507792589;
-          h = 0.0950125098376374;
-          wa = 0.0271524594117541;
-          wb = 0.0622535239386479;
-          wc = 0.0951585116824928;
-          wd = 0.1246289712555339;
-          we = 0.1495959888165767;
-          wf = 0.1691565193950025;
-          wg = 0.1826034150449236;
-          wh = 0.1894506104550685;
-          coord1D = [-a; -b; -c; -d; -e; -f; -g; -h; h; g; f; e; d; c; b; a];
-          weight1D = [wa; wb; wc; wd; we; wf; wg; wh; wh; wg; wf; we; wd; wc; wb; wa];
-        otherwise
-          error(['Gauss rule for %i numb. of GP is not available. Available ' ...
-            'rules for 1,2,3,4,5,6,16 GP /n'],nG);
-      end
-    end
+   function [coord1D, weight1D] = points1D(nG)
 
+  % get 1D points location for tensor product rule
+  switch nG
+    case 1
+      coord1D = 0.0;
+      weight1D = 2.0;
+    case 2
+      l = 1/sqrt(3);
+      coord1D = [-l; l];
+      weight1D = ones(2,1);
+    case 3
+      a = sqrt(0.6);
+      b = 0.0;
+      wa = 5/9;
+      wb = 8/9;
+      coord1D = [-a; b; a];
+      weight1D = [wa; wb; wa];
+    case 4
+      a = 0.861136311594953;
+      b = 0.339981043584856;
+      wa = 0.347854845137454;
+      wb = 0.652145154862546;
+      coord1D = [-a; -b; b; a];
+      weight1D = [wa; wb; wb; wa];
+    case 5
+      a = 0.906179845938664;
+      b = 0.5384693101056831;
+      c = 0.0;
+      wa = 0.2369268850561891;
+      wb = 0.4786286704993665;
+      wc = 0.568888888888888;
+      coord1D = [-a; -b; c; b; a];
+      weight1D = [wa; wb; wc; wb; wa];
+    case 6
+      a = 0.9324695142031521;
+      b = 0.6612093864662645;
+      c = 0.2386191860831969;
+      wa = 0.1713244923791704;
+      wb = 0.3607615730481386;
+      wc = 0.4679139345726910;
+      coord1D = [-a; -b; -c; c; b; a];
+      weight1D = [wa; wb; wc; wc; wb; wa];
+    case 8
+      a = 0.1834346424956498;
+      b = 0.5255324099163290;
+      c = 0.7966664774136267;
+      d = 0.9602898564975363;
+      wa = 0.3626837833783620;
+      wb = 0.3137066458778873;
+      wc = 0.2223810344533745;
+      wd = 0.1012285362903763;
+      coord1D = [-d; -c; -b; -a; a; b; c; d];
+      weight1D = [wd; wc; wb; wa; wa; wb; wc; wd];
+    case 16
+      a = 0.9894009349916499;
+      b = 0.9445750230732326;
+      c = 0.8656312023878318;
+      d = 0.7554044083550030;
+      e = 0.6178762444026438;
+      f = 0.4580167776572274;
+      g = 0.2816035507792589;
+      h = 0.0950125098376374;
+      wa = 0.0271524594117541;
+      wb = 0.0622535239386479;
+      wc = 0.0951585116824928;
+      wd = 0.1246289712555339;
+      we = 0.1495959888165767;
+      wf = 0.1691565193950025;
+      wg = 0.1826034150449236;
+      wh = 0.1894506104550685;
+      coord1D = [-a; -b; -c; -d; -e; -f; -g; -h; h; g; f; e; d; c; b; a];
+      weight1D = [wa; wb; wc; wd; we; wf; wg; wh; wh; wg; wf; we; wd; wc; wb; wa];
+    otherwise
+      error(['Gauss rule for %i numb. of GP is not available. Available ' ...
+        'rules for 1,2,3,4,5,6,8,16 GP\n'],nG);
+  end
+end
     function [coord,weight] = pointsTriangle(nG)
 
       % get 1D points location for reference triangle

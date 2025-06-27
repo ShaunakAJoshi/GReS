@@ -10,79 +10,105 @@ scriptFullPath = mfilename('fullpath');
 scriptDir = fileparts(scriptFullPath);
 
 % Change the current directory to the script's directory
-cd(scriptDir);
+cd(scriptDir)
 
-% Set physical models 
-model = ModelType("Poromechanics_FEM");
+integration_type = ["ElementBased","SegmentBased","RBF"];
+%nG = [4,8,16];
+nInt = 2;
 
-% Set parameters of the simulation
-fileName = "simParam.dat";
-simParam = SimulationParameters(fileName,model);
+outStr = [];
+% write interface to file
 
-% Create the Mesh object
-topology = Mesh();
+for i_t = integration_type
 
-% Set the mesh input file name
-fileName = 'Mesh/cubeHexa8.vtk';
-% Import the mesh data into the Mesh object
-topology.importMesh(fileName);
+  if strcmp(i_t,'SegmentBased')
+    nG = 7;
+  else
+    nG = [4 16];
+  end
+  for ng = nG
+    interfFile = 'interface.xml';
+    strInterf = readstruct(interfFile);
+    strInterf.Interface(1).Quadrature.typeAttribute = i_t;
+    strInterf.Interface(1).Quadrature.nGPAttribute = ng;
+    strInterf.Interface(1).Print.nameAttribute = "interf_"+i_t;
+    if strcmp(i_t,'RBF')
+      strInterf.Interface(1).Quadrature.nIntAttribute = nInt;
+    end
 
-% Create an object of the Materials class and read the materials file
-fileName = 'materialsList.dat';
-mat = Materials(model,fileName);
+    writestruct(strInterf,interfFile);
+
+    % Set physical models
+    model = ModelType("Poromechanics_FEM");
+
+    % Set parameters of the simulation
+    fileName = "simParam.dat";
+    simParam = SimulationParameters(fileName,model);
+
+    top = Mesh();
+    top.importMesh(fullfile('Mesh','top.vtk'));
+
+    bot = Mesh();
+    bot.importMesh(fullfile('Mesh','bottom.vtk'));
+
+    writeBCfiles('BCs/bc_bot','SurfBC','Dir',{'Poromechanics','x','y','z'},'bottom_fixed',0,0,bot,1);
+    writeBCfiles('BCs/bc_top','SurfBC','Neu',{'Poromechanics','z'},'top_load',0,-0.5,top,2); % left block lateral fix
+
+    % processing Poisson problem
+    domains = buildModelStruct_new('domain2block.xml',simParam);
+
+    [interfaces,domains] = Mortar.buildInterfaceStruct('interface.xml',domains);
+    % set up analytical solution
+
+    solver = MultidomainFCSolver(simParam,domains,interfaces);
+    solver.NonLinearLoop();
+    solver.finalizeOutput();
 
 
-% Create an object of the "Elements" class and process the element properties
-ngp = 2;
-elems = Elements(topology,ngp);
+    % collect multipliers on the diagonal of the slave domain
+    mult = solver.interfaces{1}.multipliers(1).curr(3*[1 13 16 3]);
 
-% Create an object of the "Faces" class and process the face properties
-faces = Faces(model, topology);
-%
-% Wrap Mesh, Elements and Faces objects in a structure
-grid = struct('topology',topology,'cells',elems,'faces',faces);
-%
-
-% Degree of freedom manager 
-%fname = 'dof.dat';
-dofmanager = DoFManager(topology,model);
-
-% Create object handling construction of Jacobian and rhs of the model
-linSyst = Discretizer(model,simParam,dofmanager,grid,mat);
-
-% Build a structure storing variable fields at each time step
-linSyst.setState();
-
-% Create and set the print utility
-printUtils = OutState(model,topology,'outTime.dat','folderName','Output_PatchTest');
+    outStr = [outStr;...
+      struct('integration',i_t,'nG',ng,'mult',mult)];
+  end
+end
 
 
-% % Write BC files programmatically with function utility 
-% F = -10; % vertical force
-% 
-% % Collect BC input file in a list
-% fileName = ["BCs/dirFlowTop.dat","BCs/neuPorotop.dat",...
-%    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
-% %
-writeBCfiles('BCs/fixBot','SurfBC','Dir',{'Poromechanics','x','y','z'},'bottom_fixed',0,0,topology,2); 
-writeBCfiles('BCs/topLoad','SurfBC','Neu',{'Poromechanics','z'},'top_load',0,-1,topology,1); % left block lateral fix
+%%
+figure(1)
+clf
+diagcoord = sqrt(2)*[0 1/3 2/3 1];
+hold on
 
-fileName = ["BCs/fixBot.dat","BCs/topLoad.dat"];
-% Create an object of the "Boundaries" class 
-bound = Boundaries(fileName,model,grid);
+legendEntries = {};  % per raccogliere le voci della legenda
 
-% Print model initial state
-printState(printUtils,linSyst);
+for i = 1:numel(outStr)
+  switch outStr(i).integration
+    case 'RBF'
+      lc = 'b';
+    case 'ElementBased'
+      lc = 'g';
+    case 'SegmentBased'
+      lc = 'r';
+    otherwise
+      lc = 'k';  % colore di fallback
+  end
+  mult = outStr(i).mult;
+  h = plot(diagcoord, mult, '-s', 'Color', lc, 'LineWidth', 1.5, ...
+           'DisplayName', outStr(i).integration);
+end
 
-% The modular structure of the discretizer class allow the user to easily
-% customize the solution scheme. 
-% Here, a built-in fully implict solution scheme is adopted with class
-% FCSolver. This could be simply be replaced by a user defined function
-Solver = FCSolver(model,simParam,dofmanager,grid,mat,bound,printUtils,linSyst);
-%
-% Solve the problem
-[simState] = Solver.NonLinearLoop();
-%
-% Finalize the print utility
-printUtils.finalize()
+% Etichette assi in LaTeX
+xlabel('coordinate diagonal', 'Interpreter', 'latex', 'FontSize', 14)
+ylabel('$\lambda$', 'Interpreter', 'latex', 'FontSize', 14)
+
+% Legenda
+%legend('Interpreter', 'latex', 'FontSize', 12, 'Location', 'best')
+
+% Font LaTeX per tutto il grafico
+set(gca, 'FontName', 'latex', 'TickLabelInterpreter', 'latex')
+grid on
+box on
+
+
 

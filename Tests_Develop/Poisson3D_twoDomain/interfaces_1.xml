@@ -4,9 +4,9 @@
         <Master id="1" surfaceTag="1"/>
         <Slave id="1" surfaceTag="3"/>
         <Type>MeshTying</Type>
-        <Quadrature type="ElementBased" nGP="16" nInt="5"/>
+        <Quadrature type="SegmentBased" nGP="7" nInt="6"/>
         <Multiplier type="standard"/>
         <Physics>Poisson</Physics>
-        <Print name="interf_ElementBased_7"/>
+        <Print name="interf_SegmentBased_4"/>
     </Interface>
 </struct>

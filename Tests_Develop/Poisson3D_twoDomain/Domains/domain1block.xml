@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <struct>
     <Domain>
-        <Name>Cube_ElementBased_7</Name>
-        <Geometry>domain_hexa8_7.vtk</Geometry>
+        <Name>Cube_SegmentBased_4</Name>
+        <Geometry>domain_hexa8_4.vtk</Geometry>
         <ModelType>Poisson_FEM</ModelType>
         <Gauss>3</Gauss>
         <BoundaryConditions count="1">
