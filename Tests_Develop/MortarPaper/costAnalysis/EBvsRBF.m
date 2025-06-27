@@ -14,9 +14,9 @@
 
 ng = 2:25;
 
-el_type = 'hexa27';
+el_type = 'hexa';
 
-rh = 2;         % h_slave/h_master
+rh = 1/2;         % h_slave/h_master
 
 % costQuad8 = 0;
 % costQuad9 = 75;         % minimum flops required to assemble each system
@@ -29,8 +29,8 @@ else
 end
 
 
-c_hexa27 = 280;   % 27+2nN (dN) + 16+nN (N) + 9^3 + 9nN
-c_hexa8 = 91;     % 12 (dN) + 16 (N) + 9^3 + 9nN
+c_hexa27 = 160;   % 27+2nN (dN) + 16+nN (N) + 3^3 + 9nN
+c_hexa8 = 73;     % 12 (dN) + 16 (N) + 3^3 + 9nN
 switch el_type
   case 'hexa'
     c_eb = c_hexa8;
@@ -53,11 +53,11 @@ else
 end
 
 nInt = 16;
-nIntSupp = 16;
+nIntSupp = 9;
 
-c_hexa8 = R_slave*4*(2*nInt-1);
+c_hexa8 = R_slave*4*(2*nInt);
 
-c_hexa27 = R_slave*3*(2*nIntSupp-1) + R_slave2*9*(2*nInt-1);
+c_hexa27 = R_slave*3*(2*nIntSupp) + R_slave2*9*(2*nInt);
 
 switch el_type
   case 'hexa'
@@ -71,7 +71,7 @@ end
 
 % assume initial support detection
 
-rbf_cost = @(x) R_master*((1/3)*nInt^3 + N*nInt^2) + x.^2*c_rbf;
+rbf_cost = @(x) R_master*((1/6)*nInt^3 + N*nInt^2) + x.^2*c_rbf;
 
 
 
