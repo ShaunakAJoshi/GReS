@@ -40,7 +40,7 @@ xMin = 0
 yMin = 0
 zMin = 0
 
-xCurve = 0.375
+xCurve = 1.25
 
 P1l = gmsh.model.occ.addPoint(xMin,yMin,zMin)
 P2l = gmsh.model.occ.addPoint(xMin+X,yMin,zMin)
