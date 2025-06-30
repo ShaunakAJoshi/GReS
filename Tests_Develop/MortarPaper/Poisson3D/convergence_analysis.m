@@ -39,7 +39,7 @@ nref = 6;
 
 % study parameters
 elem_type = "hexa27";                 % hexa,hexa27
-integration_type = ["SegmentBased"];    % SegmentBased (7 gp),ElementBased,RBF
+integration_type = ["SegmentBased","ElementBased","RBF"];    % SegmentBased (7 gp),ElementBased,RBF
 
 % add one more evenutally
 
@@ -53,7 +53,7 @@ for i_t = integration_type
   if strcmp(i_t,'SegmentBased')
     nG = 7;
   else
-    nG = [3];
+    nG = [3,6,16];
   end
 
   nInt = 0;
@@ -83,7 +83,7 @@ for i_t = integration_type
           + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + elem_type;
         system(command);
 
-        continue
+        %continue
 
         meshFile = fullfile('Mesh','meshes',fname+".vtk");
         mesh = Mesh();
@@ -134,24 +134,24 @@ for i_t = integration_type
       end % end refinement
 
       % compute convergence order
-%       L2ord = log(L2(1:end-1)./L2(2:end))./log(h(1:end-1)./h(2:end));
-%       H1ord = log(H1(1:end-1)./H1(2:end))./log(h(1:end-1)./h(2:end));
-%       %
-%       %     % store result in structure
-%       switch elem_type
-%         case 'hexa'
-%           outDir = "OUTPUT/OUT_HEXA_2";
-%         case 'hexa27'
-%           outDir = "OUTPUT/OUT_HEXA27_2";
-%       end
-%       out_str = struct('int_type',i_t,'nGP',ngp,...
-%         'L2norm',L2,'H1norm',H1);
-%       fname = i_t+"_"+num2str(ngp);
-%       if strcmp(i_t,'RBF')
-%         fname = fname + "_" + num2str(n_i);
-%         out_str.nInt = n_i;
-%       end
-%       save(fullfile(outDir,strcat(fname,'.mat')),'-struct',"out_str");
+      L2ord = log(L2(1:end-1)./L2(2:end))./log(h(1:end-1)./h(2:end));
+      H1ord = log(H1(1:end-1)./H1(2:end))./log(h(1:end-1)./h(2:end));
+      %
+      %     % store result in structure
+      switch elem_type
+        case 'hexa'
+          outDir = "OUTPUT/OUT_HEXA_2";
+        case 'hexa27'
+          outDir = "OUTPUT/OUT_HEXA27_2";
+      end
+      out_str = struct('int_type',i_t,'nGP',ngp,...
+        'L2norm',L2,'H1norm',H1);
+      fname = i_t+"_"+num2str(ngp);
+      if strcmp(i_t,'RBF')
+        fname = fname + "_" + num2str(n_i);
+        out_str.nInt = n_i;
+      end
+      save(fullfile(outDir,strcat(fname,'.mat')),'-struct',"out_str");
     end % end interpolation loop points
   end % end gp loop
 end % end integration type loop
