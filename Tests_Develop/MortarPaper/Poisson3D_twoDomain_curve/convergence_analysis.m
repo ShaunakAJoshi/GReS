@@ -37,7 +37,7 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 6;
+nref = 2;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
@@ -112,7 +112,7 @@ for i_t = integration_type
         % write interface to file
         strInterf.Interface(1).Quadrature.typeAttribute = i_t;
         strInterf.Interface(1).Quadrature.nGPAttribute = ngp;
-        strInterf.Interface(1).Print.nameAttribute = "interf_"+i_t+"_"+num2str(i);
+        %strInterf.Interface(1).Print.nameAttribute = "interf_"+i_t+"_"+num2str(i);
         if strcmp(i_t,'RBF')
           strInterf.Interface(1).Quadrature.nIntAttribute = n_i;
         end
