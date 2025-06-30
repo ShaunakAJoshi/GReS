@@ -718,3 +718,28 @@ In <a href="matlab:matlab.internal.language.introspective.errorDocCallback('conv
         solver.NonLinearLoop();
 } 
 convergence_analysis
+_____________________________________________________________________
+Running convergence analysis with SegmentBased integration - 7 GP 
+_____________________________________________________________________
+Running mesh refinement 1 
+Running mesh refinement 2 
+Running mesh refinement 3 
+Running mesh refinement 4 
+Running mesh refinement 5 
+Running mesh refinement 6 
+{Index exceeds the number of array elements. Index must not exceed 6.
+
+Error in <a href="matlab:matlab.internal.language.introspective.errorDocCallback('convergence_analysis', 'M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D\convergence_analysis.m', 75)" style="font-weight:bold">convergence_analysis</a> (<a href="matlab: opentoline('M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D\convergence_analysis.m',75,0)">line 75</a>)
+        N_i_l = N_l(i);
+} 
+opentoline('M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D\convergence_analysis.m',75,0)
+convergence_analysis
+_____________________________________________________________________
+Running convergence analysis with SegmentBased integration - 7 GP 
+_____________________________________________________________________
+Running mesh refinement 1 
+Running mesh refinement 2 
+Running mesh refinement 3 
+Running mesh refinement 4 
+Running mesh refinement 5 
+Running mesh refinement 6 

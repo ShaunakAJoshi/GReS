@@ -81,13 +81,13 @@ for i_t = integration_type
         fprintf('Running mesh refinement %i \n',i);
         fprintf('_____________________________________________________________________\n')
 
-        fprintf('Running mesh refinement %i \n',i);
-
         % run script to get refined mesh
         fname = strcat('domain_',num2str(i));
         command = "python Mesh/scripts/domain_curve.py "  + fname...
           + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + elem_type;
-        system(command);
+        %system(command);
+
+%         continue
 
         meshFile = fullfile('Mesh','meshes',fname+".vtk");
         mesh = Mesh();
