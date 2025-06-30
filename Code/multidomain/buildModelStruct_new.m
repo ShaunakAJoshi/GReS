@@ -47,7 +47,7 @@ function modStr = getModelStruct(str,simParam)
   bc = Boundaries(bcList,model,grid);
 
   % output manager
-  printUtils = OutState(model,topology,str.OutState,"folderName",name);
+  printUtils = OutState(model,topology,str.OutState,"folderName",name,"writeVtk",false);
 
   linSyst = Discretizer(model,simParam,dof,grid,material);
 

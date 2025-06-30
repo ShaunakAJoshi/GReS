@@ -172,7 +172,7 @@ classdef ElementBasedQuadrature < handle
       ngp = size(xiS,1);
       xiM = zeros(ngp,2);
       itMax = 8;
-      tol = 1e-9;
+      tol = 1e-14;
       gpProjected = false(size(obj.gptoProj,1),1);
       fl = false(ngp,1);
       k = find(obj.gptoProj); % index of gp to project

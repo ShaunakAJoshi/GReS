@@ -224,6 +224,9 @@ classdef Mortar < handle
     end
 
     function printState(obj,tOld,tNew)
+      if isempty(obj.outStruct)
+        return
+      end
       cellData2D = [];
       pointData2D = [];
       if nargin == 2

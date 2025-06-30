@@ -16,6 +16,7 @@ classdef OutState < handle
   properties (Access = private)
     timeID = 1
     VTK
+    writeVtk
   end
 
   methods (Access = public)
@@ -25,16 +26,20 @@ classdef OutState < handle
         mesh (1,1) Mesh
         fileName (1,1) string
         options.flagMatFile logical = false
+        options.writeVtk logical = true
         options.folderName string = "vtkOutput"
       end
       % deal variable input
+      obj.writeVtk = options.writeVtk;
       obj.writeSolution = options.flagMatFile;
       foldName = options.folderName;
       obj.setOutState(model,mesh,fileName,foldName)
     end
 
     function finalize(obj)
-      obj.VTK.finalize();
+      if obj.writeVtk
+        obj.VTK.finalize();
+      end
     end
 
     function printState(obj,solv,stateOld)
@@ -65,7 +70,9 @@ classdef OutState < handle
           cellData3D = [cellData3D; cellData];
           pointData3D = [pointData3D; pointData];
         end
-        obj.VTK.writeVTKFile(time, pointData3D, cellData3D, [], []);
+        if obj.writeVtk
+          obj.VTK.writeVTKFile(time, pointData3D, cellData3D, [], []);
+        end
         % update the print structure
       elseif nargin == 3
         stateNew = solv.state;
@@ -99,7 +106,9 @@ classdef OutState < handle
               cellData3D = OutState.mergeOutFields(cellData3D,cellData);
               pointData3D = OutState.mergeOutFields(pointData3D,pointData);
             end
-            obj.VTK.writeVTKFile(time, pointData3D, cellData3D, [], []);
+            if obj.writeVtk
+              obj.VTK.writeVTKFile(time, pointData3D, cellData3D, [], []);
+            end
             obj.timeID = obj.timeID + 1;
             if obj.timeID > length(obj.timeList)
               break

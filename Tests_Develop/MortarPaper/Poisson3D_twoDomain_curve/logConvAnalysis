@@ -1,0 +1,2 @@
+if system_dependent('IsDebugMode')==1, dbquit; end
+convergence_analysis

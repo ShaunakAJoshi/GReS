@@ -183,7 +183,7 @@ classdef Mesh < handle
       extension = str{2};
       switch extension
         case 'vtk'
-          [obj.coordinates, elems] = mxImportVTKmesh(fileName);
+          [obj.coordinates, elems] = mxImportVTKmesh(char(fileName));
         case 'msh'
           importGMSHmesh(obj,fileName);
           return;
