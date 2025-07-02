@@ -291,7 +291,7 @@ classdef RBFquadrature < handle
         % higher order elements
         Nsupp = (fiNM*obj.wSupp(1:v(2),3*v(3)-[2 1 0]))./(fiNM*obj.w1(:,v(3)));
       else
-        Nsupp = Nmaster(:,[1 2 3]);
+        Nsupp = Nmaster(:,[1 3]);
       end
       % automatically detect supports computing interpolant
       id = all([Nsupp >= 0-tol id1],2);

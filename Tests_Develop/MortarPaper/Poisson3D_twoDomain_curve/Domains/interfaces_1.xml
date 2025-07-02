@@ -3,10 +3,9 @@
     <Interface>
         <Master id="1" surfaceTag="1"/>
         <Slave id="1" surfaceTag="3"/>
-        <Type>MeshTying</Type>
-        <Quadrature type="RBF" nGP="3" nInt="5"/>
-        <Multiplier type="standard"/>
+        <Type>MeshTyingCondensation</Type>
+        <Quadrature type="ElementBased" nGP="16" nInt="5"/>
+        <Multiplier type="dual"/>
         <Physics>Poisson</Physics>
-        <Print name="interf_ElementBased_2"/>
     </Interface>
 </struct>

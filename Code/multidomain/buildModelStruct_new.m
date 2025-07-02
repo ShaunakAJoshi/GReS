@@ -51,7 +51,7 @@ function modStr = getModelStruct(str,simParam)
 
   linSyst = Discretizer(model,simParam,dof,grid,material);
 
-  linSyst.setState();
+  linSyst.initState();
 
   modStr = struct( ...
     'DomainName',         name, ...

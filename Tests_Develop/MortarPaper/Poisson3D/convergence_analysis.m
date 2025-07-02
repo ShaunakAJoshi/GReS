@@ -1,8 +1,11 @@
 clear
 close all
+addpath(genpath(pwd))
 
-diary
-diary logConvHexa8
+if exist("logConvAnalysis","file") == 2
+  delete("logConvAnalysis")
+end
+diary logConvAnalysis
 % Get the full path of the currently executing file
 scriptFullPath = mfilename('fullpath');
 % Extract the directory containing the script
@@ -30,22 +33,22 @@ strInterf = readstruct(interfFile);
 out_str = []; % output structure
 %% INPUT
 % base domain size
-N_0_l = 2;
-N_0_r = 3;
+% N_0_l = 2;
+% N_0_r = 3;
 
 % number of refinement
-nref = 6;
+nref = 7;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
 elem_type = "hexa27";                 % hexa,hexa27
-integration_type = ["SegmentBased","ElementBased","RBF"];    % SegmentBased (7 gp),ElementBased,RBF
+integration_type = ["SegmentBased","RBF","ElementBased"];    % SegmentBased (7 gp),ElementBased,RBF
 
 % add one more evenutally
 
-N_l = [4 8 16 24 32 36];
+N_l = [4 8 16 24 32 36 40];
 
-N_r = [6 12 24 36 48 54];
+N_r = [6 12 24 36 48 54 60];
 
 %% convergence loop
 
@@ -53,7 +56,7 @@ for i_t = integration_type
   if strcmp(i_t,'SegmentBased')
     nG = 7;
   else
-    nG = [3,6,16];
+    nG = [3 6 16];
   end
 
   nInt = 0;
@@ -75,13 +78,15 @@ for i_t = integration_type
         N_i_l = N_l(i);
         N_i_r = N_r(i);
 
-        fprintf('Running mesh refinement %i \n',i);
+        fprintf('Running mesh refinement %i - %s %i GP \n',i,i_t,ngp);
 
         % run script to get refined mesh
         fname = strcat('domain_',num2str(i));
         command = "python Mesh/scripts/domain.py "  + fname...
           + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + elem_type;
-        system(command);
+        %system(command);
+
+%         return
 
         %continue
 

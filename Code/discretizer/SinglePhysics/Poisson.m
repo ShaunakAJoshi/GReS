@@ -52,16 +52,23 @@ classdef Poisson < SinglePhysics
       obj.rhs = obj.J*obj.state.data.u(ents) + f(ents);
     end
 
-    function setState(obj)
+    function initState(obj)
       % add poromechanics fields to state structure
       obj.state.data.u = zeros(obj.mesh.nNodes,1);
       obj.state.data.err = zeros(obj.mesh.nNodes,1);
     end
 
+    function setState(obj,id,vals)
+      obj.state.data.u(id) = vals; 
+    end
+
     function updateState(obj,dSol)
       % Update state structure with last solution increment
       ents = obj.dofm.getActiveEnts(obj.field);
-      obj.state.data.u(ents) = obj.state.data.u(ents) + dSol(getDoF(obj.dofm,obj.field));
+      if nargin > 1
+        % update current displacements
+        obj.state.data.u(ents) = obj.state.data.u(ents) + dSol(getDoF(obj.dofm,obj.field));
+      end
       if ~isempty(obj.anal)
         analSol = computeAnal(obj,ents,'u',0);
         obj.state.data.err(ents) = obj.state.data.u(ents) - analSol;

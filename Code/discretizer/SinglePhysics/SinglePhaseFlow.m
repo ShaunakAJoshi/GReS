@@ -30,7 +30,7 @@ classdef SinglePhaseFlow < SinglePhysics
          computeRHSGravTerm(obj);
       end
 
-      function setState(obj)
+      function initState(obj)
          if isFEMBased(obj.model,'Flow')
             n = obj.mesh.nNodes;
          elseif isFVTPFABased(obj.model,'Flow')

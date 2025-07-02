@@ -48,7 +48,8 @@ classdef Mortar < handle
           %obj.quadrature2 = RBFquadrature(obj,6);
         case 'SegmentBased'
           obj.quadrature = SegmentBasedQuadrature(obj,inputStruct.Quadrature.nGPAttribute);
-          nG = 2; % dummy nG for elements deifnition
+          nG = 3; 
+          % nG for dual multipliers inversion
           obj.elements = [Elements(obj.mesh.msh(1),nG),...
             Elements(obj.mesh.msh(2),nG)];
       end
@@ -324,6 +325,8 @@ classdef Mortar < handle
           case 'Fault'
             % not yet implemented!
             interfaceStruct{i} = Fault();
+          case 'MeshTyingCondensation'
+            interfaceStruct{i} = MeshGlueDual(i,interfStr(i),modelStruct([idMaster,idSlave]));
           otherwise
             error(['Invalid interface law type for interface %i in file' ...
               '%s. \nAvailable types are: \nMeshTying \nFault'],i,fileName);

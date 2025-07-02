@@ -47,7 +47,7 @@ classdef VariablySaturatedFlow < SinglePhaseFlow
             end
         end
 
-        function setState(obj)
+        function initState(obj)
             n = obj.mesh.nCells;
             obj.state.data.pressure = zeros(n,1);
             obj.state.data.saturation = zeros(n,1);
