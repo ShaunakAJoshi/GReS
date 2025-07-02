@@ -79,7 +79,7 @@ for i_t = integration_type
         N_i_l = N_l(i);
         N_i_r = N_r(i);
         fprintf('_____________________________________________________________________\n')
-        fprintf('Running mesh refinement %i - %S %i GP \n',i,i_t,ngp);
+        fprintf('Running mesh refinement %i - %s %i GP \n',i,i_t,ngp);
         fprintf('_____________________________________________________________________\n')
 
         % run script to get refined mesh
