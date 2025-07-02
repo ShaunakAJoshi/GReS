@@ -189,13 +189,23 @@ classdef MultidomainFCSolver < handle
       % solve unstabilized system
       J = FCSolver.cell2matJac(J);
       rhs = cell2mat(rhs);
+      tic
       if size(J,1)>1e4
-        % iterative solver
         fprintf('Solving linear system...\n')
-        tic
-        p = symamd(J);
-        sol = J(p,p) \ -rhs(p);
-        sol(p) = sol;
+        if norm(J-J','fro') < 1e-10
+          % matrix is practically symmetric
+          J = 0.5 * (J + J');
+          %           J = J + speye(size(J)) * 1e-10;  % Regularize diagonal
+          %           opts.type = 'ict';        % incomplete Cholesky with threshold
+          %           opts.droptol = 1e-3;       % drop tolerance
+          %           opts.diagcomp = 1e-3;      % diagonal compensation
+          L = ichol(J);
+          [sol,fl2,rr2,it2,rv2] = pcg(J,-rhs,1e-9,300,L,L');
+        else
+          p = symamd(J);
+          sol = J(p,p) \ -rhs(p);
+          sol(p) = sol;
+        end
         fprintf('Linear system solved in %.4f s \n',toc)
       else
         %direct solver
@@ -328,9 +338,28 @@ classdef MultidomainFCSolver < handle
           end
         end
         f = f + obj.nfldDom(iD);  % update field counter
-      end
-    end
+      end 
 
+      % provisional assembly of static condensation coupling block
+      for iI = 1:obj.nInterf
+        %
+        interf = obj.interfaces{iI};
+        if isa(interf,'MeshGlueDual')
+          id = interf.idDomain;
+          if isempty(J{id(1),id(2)})
+            J{id(1),id(2)} = interf.Jcoupling';
+          else
+            J{id(1),id(2)} =  J{id(1),id(2)} + interf.Jcoupling';
+          end
+          if isempty(J{id(2),id(1)})
+            J{id(2),id(1)} = interf.Jcoupling;
+          else
+            J{id(2),id(1)} = J{id(2),id(1)} + interf.Jcoupling;
+          end
+        end
+      end
+
+    end
 
 
     function rhs = assembleRhs(obj)
@@ -372,7 +401,6 @@ classdef MultidomainFCSolver < handle
         end
       end
     end
-
 
 
     function computeMatricesAndRhs(obj)
@@ -429,6 +457,7 @@ classdef MultidomainFCSolver < handle
 
     function updateState(obj,dSol)
       % update domain and interface state using incremental solution
+      dSol_fix = dSol;
       for i = 1:obj.nDom
         discretizer = obj.domains(i).Discretizer;
         N = obj.domains(i).DoFManager.totDoF;
@@ -440,7 +469,11 @@ classdef MultidomainFCSolver < handle
       % update interface state
       for j = 1:obj.nInterf
         N = obj.interfaces{j}.totMult;
-        du = dSol(1:N);
+        if N == 0
+          du = dSol_fix;
+        else
+          du = dSol(1:N);
+        end
         obj.interfaces{j}.updateState(du);
         dSol = dSol(N+1:end);
       end

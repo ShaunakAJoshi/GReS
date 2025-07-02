@@ -10,12 +10,12 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 4.2656 s 
-0     5.015536e+00
+Done computing mortar matrix in 3.8125 s 
+0     5.831192e+00
 Computing mortar matrices...
-Done computing mortar matrix in 3.3125 s 
-1     2.100923e-15
-Max absolute error is: 1.071908e-02 
+Done computing mortar matrix in 3.7969 s 
+1     2.071726e-15
+Max absolute error is: 1.012518e-02 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -25,12 +25,29 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 7.8750 s 
-0     4.509109e+00
+Done computing mortar matrix in 9.7812 s 
+0     4.721742e+00
 Computing mortar matrices...
-Done computing mortar matrix in 5.4688 s 
-1     2.392176e-15
-Max absolute error is: 1.110914e-03 
+Done computing mortar matrix in 8.0781 s 
+1     2.475917e-15
+Max absolute error is: 1.089701e-03 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
+
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 28.5781 s 
+0     4.518920e+00
+Solving linear system...
+Linear system solved in 0.6882 s 
+Computing mortar matrices...
+Done computing mortar matrix in 20.7031 s 
+1     2.512407e-09
+Max absolute error is: 1.562083e-04 
 _____________________________________________________________________
 Running convergence analysis with RBF integration - 3 GP 
 _____________________________________________________________________
@@ -43,12 +60,12 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.4062 s 
-0     5.015537e+00
+Done computing mortar matrix in 0.1094 s 
+0     5.869699e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.1406 s 
-1     2.251691e-15
-Max absolute error is: 1.128935e-02 
+Done computing mortar matrix in 0.0781 s 
+1     2.086706e-15
+Max absolute error is: 1.263807e-02 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -58,12 +75,29 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.6562 s 
-0     4.509109e+00
+Done computing mortar matrix in 0.3281 s 
+0     4.739647e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.5156 s 
-1     2.768282e-15
-Max absolute error is: 1.025484e-02 
+Done computing mortar matrix in 0.3125 s 
+1     2.807513e-15
+Max absolute error is: 1.191260e-02 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
+
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 1.3125 s 
+0     4.528088e+00
+Solving linear system...
+Linear system solved in 0.6911 s 
+Computing mortar matrices...
+Done computing mortar matrix in 1.3906 s 
+1     2.515688e-09
+Max absolute error is: 7.122316e-03 
 _____________________________________________________________________
 Running convergence analysis with RBF integration - 6 GP 
 _____________________________________________________________________
@@ -76,12 +110,12 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.2969 s 
-0     5.015536e+00
+Done computing mortar matrix in 0.0938 s 
+0     5.831844e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.3281 s 
-1     1.954056e-15
-Max absolute error is: 1.025093e-02 
+Done computing mortar matrix in 0.1250 s 
+1     2.768345e-15
+Max absolute error is: 9.470985e-03 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -92,11 +126,28 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 Iter     ||rhs||
 Computing mortar matrices...
 Done computing mortar matrix in 0.3594 s 
-0     4.509109e+00
+0     4.721620e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.9531 s 
-1     2.518193e-15
-Max absolute error is: 1.084791e-03 
+Done computing mortar matrix in 0.4688 s 
+1     2.692760e-15
+Max absolute error is: 1.053627e-03 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
+
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 1.9062 s 
+0     4.518804e+00
+Solving linear system...
+Linear system solved in 0.6887 s 
+Computing mortar matrices...
+Done computing mortar matrix in 1.9688 s 
+1     2.512280e-09
+Max absolute error is: 1.721403e-04 
 _____________________________________________________________________
 Running convergence analysis with RBF integration - 16 GP 
 _____________________________________________________________________
@@ -109,12 +160,12 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.2812 s 
-0     5.015536e+00
+Done computing mortar matrix in 0.5781 s 
+0     5.830681e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.2656 s 
-1     1.730750e-15
-Max absolute error is: 1.012770e-02 
+Done computing mortar matrix in 0.3750 s 
+1     2.456422e-15
+Max absolute error is: 9.352744e-03 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -124,12 +175,29 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 1.7969 s 
-0     4.509109e+00
+Done computing mortar matrix in 1.2969 s 
+0     4.721895e+00
 Computing mortar matrices...
-Done computing mortar matrix in 1.3125 s 
-1     2.524138e-15
-Max absolute error is: 1.060317e-03 
+Done computing mortar matrix in 1.3594 s 
+1     2.566620e-15
+Max absolute error is: 1.066933e-03 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
+
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 4.6250 s 
+0     4.519014e+00
+Solving linear system...
+Linear system solved in 0.6859 s 
+Computing mortar matrices...
+Done computing mortar matrix in 4.7031 s 
+1     2.513451e-09
+Max absolute error is: 1.507550e-04 
 _____________________________________________________________________
 Running convergence analysis with ElementBased integration - 3 GP 
 _____________________________________________________________________
@@ -143,11 +211,11 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 Iter     ||rhs||
 Computing mortar matrices...
 Done computing mortar matrix in 0.3906 s 
-0     5.015537e+00
+0     5.833480e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.1562 s 
-1     1.873753e-15
-Max absolute error is: 8.577937e-03 
+Done computing mortar matrix in 0.2031 s 
+1     1.977491e-15
+Max absolute error is: 8.270239e-03 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -157,12 +225,29 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.6875 s 
-0     4.509109e+00
-Computing mortar matrices...
 Done computing mortar matrix in 0.7344 s 
-1     2.572593e-15
-Max absolute error is: 1.983534e-03 
+0     4.728618e+00
+Computing mortar matrices...
+Done computing mortar matrix in 0.7031 s 
+1     2.689498e-15
+Max absolute error is: 1.816466e-03 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
+
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 2.5625 s 
+0     4.523034e+00
+Solving linear system...
+Linear system solved in 0.6930 s 
+Computing mortar matrices...
+Done computing mortar matrix in 2.2812 s 
+1     2.512402e-09
+Max absolute error is: 1.002276e-03 
 _____________________________________________________________________
 Running convergence analysis with ElementBased integration - 6 GP 
 _____________________________________________________________________
@@ -175,12 +260,12 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.4531 s 
-0     5.015536e+00
+Done computing mortar matrix in 0.2812 s 
+0     5.830654e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.7188 s 
-1     2.032844e-15
-Max absolute error is: 1.027128e-02 
+Done computing mortar matrix in 0.2344 s 
+1     2.337625e-15
+Max absolute error is: 9.436482e-03 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -190,12 +275,29 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 1.2500 s 
-0     4.509109e+00
+Done computing mortar matrix in 1.0938 s 
+0     4.721320e+00
 Computing mortar matrices...
-Done computing mortar matrix in 1.7969 s 
-1     2.935934e-15
-Max absolute error is: 1.114991e-03 
+Done computing mortar matrix in 1.1250 s 
+1     2.607647e-15
+Max absolute error is: 1.033472e-03 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
+
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 4.5000 s 
+0     4.518658e+00
+Solving linear system...
+Linear system solved in 0.7229 s 
+Computing mortar matrices...
+Done computing mortar matrix in 4.5312 s 
+1     2.512312e-09
+Max absolute error is: 1.717038e-04 
 _____________________________________________________________________
 Running convergence analysis with ElementBased integration - 16 GP 
 _____________________________________________________________________
@@ -208,12 +310,12 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 1.7344 s 
-0     5.015536e+00
+Done computing mortar matrix in 1.6094 s 
+0     5.829470e+00
 Computing mortar matrices...
-Done computing mortar matrix in 1.8594 s 
-1     1.612498e-15
-Max absolute error is: 1.013107e-02 
+Done computing mortar matrix in 1.6094 s 
+1     2.204730e-15
+Max absolute error is: 9.302973e-03 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -223,9 +325,26 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 6.7344 s 
-0     4.509109e+00
+Done computing mortar matrix in 6.5156 s 
+0     4.721595e+00
 Computing mortar matrices...
-Done computing mortar matrix in 6.4375 s 
-1     2.487489e-15
-Max absolute error is: 1.085120e-03 
+Done computing mortar matrix in 6.1875 s 
+1     2.743719e-15
+Max absolute error is: 1.031981e-03 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
+
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 27.4531 s 
+0     4.518868e+00
+Solving linear system...
+Linear system solved in 0.7217 s 
+Computing mortar matrices...
+Done computing mortar matrix in 29.7969 s 
+1     2.512281e-09
+Max absolute error is: 1.325862e-04 

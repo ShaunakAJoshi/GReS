@@ -9,7 +9,7 @@
     <Quadrature type = "RBF" nGP="6" nInt = "4"/>
     <!--<Quadrature type = "SegmentBased" nGP="7"/>-->
      <!--<Quadrature type = "ElementBased" nGP="4"/>-->
-    <Multiplier type = "standard"/>
+    <Multiplier type = "dual"/>
     <Physics> Poisson </Physics>
     <!--<Print name = "verticalFault"/>-->
   </Interface>

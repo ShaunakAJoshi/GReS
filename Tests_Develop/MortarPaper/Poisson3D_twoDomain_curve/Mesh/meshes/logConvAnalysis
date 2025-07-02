@@ -1,38 +1,14 @@
 _____________________________________________________________________
-Running convergence analysis with SegmentBased integration - 7 GP 
+Running convergence analysis with RBF integration - 6 GP 
 _____________________________________________________________________
-_____________________________________________________________________
+Using 5 interpolation points _____________________________________________________________________
 Running mesh refinement 1 
 _____________________________________________________________________
-Mortar initialization... 
-
-TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
------------------------------------------------------------
-Iter     ||rhs||
-Computing mortar matrices...
-Done computing mortar matrix in 0.9844 s 
-0     5.015536e+00
-Computing mortar matrices...
-Done computing mortar matrix in 1.3281 s 
-1     2.100923e-15
-Max absolute error is: 1.071908e-02 
+convergence_analysis
+[Warning: File not found or permission denied] 
+[> In <a href="matlab:matlab.internal.language.introspective.errorDocCallback('convergence_analysis', 'M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D_twoDomain_curve\convergence_analysis.m', 5)" style="font-weight:bold">convergence_analysis</a> (<a href="matlab: opentoline('M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D_twoDomain_curve\convergence_analysis.m',5,0)">line 5</a>)] 
 _____________________________________________________________________
-Running mesh refinement 2 
-_____________________________________________________________________
-Mortar initialization... 
-
-TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
------------------------------------------------------------
-Iter     ||rhs||
-Computing mortar matrices...
-Done computing mortar matrix in 5.4844 s 
-0     4.509109e+00
-Computing mortar matrices...
-Done computing mortar matrix in 4.4219 s 
-1     2.392176e-15
-Max absolute error is: 1.110914e-03 
-_____________________________________________________________________
-Running convergence analysis with RBF integration - 3 GP 
+Running convergence analysis with RBF integration - 6 GP 
 _____________________________________________________________________
 Using 5 interpolation points _____________________________________________________________________
 Running mesh refinement 1 
@@ -43,12 +19,12 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.0625 s 
-0     5.015537e+00
+Done computing mortar matrix in 0.0938 s 
+0     5.015536e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.0469 s 
-1     2.251691e-15
-Max absolute error is: 1.128935e-02 
+Done computing mortar matrix in 0.1406 s 
+1     1.954056e-15
+Max absolute error is: 1.025093e-02 
 _____________________________________________________________________
 Running mesh refinement 2 
 _____________________________________________________________________
@@ -58,25 +34,34 @@ TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
 -----------------------------------------------------------
 Iter     ||rhs||
 Computing mortar matrices...
-Done computing mortar matrix in 0.2656 s 
+Done computing mortar matrix in 0.6250 s 
 0     4.509109e+00
 Computing mortar matrices...
-Done computing mortar matrix in 0.2656 s 
-{Operation terminated by user during <a href="matlab:matlab.internal.language.introspective.errorDocCallback('Poisson/computeAnal')" style="font-weight:bold">Poisson/computeAnal</a>
+Done computing mortar matrix in 0.6875 s 
+1     2.518193e-15
+Max absolute error is: 1.084791e-03 
+_____________________________________________________________________
+Running mesh refinement 3 
+_____________________________________________________________________
+Mortar initialization... 
 
+TSTEP 1   ---  TIME 1.000000  --- DT = 1.000000e+00
+-----------------------------------------------------------
+Iter     ||rhs||
+Computing mortar matrices...
+Done computing mortar matrix in 2.9844 s 
+0     4.418873e+00
+Solving linear system...
+{Error using <a href="matlab:matlab.internal.language.introspective.errorDocCallback('ichol')" style="font-weight:bold">ichol</a>
+Input must be structurally nonsingular with structurally nonzero diagonal.
 
-In <a href="matlab:matlab.internal.language.introspective.errorDocCallback('Poisson/computeForcingTerm', 'M:\Codes\GReS\Code\discretizer\SinglePhysics\Poisson.m', 180)" style="font-weight:bold">Poisson/computeForcingTerm</a> (<a href="matlab: opentoline('M:\Codes\GReS\Code\discretizer\SinglePhysics\Poisson.m',180,0)">line 180</a>)
-        f_gp = computeAnal(obj,c_gp,'f',1);
+Error in <a href="matlab:matlab.internal.language.introspective.errorDocCallback('MultidomainFCSolver/solve', 'M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m', 198)" style="font-weight:bold">MultidomainFCSolver/solve</a> (<a href="matlab: opentoline('M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m',198,0)">line 198</a>)
+          L = ichol(J);
 
-In <a href="matlab:matlab.internal.language.introspective.errorDocCallback('Poisson/computeRhs', 'M:\Codes\GReS\Code\discretizer\SinglePhysics\Poisson.m', 51)" style="font-weight:bold">Poisson/computeRhs</a> (<a href="matlab: opentoline('M:\Codes\GReS\Code\discretizer\SinglePhysics\Poisson.m',51,0)">line 51</a>)
-      f = computeForcingTerm(obj);
+Error in <a href="matlab:matlab.internal.language.introspective.errorDocCallback('MultidomainFCSolver/NonLinearLoop', 'M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m', 86)" style="font-weight:bold">MultidomainFCSolver/NonLinearLoop</a> (<a href="matlab: opentoline('M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m',86,0)">line 86</a>)
+          du = solve(obj,J,rhs);
 
-In <a href="matlab:matlab.internal.language.introspective.errorDocCallback('MultidomainFCSolver/computeMatricesAndRhs', 'M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m', 397)" style="font-weight:bold">MultidomainFCSolver/computeMatricesAndRhs</a> (<a href="matlab: opentoline('M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m',397,0)">line 397</a>)
-          computeRhs(discretizer.solver(j), obj.state(i).prev, obj.dt);
-
-In <a href="matlab:matlab.internal.language.introspective.errorDocCallback('MultidomainFCSolver/NonLinearLoop', 'M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m', 91)" style="font-weight:bold">MultidomainFCSolver/NonLinearLoop</a> (<a href="matlab: opentoline('M:\Codes\GReS\Code\nonlinearsolver\MultidomainFCSolver.m',91,0)">line 91</a>)
-          computeMatricesAndRhs(obj);
-
-In <a href="matlab:matlab.internal.language.introspective.errorDocCallback('convergence_analysis', 'M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D_twoDomain_curve\convergence_analysis.m', 129)" style="font-weight:bold">convergence_analysis</a> (<a href="matlab: opentoline('M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D_twoDomain_curve\convergence_analysis.m',129,0)">line 129</a>)
+Error in <a href="matlab:matlab.internal.language.introspective.errorDocCallback('convergence_analysis', 'M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D_twoDomain_curve\convergence_analysis.m', 131)" style="font-weight:bold">convergence_analysis</a> (<a href="matlab: opentoline('M:\Codes\GReS\Tests_Develop\MortarPaper\Poisson3D_twoDomain_curve\convergence_analysis.m',131,0)">line 131</a>)
         solver.NonLinearLoop();
 } 
+convergence_analysis

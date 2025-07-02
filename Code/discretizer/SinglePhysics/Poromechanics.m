@@ -165,7 +165,7 @@ classdef Poromechanics < SinglePhysics
       end
     end
 
-    function setState(obj)
+    function initState(obj)
       % add poromechanics fields to state structure
       Ndata = getNumbCellData(obj.elements);
       obj.state.data.conv = struct('strain', [], 'stress', [], 'status', []);
@@ -191,7 +191,9 @@ classdef Poromechanics < SinglePhysics
     function updateState(obj,dSol)
       % Update state structure with last solution increment
       ents = obj.dofm.getActiveEnts(obj.field);
-      obj.state.data.dispCurr(ents) = obj.state.data.dispCurr(ents) + dSol(getDoF(obj.dofm,obj.field));
+      if nargin > 1
+        obj.state.data.dispCurr(ents) = obj.state.data.dispCurr(ents) + dSol(getDoF(obj.dofm,obj.field));
+      end
       du = obj.state.data.dispCurr - obj.state.data.dispConv;
       % Update strain
       l = 0;

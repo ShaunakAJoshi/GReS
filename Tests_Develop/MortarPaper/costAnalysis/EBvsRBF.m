@@ -1,94 +1,85 @@
-% clear
-% close all
-% clc
+clear
+close all
+clc
 
+%-------------------------------
+% Settings
+%-------------------------------
 
-% comparing the cost of EB algorithm and RBF
+ng = 4:400;                 % number of Gauss points
+el_type = 'hexa27';         % element type
+nInt = 25;                  % number of integration points
+nIntSupp = 25;              % same as above
+it_avg = 3;                 % average iterations for EB scheme
+nN = 9;                     % number of nodes per element for hexa27
 
-% consider mesh made of structured patches with one grid contained into the
-% other
+% Cost constants
+c_hexa27 = 250;             % cost for EB (hexa27)
+c_hexa8  = 118;             % cost for EB (hexa8)
 
-% assume hexa27 with curved interfaces
+%----------------------------------------
+% Initialize figure
+%----------------------------------------
 
-% assume 3 avg iteration per element based
+figure(1); hold on; grid on;
+set(groot, 'defaultTextInterpreter', 'latex');
+set(groot, 'defaultLegendInterpreter', 'latex');
+set(groot, 'defaultAxesTickLabelInterpreter', 'latex');
 
-ng = 2:25;
+%----------------------------------------
+% Loop over refinement ratios
+%----------------------------------------
+lw=1.5;
 
-el_type = 'hexa';
+for rh = [0.5, 2]
+    
+    % ----- EB cost -----
+    if rh >= 1
+        R_slave = 0.5 * (rh^2 + 1);
+    else
+        R_slave = (1 / rh)^2;
+    end
 
-rh = 1/2;         % h_slave/h_master
+    cost_per_gp = R_slave * (it_avg * c_hexa27) + 16 + nN;
+    eb_cost = @(x) x * cost_per_gp;
+    eb = eb_cost(ng);
 
-% costQuad8 = 0;
-% costQuad9 = 75;         % minimum flops required to assemble each system
+    if rh == 0.5
+        plot(ng, eb, 'r-','LineWidth',lw, 'DisplayName', 'EB - $r=1/2$');
+    else
+        plot(ng, eb, 'r--','LineWidth',lw, 'DisplayName', 'EB - $r=2$');
+    end
 
-% estimate relative number of operation according to mesh size ratio
-if rh >= 1
-  R_slave = 0.5*(rh^2+1);
-else
-  R_slave = (1/rh)^2;
+    % ----- RBF cost -----
+    if rh >= 1
+        R_master = rh^2;
+        R_slave2 = 1 / rh^2;
+    else
+        R_master = 1;
+        R_slave2 = 1;
+    end
+
+    c_rbf = R_slave * 2 * (2 * nInt) + R_slave2 * 9 * (2 * nInt);
+    rbf_cost = @(x) R_master * ((1/3) * nInt^3 + (nN + 3) * nInt^2) + x * (c_rbf + 9 * nInt);
+    rbf = rbf_cost(ng);
+
+    if rh == 0.5
+        plot(ng, rbf, 'b-', 'LineWidth',lw, 'DisplayName', 'RBF - $r=1/2$');
+    else
+        plot(ng, rbf, 'b--', 'LineWidth',lw, 'DisplayName', 'RBF - $r=2$');
+    end
 end
 
+%----------------------------------------
+% Labels and export
+%----------------------------------------
 
-c_hexa27 = 160;   % 27+2nN (dN) + 16+nN (N) + 3^3 + 9nN
-c_hexa8 = 73;     % 12 (dN) + 16 (N) + 3^3 + 9nN
-switch el_type
-  case 'hexa'
-    c_eb = c_hexa8;
-    it_avg = 3;
-  case 'hexa27'
-    c_eb = c_hexa27;
-    it_avg = 3;
-end
+ax = gca;
+ax.FontSize = 14;               % Tick labels
 
-cost_per_gp = R_slave*(it_avg*c_eb);
-eb_cost = @(x) (x.^2)*cost_per_gp;
+xlabel('$N_G$', 'FontSize', 16)
+ylabel('$\mathrm{FLOPs}$', 'FontSize', 16)
+legend('Location', 'northwest', 'FontSize', 14)
 
-
-if rh >= 1
-  R_master = rh^2;
-  R_slave2 = 1/rh^2; % reduced cost of evaluation after support detection
-else
-  R_master = 1;
-  R_slave2 = 1; % reduced cost of evaluation after support detection
-end
-
-nInt = 16;
-nIntSupp = 9;
-
-c_hexa8 = R_slave*4*(2*nInt);
-
-c_hexa27 = R_slave*3*(2*nIntSupp) + R_slave2*9*(2*nInt);
-
-switch el_type
-  case 'hexa'
-    N = 4;
-    c_rbf = c_hexa8;
-  case 'hexa27'
-    c_rbf = c_hexa27;
-    N = 9;
-end
-
-
-% assume initial support detection
-
-rbf_cost = @(x) R_master*((1/6)*nInt^3 + N*nInt^2) + x.^2*c_rbf;
-
-
-
-figure(1)
-eb = eb_cost(ng);
-plot(ng,eb,'r-')
-
-hold on
-
-rbf = rbf_cost(ng);
-plot(ng,rbf,'b-')
-
-
-xlabel('nG')
-ylabel('numb. operations')
-
-legend('Element Based','RBF')
-
-
+exportgraphics(gcf, 'cost_comparison_eb_rbf.pdf', 'ContentType', 'vector');
 

@@ -181,12 +181,12 @@ classdef Discretizer < handle
          out = any(intersect(sub1,sub2));
       end
 
-      function setState(obj)
+      function initState(obj)
          % loop trough active single physics solver and update the state class
          % accordingly
          for i = 1:numel(obj.fields)
             % loop trough active fields and update the state structure
-            setState(obj.getSolver(obj.fields(i)));
+            initState(obj.getSolver(obj.fields(i)));
          end
       end
 

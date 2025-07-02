@@ -22,7 +22,7 @@ f = @(X) cos(pi*X(2)).*cos(pi*X(3)).*h(X(1));
 simParam = SimulationParameters('simParam.dat');
 % base structure to write xml file
 strDomain = readstruct('Domains/domain2block.xml');
-interfFile = 'interface.xml';
+interfFile = 'Domains/interface.xml';
 
 %% INPUT
 % base domain size
@@ -41,16 +41,16 @@ for i = 1:nref
 
   % run script to get refined mesh
   fnameLeft = strcat('domain_left_',num2str(i));
-  command = "python Mesh/domain_left.py "  + fnameLeft...
+  command = "python Mesh/scripts/domain_left.py "  + fnameLeft...
     + " " + num2str(N_i_l);
   system(command);
 
   fnameRight = strcat('domain_right_',num2str(i));
-  command = "python Mesh/domain_right.py "  + fnameRight...
+  command = "python Mesh/scripts/domain_right.py "  + fnameRight...
     + " " + num2str(N_i_r);
   system(command);
   
-  meshFile = char(fnameLeft+".vtk");
+  meshFile = strcat('Mesh/meshes',fnameLeft,'.vtk');
   mesh_left = Mesh();
   mesh_left.importMesh(meshFile);
 

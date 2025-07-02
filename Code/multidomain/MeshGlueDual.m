@@ -5,6 +5,8 @@ classdef MeshGlueDual < MeshGlue
   properties (Access = public)
     E
     Jcoupling
+    f2
+    Jinterf                     % part of the jacobian of the slave side without bcs applied
   end
 
   methods
@@ -13,7 +15,8 @@ classdef MeshGlueDual < MeshGlue
       obj@MeshGlue(id,inputStruct,domains);
       assert(isfield(inputStruct,"Physics"), ...
         'Missing Physics field for interface %i',id);
-      assert(strcmp(obj.multiplierType,'dual'));
+      assert(strcmp(obj.multiplierType,'dual'), 'Multiplier type must be dual');
+      obj.totMult = 0;        % multipliers are condensed 
     end
     %
   end
@@ -54,7 +57,9 @@ classdef MeshGlueDual < MeshGlue
 
 
     function computeMat(obj,~)
+      solvSlave = obj.solvers(2).getSolver(obj.physics);
       computeMortarMatrices(obj);
+      obj.Jinterf = solvSlave.J;
       obj.E = computeMortarOperator(obj);
       getCouplingMat(obj);
     end
@@ -66,14 +71,14 @@ classdef MeshGlueDual < MeshGlue
         return
       end
 
-      solvSlave = obj.solvers(2).getSolver(obj.physics);
+%       solvSlave = obj.solvers(2).getSolver(obj.physics);
 
       % coupling block between one domain and the other
-      obj.Jcoupling = solvSlave.J*obj.E;
+      obj.Jcoupling = obj.Jinterf*obj.E;
 
       % update master block with condensation term
       solvMaster = obj.solvers(1).getSolver(obj.physics);
-      solvMaster.J = solvMaster.J + obj.E'*solvSlave.J*obj.E; 
+      solvMaster.J = solvMaster.J + obj.E'*obj.Jinterf*obj.E; 
     end
 
     function computeRhs(obj)
@@ -101,46 +106,43 @@ classdef MeshGlueDual < MeshGlue
       i = strcmp(obj.physics,physic);
       obj.rhsSlave{i}(bcEnts) = 0;
       obj.Jcoupling(bcEnts,:) = 0;
-
       % remove interface slave dofs from matrix system (force zero) 
-      dofSlave = obj.mesh.local2glob{2};
-      obj.solvers(2).getSolver(obj.physics).applyDirBC([],dofSlave);
+      dofSlave = getInterfSlaveDoF(obj);
+      obj.Jcoupling(dofSlave,:) = 0;
+      solvSlave =  obj.solvers(2).getSolver(obj.physics);
+      solvSlave.applyDirBC([],dofSlave);
+      % zero out rhs of slave interface dofs
+      obj.rhsSlave{i}(dofSlave) = 0;
+      solvSlave.rhs(dofSlave) = 0;
     end
 
     function updateState(obj,du)
-      for i = 1:obj.nFld
-        % get increment of multipliers from other matrix block
-        actMult = getMultiplierDoF(obj);
-        obj.multipliers(i).curr(actMult) = obj.multipliers(i).curr(actMult) + x;
-      end
+      % get interface slave dof with mortar operator
+      u_master = getState(obj.solvers(1).getSolver(obj.physics));
+      u_slave = obj.E*u_master;
+      solvSlave = obj.solvers(2).getSolver(obj.physics);
+      dofSlave = getInterfSlaveDoF(obj);
+      solvSlave.setState(dofSlave,u_slave(dofSlave));
+      % reupdate slave domain with interface slave dofs
+      solvSlave.updateState();
+      % update multipliers
+      var = getState(solvSlave);
+      D = diag(obj.Jslave{1}(:,dofSlave));
+      obj.multipliers(1).curr = (1./D).*(obj.f2(dofSlave)-obj.Jinterf(dofSlave,:)*var);
     end
   end
 
   methods (Access = private)
 
-    function initializeJacobianAndRhs(obj)
-      [obj.Jmaster,obj.Jslave,obj.Jmult] = deal(cell(obj.nFld,1));
-      [obj.rhsMaster,obj.rhsSlave, obj.iniMultipliers] = deal(cell(obj.nFld,1));
-      obj.multipliers = repmat(struct('prev',[],'curr',[]),obj.nFld,1);
-      obj.totMult = 0;
-
-      for i = 1:obj.nFld
-        nDofMaster = getNumDoF(obj.dofm(1),obj.physics(i));
-        nDofSlave = getNumDoF(obj.dofm(2),obj.physics(i));
-        nDofMult = getNumbMultipliers(obj);
-        obj.rhsMaster{i} = zeros(nDofMaster,1);
-        obj.rhsSlave{i} = zeros(nDofSlave,1);
-        obj.multipliers(i).curr = zeros(nDofMult,1);
-        obj.multipliers(i).prev = obj.multipliers(i).curr;
-        obj.iniMultipliers{i} = obj.multipliers(i).curr;
-        obj.totMult = obj.totMult + nDofMult;
-      end
-    end
 
     function computeRhsMaster(obj,i)
-      var = getState(obj.solvers(2).getSolver(obj.physics(i)));
+      solvSlave = obj.solvers(2).getSolver(obj.physics);
+      dofSlave = getInterfSlaveDoF(obj);
+      var = getState(solvSlave);
       ents = obj.dofm(2).getActiveEnts(obj.physics(i));
-      obj.rhsMaster{i} = obj.Jcoupling'*var(ents);
+      var = var(ents);
+      var(dofSlave) = 0;       % interface slave dof removal
+      obj.rhsMaster{i} = obj.Jcoupling'*var;
     end
 
     function computeRhsSlave(obj,i)
@@ -148,163 +150,31 @@ classdef MeshGlueDual < MeshGlue
       ents = obj.dofm(1).getActiveEnts(obj.physics(i));
       obj.rhsSlave{i} = obj.Jcoupling*var(ents);
       % update rhs of master side with condensation contribution
-      obj.rhsMaster{i} =  obj.rhsMaster{i} + ...
-        obj.E'*obj.solvers(2).getSolver(obj.physics).rhs;
+      solvSlave = obj.solvers(2).getSolver(obj.physics);
+      entsSlave = obj.dofm(2).getActiveEnts(obj.physics(i));
+      varSlave = getState(solvSlave);
+      obj.f2 = solvSlave.rhs - solvSlave.J*varSlave(entsSlave);
+      obj.rhsMaster{i} =  obj.rhsMaster{i} + obj.E'*obj.f2;  % (f_1 + E'*f_2)
+      % remove slave rhs contribution of interface slave dofs
+      dofInter = getInterfSlaveDoF(obj);
+      v = varSlave;
+      varSlave(dofInter) = 2*varSlave(dofInter);
+      varSlave = varSlave - v;          % heep only interface slave rhs
+      solvSlave.rhs = solvSlave.rhs - solvSlave.J*varSlave;
+    end
+
+    function dof = getInterfSlaveDoF(obj)
+      fld = obj.dofm(2).getFieldId(obj.physics);
+      dof = obj.dofm(2).getLocalDoF(obj.mesh.local2glob{2},fld);
     end
   end
 
   methods (Access = public)
 
-    function [dofr,dofc,mat] = computeLocMaster(obj,imult,im,Nmult,Nmaster)
-      mat = obj.quadrature.integrate(@(a,b) pagemtimes(a,'ctranspose',b,'none'),...
-        Nmult,Nmaster);
-      nodeMaster = obj.mesh.local2glob{1}(obj.mesh.msh(1).surfaces(im,:));
-      fld = obj.dofm(1).getFieldId(obj.physics);
-      dofc = obj.dofm(1).getLocalDoF(nodeMaster,fld);
-      dofr = getMultiplierDoF(obj,imult);
-    end
-
-    function [dofr,dofc,mat] = computeLocSlave(obj,imult,is,mat)
-      if strcmp(obj.multiplierType,'dual')
-        % lump local D matrix
-        mat = diag(sum(mat,2));
-      end
-      nodeSlave = obj.mesh.local2glob{2}(obj.mesh.msh(2).surfaces(is,:));
-      fld = obj.dofm(2).getFieldId(obj.physics);
-      dofc = obj.dofm(2).getLocalDoF(nodeSlave,fld);
-      dofr = getMultiplierDoF(obj,imult);
-    end
-
-
-    function [cellStr,pointStr] = buildPrintStruct(obj,fldId,fac)
-
-      fieldName = obj.physics(fldId);
-      nCellData = obj.dofm(1).getDoFperEnt(fieldName);
-      cellStr = repmat(struct('name', 1, 'data', 1), nCellData, 1);
-      if nargin ==2
-        outVar = obj.multipliers(fldId).prev;
-      elseif nargin == 3
-        outVar = fac*obj.multipliers(fldId).curr + ...
-          (1-fac)*obj.multipliers(fldId).prev;
-      else
-        error('Invalid number of input arguments for function buildPrintStruct');
-      end
-
-      for i = 1:nCellData
-        cellStr(i).name = char(strcat(fieldName,'_',num2str(i)));
-        cellStr(i).data = outVar(i:nCellData:end);
-      end
-
-      pointStr = [];        % when using P0 multipliers
-    end
-
-    function goOnState(obj)
-      % update the value of the multipliers
-      for i = 1:obj.nFld
-        obj.multipliers(i).prev = obj.multipliers(i).curr;
-      end
-    end
-
-    function goBackState(obj)
-      for i = 1:obj.nFld
-        obj.multipliers(i).curr = obj.multipliers(i).curr;
-      end
-    end
-
-    function setDoFcount(obj,ndof)
-      obj.dofCount = ndof(obj.idDomain);
-    end
-
-
     function out = isMatrixComputed(obj)
       out = all(cellfun(@(x) ~isempty(x), [obj.Jmaster(:); obj.Jslave(:)]));
     end
 
-    function Nmult = computeMultiplierBasisF(obj,el,NslaveIn)
-      elem = obj.getElem(2,el);
-      switch obj.multiplierType
-        case 'P0'
-          Nmult = ones(size(NslaveIn,1),1);
-        case 'standard'
-          Nmult = NslaveIn;
-        case 'dual'
-          Ns = getBasisFinGPoints(elem);
-          gpW = getDerBasisFAndDet(elem,el);
-          M = Ns'*(Ns.*gpW');
-          D = diag(Ns'*gpW');
-          A = M\D;
-          Nmult = NslaveIn*A;
-      end
-    end
-
-    function nDofs = getNumbMultipliers(obj)
-      nc = obj.dofm(2).getDoFperEnt(obj.physics);
-      switch obj.multiplierType
-        case 'P0'
-          nDofs = nc*obj.mesh.nEl(2);
-        case {'dual','standard'}
-          nDofs = nc*obj.mesh.msh(2).nNodes;
-      end
-    end
-
-    function dofs = getMultiplierDoF(obj,id)
-
-      nc = obj.dofm(2).getDoFperEnt(obj.physics);
-
-      if nargin > 1
-        if strcmp(obj.multiplierType,'P0')
-          dofs = dofId(id,nc);
-        else
-          is = obj.mesh.activeCells{2}(id);
-          nodes = obj.mesh.msh(2).surfaces(is,:);
-          dofs = dofId(nodes,nc);
-        end
-      else
-        if strcmp(obj.multiplierType,'P0')
-          dofs = dofId(getActiveCells(obj.mesh,2),3);
-        else
-          dofs = 1:nc*obj.mesh.msh(2).nNodes;
-        end
-      end
-    end
-
-    function [bcDofs,bcVals] = removeSlaveBCdofs(obj,bcPhysics,bcData,domId)
-      % this method updates the list of bc dofs and values removing dofs on
-      % the slave interface (only for nodal multipliers)
-      % this avoid overconstraint and solvability issues
-
-      % bcData: nDofBC x 2 matrix.
-      % first column -> dofs
-      % second columns -> vals (optional)
-
-      bcDofs = bcData(:,1);
-      if size(bcData,2) > 1
-        bcVals = bcData(:,2);
-      else
-        bcVals = [];
-      end
-
-      if strcmp(obj.multiplierType,'P0')
-        return
-      end
-
-      if nargin > 3
-        if ~(domId == obj.idDomain(2))
-          % not slave side
-          return
-        end
-      end
-
-      % get list of nodal slave dofs in the interface
-      nodSlave = obj.mesh.local2glob{2};
-      fldId = obj.dofm(2).getFieldId(bcPhysics);
-      dofSlave = getLocalDoF(obj.dofm(2),nodSlave,fldId);
-      isBCdof = ismember(bcData(:,1),dofSlave);
-      bcDofs = bcDofs(~isBCdof);
-      if ~isempty(bcVals)
-        bcVals = bcVals(~isBCdof);
-      end
-    end
   end
 end
 

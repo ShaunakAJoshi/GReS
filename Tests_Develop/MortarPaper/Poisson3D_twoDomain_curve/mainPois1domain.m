@@ -30,11 +30,11 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 4;
+nref = 3;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
-elem_type = "hexa";                 % hexa,hexa27
+elem_type = "hexa27";                 % hexa,hexa27
 integration_type = 'RBF';    % SegmentBased (7 gp),ElementBased,RBF
 nG = 16;
 if strcmp(integration_type,'SegmentBased')
@@ -47,7 +47,7 @@ N_l = [2 4 8 12 18];
 N_r = [3 6 12 18 24];
 
 %% convergence loop
-for i = 5
+for i = 1:nref
   N_i_l = N_l(i);
   N_i_r = N_r(i);
 
@@ -55,7 +55,7 @@ for i = 5
 
   % run script to get refined mesh
   fname = strcat('domain_',num2str(i));
-  command = "python Mesh/scripts/domain.py "  + fname...
+  command = "python Mesh/scripts/domain_curve.py "  + fname...
     + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + elem_type;
   system(command);
 
@@ -74,14 +74,14 @@ for i = 5
 
   % write mesh to domain file
   strDomain.Domain.Name = "Cube_"+integration_type+"_"+num2str(i);
-  strDomain.Domain.Geometry = fullfile(fname+".vtk");
+  strDomain.Domain.Geometry = fullfile('Mesh','meshes',fname+".vtk");
   domainFile = fullfile('Domains','domain1block.xml');
   writestruct(strDomain,domainFile);
 
   % write interface to file
   strInterf.Interface(1).Quadrature.typeAttribute = integration_type;
   strInterf.Interface(1).Quadrature.nGPAttribute = nG;
-  strInterf.Interface(1).Print.nameAttribute = "interf_"+integration_type+"_"+num2str(i);
+  %strInterf.Interface(1).Print.nameAttribute = "interf_"+integration_type+"_"+num2str(i);
   if strcmp(integration_type,'RBF')
     strInterf.Interface(1).Quadrature.nIntAttribute = nInt;
   end

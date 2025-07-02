@@ -305,8 +305,13 @@ classdef MeshGlue < Mortar
 
       assert(strcmp(obj.multiplierType,'dual'),['Mortar operator is avalilable' ...
         'with dual multipliers only']);
+      E = sparse(size(obj.Jslave{1},2),size(obj.Jmaster{1},2));
 
-      E = obj.Jmaster{1}./(1./diag(obj.Jslave{1}));
+      slavedof = obj.mesh.local2glob{2};
+      d = diag(obj.Jslave{1}(:,slavedof));
+      E(slavedof,:) = -obj.Jmaster{1}.*(1./d);
+      % expand E
+      
 
     end
 

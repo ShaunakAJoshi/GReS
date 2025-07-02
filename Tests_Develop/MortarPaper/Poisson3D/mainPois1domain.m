@@ -39,7 +39,7 @@ N_0_l = 4;
 N_0_r = 6;
 
 % number of refinement
-nref = 3;
+nref = 7;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
@@ -51,12 +51,12 @@ if strcmp(integration_type,'SegmentBased')
 end
 nInt = 5;
 
-N_l = [2 4 8 16 24 32 36];
+N_l = [4 8 16 24 32 36 40];
 
-N_r = [3 6 12 24 36 48 54];
+N_r = [6 12 24 36 48 54 60];
 
 %% convergence loop
-for i =1:nref
+for i = 6
   N_i_l = N_l(i);
   N_i_r = N_r(i);
 

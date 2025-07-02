@@ -1,5 +1,6 @@
 clear
 close all
+addpath(genpath(pwd))
 
 if exist("logConvAnalysis","file") == 2
   delete("logConvAnalysis")
@@ -37,18 +38,18 @@ N_0_l = 2;
 N_0_r = 3;
 
 % number of refinement
-nref = 2;
+nref = 7;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
 elem_type = "hexa27";                 % hexa,hexa27
-integration_type = ["SegmentBased", "RBF", "ElementBased"];    % SegmentBased (7 gp),ElementBased,RBF
+integration_type = ["SegmentBased","RBF","ElementBased"];    % SegmentBased (7 gp),ElementBased,RBF
 
 % add one more evenutally
 
-N_l = [4 8 16 24 32 36];
+N_l = [4 8 16 24 32 36 40];
 
-N_r = [6 12 24 36 48 54];
+N_r = [6 12 24 36 48 54 60];
 
 %% convergence loop
 
@@ -78,7 +79,7 @@ for i_t = integration_type
         N_i_l = N_l(i);
         N_i_r = N_r(i);
         fprintf('_____________________________________________________________________\n')
-        fprintf('Running mesh refinement %i \n',i);
+        fprintf('Running mesh refinement %i - %S %i GP \n',i,i_t,ngp);
         fprintf('_____________________________________________________________________\n')
 
         % run script to get refined mesh
@@ -86,6 +87,8 @@ for i_t = integration_type
         command = "python Mesh/scripts/domain_curve.py "  + fname...
           + " " + num2str(N_i_l) + " " + num2str(N_i_r) + " " + elem_type;
         %system(command);
+
+        %return
 
 %         continue
 
