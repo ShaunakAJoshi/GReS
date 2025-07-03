@@ -42,7 +42,7 @@ nref = 6;
 [h,L2,H1] = deal(zeros(nref,1));
 
 % study parameters
-elem_type = "hexa";                 % hexa,hexa27
+elem_type = "hexa27";                 % hexa,hexa27
 integration_type = ["SegmentBased","RBF","ElementBased"];    % SegmentBased (7 gp),ElementBased,RBF
 
 % add one more evenutally
