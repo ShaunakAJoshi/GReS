@@ -1,0 +1,4 @@
+Fluid                             % material model
+0        1    1              % specific weight, compressibility (beta) in kPa, dynamic viscosity (mu) in kPa*s
+End
+
