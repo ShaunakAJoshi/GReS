@@ -11,7 +11,7 @@ scriptDir = fileparts(scriptFullPath);
 cd(scriptDir);
 
 % Set physical models 
-model = ModelType(["SinglePhaseFlow_FVTPFA","Poromechanics_FEM"]);
+model = ModelType(["SinglePhaseFlow_FEM","Poromechanics_FEM"]);
 
 % Set parameters of the simulation
 fileName = "simParam.dat"; % NO MATERIAL PARAMETERS DEFINED HERE
@@ -34,7 +34,7 @@ mat = Materials(model,fileName);
 gaussOrder = 2;
 elems = Elements(topology,gaussOrder);
 
-%calling analytical solution script
+% Calling analytical solution script
 Terzaghi_analytical(topology, mat, 10)
 
 % Create an object of the "Faces" class and process the face properties
@@ -65,14 +65,13 @@ writeBCfiles('BCs/chemomech_cmax','SurfBC','Dir','SinglePhaseFlow','c_outer_bc',
 
 % Q1) How do I input the normal to the circular boundary in the boundary
 % conditions?
-% Q2) What are node and surf BCs? Understand the BC structure
 
 % Collect BC input file in a list
 % fileName = ["BCs/dirFlowTop.dat","BCs/neuPorotop.dat",...
 %    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
 fileName = ["BCs/chemomech_sigma.dat","BCs/chemomech_cmax.dat"];
 
-% Create an object of the "Boundaries" class 
+% Create an object of the "Boundaries" class
 bound = Boundaries(fileName,model,grid);
 
 % Create object handling construction of Jacobian and rhs of the model
