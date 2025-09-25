@@ -1,0 +1,7 @@
+SurfBC            % BC item 
+Neu            % BC type 
+Poromechanics            % Physics 
+NoExternalForce_4            % BC name 
+BCs/chemomech_sigma_4/list 
+0.000000 BCs/chemomech_sigma_4/time0.dat 
+End

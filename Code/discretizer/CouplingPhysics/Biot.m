@@ -34,7 +34,7 @@ classdef Biot < CouplingPhysics
            end
            % J{1}: momentum balance   J{2}: mass balance equations
            obj.J{1} = -obj.simParams.theta*obj.Q;
-           obj.J{2} = obj.Q'/dt;
+           obj.J{2} = obj.Q'/dt; % MULTIPLYING BY 0 TO ENSURE ONE WAY COUPLING
         end
 
 

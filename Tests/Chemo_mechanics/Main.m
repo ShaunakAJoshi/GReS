@@ -14,15 +14,15 @@ cd(scriptDir);
 model = ModelType(["SinglePhaseFlow_FEM","Poromechanics_FEM"]);
 
 % Set parameters of the simulation
-fileName = "simParam.dat"; % NO MATERIAL PARAMETERS DEFINED HERE
+fileName = "simParam.dat";
 simParam = SimulationParameters(fileName,model);
 
 % Create the Mesh object
 topology = Mesh();
 
 % Set the mesh input file name
-fileName = 'Mesh/Column_hexa.msh';
-% fileName = 'Mesh/2d_circle.msh';
+% fileName = 'Mesh/Column_hexa.msh';
+fileName = 'Mesh/3d_sphere.msh';
 % Import the mesh data into the Mesh object
 topology.importGMSHmesh(fileName);
 
@@ -31,7 +31,7 @@ fileName = 'materialsList.dat'; % NEED TO CHECK HOW MATERIALS ARE DEFINED
 mat = Materials(model,fileName);
 
 % Create an object of the "Elements" class and process the element properties
-gaussOrder = 2;
+gaussOrder = 1;
 elems = Elements(topology,gaussOrder);
 
 % Calling analytical solution script
@@ -52,7 +52,7 @@ printUtils = OutState(model,topology,'outTime.dat','folderName','Output_Terzaghi
 
 
 % Write BC files programmatically with function utility 
-F = -10; % vertical force
+F = 0; % -10; % vertical force
 % setTerzaghiBC('BCs',F,topology);
 
 % BC saying sigma_n (normal to circular boundary) = 0
@@ -63,13 +63,13 @@ writeBCfiles('BCs/chemomech_sigma','SurfBC','Neu',{'Poromechanics','x','y','z'},
 c_max = 2.95e5; % maximum concentration [mol.m-3]
 writeBCfiles('BCs/chemomech_cmax','SurfBC','Dir','SinglePhaseFlow','c_outer_bc',0,c_max,topology,2);
 
-% Q1) How do I input the normal to the circular boundary in the boundary
-% conditions?
-
 % Collect BC input file in a list
 % fileName = ["BCs/dirFlowTop.dat","BCs/neuPorotop.dat",...
 %    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
-fileName = ["BCs/chemomech_sigma.dat","BCs/chemomech_cmax.dat"];
+fileName = ["BCs/chemomech_sigma.dat", "BCs/chemomech_sigma_2.dat", ...
+    "BCs/chemomech_sigma_3.dat", "BCs/chemomech_sigma_4.dat", ...
+    "BCs/chemomech_cmax_1.dat", "BCs/chemomech_cmax_2.dat", ...
+    "BCs/chemomech_cmax_3.dat", "BCs/chemomech_cmax_4.dat"];
 
 % Create an object of the "Boundaries" class
 bound = Boundaries(fileName,model,grid);
@@ -88,7 +88,7 @@ domain = Discretizer('ModelType',model,...
 % manually, by directly modifying the entries of the state structure. 
 % In this example, we use a user defined function to apply Terzaghi initial
 % conditions to the state structure
-applyTerzaghiIC(domain.state,mat,topology,F);
+applyTerzaghiIC(domain.state,mat,topology,F); % Set F=0
 
 % Print model initial state
 printState(domain);
@@ -133,8 +133,8 @@ else
 end
 
 %Getting pressure and displacement solution for specified time from MatFILE
-press = printUtils.results.expPress;
-disp = printUtils.results.expDispl;
+press = horzcat(printUtils.results.expPress);
+disp = horzcat(printUtils.results.expDispl);
 pressplot = press(nodesP,2:end);
 dispplot = disp(3*nodesU,2:end);
 

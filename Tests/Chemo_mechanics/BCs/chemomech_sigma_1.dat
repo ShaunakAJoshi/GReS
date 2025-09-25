@@ -1,0 +1,7 @@
+SurfBC            % BC item 
+Dir            % BC type 
+Poromechanics            % Physics 
+Fixed_1            % BC name 
+BCs/chemomech_sigma_1/list 
+0.000000 BCs/chemomech_sigma_1/time0.dat 
+End
