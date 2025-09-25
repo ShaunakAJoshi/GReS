@@ -56,20 +56,18 @@ F = 0; % -10; % vertical force
 % setTerzaghiBC('BCs',F,topology);
 
 % BC saying sigma_n (normal to circular boundary) = 0
-writeBCfiles('BCs/chemomech_sigma','SurfBC','Neu',{'Poromechanics','x','y','z'},'NoExternalForce',0,0,topology,2);
+% writeBCfiles('BCs/chemomech_sigma','SurfBC','Neu',{'Poromechanics','x','y','z'},'NoExternalForce',0,0,topology,2);
 % The last number here is the physical surface tag in the mesh file
 
 % BC saying that concentration = c_max at the circular boundary
 c_max = 2.95e5; % maximum concentration [mol.m-3]
 writeBCfiles('BCs/chemomech_cmax','SurfBC','Dir','SinglePhaseFlow','c_outer_bc',0,c_max,topology,2);
+% writeBCfiles('BCs/chemomech_cmax','SurfBC','Neu','SinglePhaseFlow','c_outer_bc',0,-2,topology,2);
 
 % Collect BC input file in a list
 % fileName = ["BCs/dirFlowTop.dat","BCs/neuPorotop.dat",...
 %    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
-fileName = ["BCs/chemomech_sigma.dat", "BCs/chemomech_sigma_2.dat", ...
-    "BCs/chemomech_sigma_3.dat", "BCs/chemomech_sigma_4.dat", ...
-    "BCs/chemomech_cmax_1.dat", "BCs/chemomech_cmax_2.dat", ...
-    "BCs/chemomech_cmax_3.dat", "BCs/chemomech_cmax_4.dat"];
+fileName = ["BCs/chemomech_cmax.dat"];
 
 % Create an object of the "Boundaries" class
 bound = Boundaries(fileName,model,grid);
@@ -88,7 +86,7 @@ domain = Discretizer('ModelType',model,...
 % manually, by directly modifying the entries of the state structure. 
 % In this example, we use a user defined function to apply Terzaghi initial
 % conditions to the state structure
-applyTerzaghiIC(domain.state,mat,topology,F); % Set F=0
+applyChemoMechanicsIC(domain.state,mat,topology,F); % Set F=0
 
 % Print model initial state
 printState(domain);
