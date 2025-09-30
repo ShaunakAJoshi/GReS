@@ -1,17 +1,8 @@
 close all;
 clear;
 
-% Get the full path of the currently executing file
-scriptFullPath = mfilename('fullpath');
-
-% Extract the directory containing the script
-scriptDir = fileparts(scriptFullPath);
-
-% Change the current directory to the script's directory
-cd(scriptDir);
-
 % Set physical models 
-model = ModelType(["SinglePhaseFlow_FEM","Poromechanics_FEM"]);
+model = ModelType(["SinglePhaseFlow_FEM", "Poromechanics_FEM"]);
 
 % Set parameters of the simulation
 fileName = "simParam.dat";
@@ -21,52 +12,48 @@ simParam = SimulationParameters(fileName,model);
 topology = Mesh();
 
 % Set the mesh input file name
-% fileName = 'Mesh/Column_hexa.msh';
 fileName = 'Mesh/3d_sphere.msh';
 % Import the mesh data into the Mesh object
 topology.importGMSHmesh(fileName);
 
 % Create an object of the Materials class and read the materials file
-fileName = 'materialsList.dat'; % NEED TO CHECK HOW MATERIALS ARE DEFINED
+fileName = 'materialsList_nondimensional.dat';
 mat = Materials(model,fileName);
 
 % Create an object of the "Elements" class and process the element properties
 gaussOrder = 1;
 elems = Elements(topology,gaussOrder);
 
-% Calling analytical solution script
-Terzaghi_analytical(topology, mat, 10)
-
 % Create an object of the "Faces" class and process the face properties
 faces = Faces(model, topology);
-%
+
 % Wrap Mesh, Elements and Faces objects in a structure
 grid = struct('topology',topology,'cells',elems,'faces',faces);
-%
-% Degree of freedom manager 
-%fname = 'dof.dat';
+
+% Degree of freedom manager
 dofmanager = DoFManager(topology,model);
 
 % Create and set the print utility
-printUtils = OutState(model,topology,'outTime.dat','folderName','Output_Terzaghi_tetra','flagMatFile',true);
+printUtils = OutState(model, topology, 'outTime.dat', 'folderName', ...
+    'Output_chemomech_tetra', 'flagMatFile', true);
 
+% Write BC files programmatically with function utility
+% Fixing the particle center (ux=uy=uz=0)
+[~, zeroIndex] = min(sum(topology.coordinates.^2, 2)); % finds the point (0,0,0)
+writeBCfiles('BCs/chemomech_u_0', 'NodeBC', 'Dir', {'Poromechanics', ...
+    'x', 'y', 'z'}, 'Fixed center point', 0, 0, topology, zeroIndex);
+% Outer boundary condition is natural (normal stress = 0)
 
-% Write BC files programmatically with function utility 
-F = 0; % -10; % vertical force
-% setTerzaghiBC('BCs',F,topology);
-
-% BC saying sigma_n (normal to circular boundary) = 0
-% writeBCfiles('BCs/chemomech_sigma','SurfBC','Neu',{'Poromechanics','x','y','z'},'NoExternalForce',0,0,topology,2);
-% The last number here is the physical surface tag in the mesh file
-
-% BC saying that concentration = c_max at the circular boundary
+% Potentiostatic boundary condition (constant c)
 c_max = 2.95e5; % maximum concentration [mol.m-3]
-writeBCfiles('BCs/chemomech_cmax','SurfBC','Dir','SinglePhaseFlow','c_outer_bc',0,c_max,topology,2);
-% writeBCfiles('BCs/chemomech_cmax','SurfBC','Neu','SinglePhaseFlow','c_outer_bc',0,-2,topology,2);
+writeBCfiles('BCs/chemomech_cmax', 'SurfBC', 'Dir', 'SinglePhaseFlow', ...
+    'c_outer_bc', 0, 1, topology, 2); % 1 for nondimensional bc(=c_max)
+
+% Galvanostatic boundary condition (constant current)
+% writeBCfiles('BCs/chemomech_cmax', 'SurfBC', 'Neu', 'SinglePhaseFlow', ...
+%     'c_outer_bc', 0, -2, topology, 2);
 
 % Collect BC input file in a list
-% fileName = ["BCs/dirFlowTop.dat","BCs/neuPorotop.dat",...
-%    "BCs/dirPoroLatY.dat","BCs/dirPoroLatX.dat","BCs/dirPoroBottom.dat"];
 fileName = ["BCs/chemomech_cmax.dat"];
 
 % Create an object of the "Boundaries" class
@@ -81,12 +68,11 @@ domain = Discretizer('ModelType',model,...
                      'Materials',mat,...
                      'Grid',grid);
 
-
-% In this version of the code, the user can assign initial conditions only
-% manually, by directly modifying the entries of the state structure. 
-% In this example, we use a user defined function to apply Terzaghi initial
-% conditions to the state structure
-applyChemoMechanicsIC(domain.state,mat,topology,F); % Set F=0
+% Apply initial conditions
+c_in = 6195; % initial concentration value
+c_in_d = c_in / c_max; % nondimensional value of initial concentration
+domain.state.data.pressure = domain.state.data.pressure + c_in_d;
+% Initial displacements are zero by default - no need to change
 
 % Print model initial state
 printState(domain);
@@ -102,81 +88,3 @@ Solver = FCSolver(domain);
 %
 % Finalize the print utility
 domain.outstate.finalize()
-%
-%% POST PROCESSING
-
-image_dir = strcat(pwd,'/Images');
-if isfolder(image_dir)
-    rmdir(image_dir,"s")
-    mkdir Images
-else
-    mkdir Images
-end
-
-load("Terzaghi_Analytical.mat");
-%Post processing using MAT-FILE 
-% obtain vector contain list of nodes along vertical axis (with x,y=0)
-nodesU = find(topology.coordinates(:,1)+topology.coordinates(:,2)==0);
-[~,ind] = sort(topology.coordinates(nodesU,3));
-nodesU = nodesU(ind);
-
-
-% elem vector containing elements centroid along vertical axis
-if isFEMBased(model,'Flow')
-    nodesP = nodesU;
-else
-    nodesP = find(topology.cellCentroid(:,1) + topology.cellCentroid(:,2) < 0.51);
-    [~,ind] = sort(topology.cellCentroid(nodesP,3));
-    nodesP = nodesP(ind);
-end
-
-%Getting pressure and displacement solution for specified time from MatFILE
-press = horzcat(printUtils.results.expPress);
-disp = horzcat(printUtils.results.expDispl);
-pressplot = press(nodesP,2:end);
-dispplot = disp(3*nodesU,2:end);
-
-H = max(topology.coordinates(:,3));
-p0 = max(press(:,1));
-
-
-%Plotting solution
-if isFVTPFABased(model,'Flow')
-    ptsY = topology.cellCentroid(nodesP,3);
-else
-    ptsY = topology.coordinates(nodesP,3);
-end
-figure(1)
-plotObj1 = plot(pressplot/p0,ptsY/H,'k.', 'LineWidth', 1, 'MarkerSize', 15);
-hold on
-plotObj2 = plot(p/p0,z/H,'k-', 'LineWidth', 1);
-grid on
-xlabel('p/p_0')
-ylabel('z/H')
-legend([plotObj1(1),plotObj2(1)],{'Numerical','Analytical'}, 'Location', 'northeast');
-%title('h = 0.5 m \Delta t = 0.1 s \theta = 1.0')
-axis tight
-xlim([0 1.02])
-set(findall(gcf, 'type', 'text'), 'FontName', 'Liberation Serif','FontSize', 14);
-a = get(gca,'XTickLabel');
-set(gca,'XTickLabel',a,'FontName', 'Liberation Serif','FontSize', 10)
-% export figure with quality
-stmp = strcat('Images\', 'Terzaghi_pressure', '.png');
-exportgraphics(gcf,stmp,'Resolution',400)
-
-figure(2)
-plotObj1 = plot(-dispplot/H,topology.coordinates(nodesU,3)/H,'k.', 'LineWidth', 1, 'MarkerSize', 15);
-hold on
-plotObj2 = plot(u/H,z/H,'k-',  'LineWidth', 1);
-grid on
-xlabel('u_z/H')
-ylabel('z/H')
-%title('h = 0.5 m \Delta t = 0.1 s \theta = 1.0')
-legend([plotObj1(1),plotObj2(1)],{'Numerical','Analytical'}, 'Location', 'southeast');
-
-set(findall(gcf, 'type', 'text'), 'FontName', 'Liberation Serif', 'FontSize', 14);
-a = get(gca,'XTickLabel');
-set(gca,'XTickLabel',a,'FontName', 'Liberation Serif', 'FontSize', 10)
-% export figure with quality
-stmp = strcat('Images\', 'Terzaghi_disp', '.png');
-exportgraphics(gcf,stmp,'Resolution',400)

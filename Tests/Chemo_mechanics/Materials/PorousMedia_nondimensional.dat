@@ -1,11 +1,11 @@
 Elastic                            % material model
-168e9     0.22                     % E [kPa], nu
+1     0.22                         % E [kPa], nu
 
 PorousRock                         % material model
-1      0  1139300                  % porosity, specific gravity USELESS (was 21 originally, not important in our equations), biot coefficient (alpha in the equations equivalent to Omega*E/3 here))
-1.0e-16     0      0               % intrinsic permeability matrix (upper part) 
-       1.0e-16     0
-              1.0e-16
+1      0  -2.0004                   % porosity, specific gravity USELESS (was 21 originally, not important in our equations), biot coefficient (alpha in the equations equivalent to Omega*E/(3(1-2*nu)) here)
+1.0     0      0                   % intrinsic permeability matrix (upper part) 
+       1.0     0
+              1.0
 End
 
 % 1) Porosity = 1 ensures that the domain is solid throughout in the equations

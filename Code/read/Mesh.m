@@ -62,6 +62,11 @@ classdef Mesh < handle
     edgeVTKType
     %
     meshType = 'Unstructured'
+
+    % Added by Shaunak - STARTS HERE
+    nCenterPoint
+    CenterPointRegion;
+    % Added by Shaunak - ENDS HERE
   end
 
   properties (Access = private)
@@ -167,6 +172,14 @@ classdef Mesh < handle
       for i = 1 : nRegions
         dims(i) = regions(i).dim;
       end
+
+      % Added by Shaunak - STARTS HERE
+      ID = find(dims == 0);
+      for i = 1 : length(ID)
+          obj.CenterPointRegion = setfield(obj.CenterPointRegion, regions(ID(i)).name, regions(ID(i)).ID);
+      end
+      % Added by Shaunak - ENDS HERE
+
       ID = find(dims == 2);
       for i = 1 : length(ID)
         obj.surfaceRegions = setfield(obj.surfaceRegions, regions(ID(i)).name, regions(ID(i)).ID);

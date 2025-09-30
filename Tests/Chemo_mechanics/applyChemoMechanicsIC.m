@@ -1,4 +1,4 @@
-function applyChemoMechanicsIC(state,mat,mesh,pL)
+function applyChemoMechanicsIC(state,mat,mesh)
 % Apply initial conditions for Terzaghi problem
 
 % Get Material parameters from materials class

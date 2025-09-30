@@ -105,8 +105,13 @@ classdef SinglePhaseFlow < SinglePhysics
       end
       if obj.simParams.isTimeDependent
         obj.J = obj.simParams.theta*obj.H + obj.P/dt;
+        % disp(['The Frobenius norm of theta*H term is ', ...
+        %     num2str(norm(obj.simParams.theta*obj.H, 'fro'))]);
+        % disp(['The Frobenius norm of P/dt term is ', ...
+        %     num2str(norm(obj.P/dt, 'fro'))]);
       else
         obj.J = obj.H;
+        % disp(['The Frobenius norm of B is ', num2str(norm(obj.J, 'fro'))]);
       end
     end
 
