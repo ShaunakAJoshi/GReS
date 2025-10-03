@@ -1,7 +1,0 @@
-NodeBC            % BC item 
-Dir            % BC type 
-SinglePhaseFlow            % Physics 
-Fixed center point            % BC name 
-BCs/chemomech_J_0/list 
-0.000000 BCs/chemomech_J_0/time0.dat 
-End

@@ -181,7 +181,7 @@ classdef Poromechanics < SinglePhysics
         B = zeros(6,elem.nNode*obj.mesh.nDim,nG);
         B(elem.indB(:,2)) = N(elem.indB(:,1));
         obj.state.data.curr.strain((l+1):(l+nG),:) = ...
-          reshape(pagemtimes(B,du(dof)),6,nG)';
+          reshape(pagemtimes(B,du(dof)),6,nG)' - strainChemo;
         l = l + nG;
       end
     end

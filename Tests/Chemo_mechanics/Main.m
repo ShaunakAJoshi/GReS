@@ -39,9 +39,9 @@ printUtils = OutState(model, topology, 'outTime.dat', 'folderName', ...
 
 % Write BC files programmatically with function utility
 % Fixing the particle center (ux=uy=uz=0)
-[~, zeroIndex] = min(sum(topology.coordinates.^2, 2)); % finds the point (0,0,0)
+[~, zeroIndex] = min(sum(topology.coordinates(2:end,:).^2, 2)); % finds the point (0,0,0)
 writeBCfiles('BCs/chemomech_u_0', 'NodeBC', 'Dir', {'Poromechanics', ...
-    'x', 'y', 'z'}, 'Fixed center point', 0, 0, topology, zeroIndex);
+    'x', 'y', 'z'}, 'Fixed center point', 0, 0, zeroIndex+1);
 % Outer boundary condition is natural (normal stress = 0)
 
 % Potentiostatic boundary condition (constant c)
@@ -54,7 +54,7 @@ writeBCfiles('BCs/chemomech_cmax', 'SurfBC', 'Dir', 'SinglePhaseFlow', ...
 %     'c_outer_bc', 0, -2, topology, 2);
 
 % Collect BC input file in a list
-fileName = ["BCs/chemomech_cmax.dat"];
+fileName = ["BCs/chemomech_cmax.dat", "BCs/chemomech_u_0.dat"];
 
 % Create an object of the "Boundaries" class
 bound = Boundaries(fileName,model,grid);
