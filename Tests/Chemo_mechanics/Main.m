@@ -1,5 +1,14 @@
 close all;
 clear;
+tic;
+% Set some model parameters not included in the parameters file
+c_max = 2.29e4;                     % maximum concentration [mol.m-3]
+D = 7.08e-15;                        % diffusion coefficient [m2.s-1]
+F = 96485;                          % Faraday constant [C.mol-1]
+Rp = 5e-6;                          % particle radius [m]
+Crate = 1;                          % C-rate for charge
+i_n = F*Crate/3600 * c_max * Rp/3;  % Normal current density [A.m-2]
+I = i_n*Rp / (D*c_max*F);           % Nondimensional normal current density
 
 % Set physical models 
 model = ModelType(["SinglePhaseFlow_FEM", "Poromechanics_FEM"]);
@@ -17,7 +26,7 @@ fileName = 'Mesh/3d_sphere.msh';
 topology.importGMSHmesh(fileName);
 
 % Create an object of the Materials class and read the materials file
-fileName = 'materialsList_nondimensional.dat';
+fileName = 'materialsList_Zhang2007.dat';
 mat = Materials(model,fileName);
 
 % Create an object of the "Elements" class and process the element properties
@@ -39,22 +48,23 @@ printUtils = OutState(model, topology, 'outTime.dat', 'folderName', ...
 
 % Write BC files programmatically with function utility
 % Fixing the particle center (ux=uy=uz=0)
-[~, zeroIndex] = min(sum(topology.coordinates(2:end,:).^2, 2)); % finds the point (0,0,0)
+r = sqrt(sum(topology.coordinates.^2, 2)); % distance of each node from origin
+r0 = 0.12 * max(r); % threshold constraint (e.g., 5% of sphere radius)
+constrainIndices = find(r < r0); % all nodes within that small sphere
 writeBCfiles('BCs/chemomech_u_0', 'NodeBC', 'Dir', {'Poromechanics', ...
-    'x', 'y', 'z'}, 'Fixed center point', 0, 0, zeroIndex+1);
+    'x', 'y', 'z'}, 'Fixed center point', 0, 0, constrainIndices);
 % Outer boundary condition is natural (normal stress = 0)
 
 % Potentiostatic boundary condition (constant c)
-c_max = 2.95e5; % maximum concentration [mol.m-3]
 writeBCfiles('BCs/chemomech_cmax', 'SurfBC', 'Dir', 'SinglePhaseFlow', ...
     'c_outer_bc', 0, 1, topology, 2); % 1 for nondimensional bc(=c_max)
 
-% Galvanostatic boundary condition (constant current)
-% writeBCfiles('BCs/chemomech_cmax', 'SurfBC', 'Neu', 'SinglePhaseFlow', ...
-%     'c_outer_bc', 0, -2, topology, 2);
+% Galvanostatic boundary condition (constant I)
+writeBCfiles('BCs/chemomech_gal', 'SurfBC', 'Neu', 'SinglePhaseFlow', ...
+    'c_outer_bc', 0, I, topology, 2);
 
 % Collect BC input file in a list
-fileName = ["BCs/chemomech_cmax.dat", "BCs/chemomech_u_0.dat"];
+fileName = ["BCs/chemomech_gal.dat", "BCs/chemomech_u_0.dat"];
 
 % Create an object of the "Boundaries" class
 bound = Boundaries(fileName,model,grid);
@@ -88,3 +98,4 @@ Solver = FCSolver(domain);
 %
 % Finalize the print utility
 domain.outstate.finalize()
+toc;

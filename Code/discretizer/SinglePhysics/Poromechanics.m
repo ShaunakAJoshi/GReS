@@ -174,12 +174,22 @@ classdef Poromechanics < SinglePhysics
       l = 0;
       for el=1:obj.mesh.nCells
         dof = getDoFID(obj.mesh,el);
+        top = obj.mesh.cells(el,1:obj.mesh.cellNumVerts(el));
         vtkId = obj.mesh.cellVTKType(el);
         elem = getElement(obj.elements,vtkId);
         nG = elem.GaussPts.nNode;
         N = getDerBasisFAndDet(elem,el,2);
         B = zeros(6,elem.nNode*obj.mesh.nDim,nG);
         B(elem.indB(:,2)) = N(elem.indB(:,1));
+        Omega_d = 0.0800813; % 3.36064 for Si; % NEED TO DEFINE THIS BEFORE, NOT HERE
+        % strainChemo = Omega_d/3*reshape(pagemtimes(B, ...
+        %     obj.state.data.pressure(dof_pressure)),6,nG)';
+        p_gp = N * obj.state.data.pressure(top);  % pressure at Gauss points (nGx1)
+        % Construct isotropic chemomechanical strain at each Gauss point
+        strainChemo = zeros(nG,6);
+        for ig = 1:nG
+            strainChemo(ig,:) = (Omega_d/3) * p_gp(ig) * [1 1 1 0 0 0];
+        end
         obj.state.data.curr.strain((l+1):(l+nG),:) = ...
           reshape(pagemtimes(B,du(dof)),6,nG)' - strainChemo;
         l = l + nG;
